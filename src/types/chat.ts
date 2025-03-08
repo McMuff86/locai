@@ -5,6 +5,8 @@ export interface Message {
   role: MessageRole;
   content: string;
   timestamp: Date;
+  modelName?: string;
+  isLoaded?: boolean;
 }
 
 export interface Conversation {

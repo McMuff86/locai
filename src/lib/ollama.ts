@@ -1,4 +1,11 @@
 // Ollama API functions
+import { 
+  formatSystemMessage, 
+  formatUserMessage, 
+  formatAssistantMessage,
+  getDefaultSystemContent,
+  getOllamaTemplate
+} from './templates';
 
 // Base URL for the Ollama API
 const OLLAMA_API_URL = 'http://localhost:11434/api';
@@ -37,6 +44,7 @@ export interface OllamaChatRequest {
     top_k?: number;
     num_predict?: number;
   };
+  template?: string; // Optional template parameter for Ollama
 }
 
 // Interface for chat responses
@@ -69,6 +77,29 @@ export async function getOllamaModels(): Promise<OllamaModel[]> {
 }
 
 /**
+ * Get the default system content for a model
+ */
+export function getModelSystemContent(modelName: string): string {
+  return getDefaultSystemContent(modelName);
+}
+
+/**
+ * Format a message based on the model and role
+ */
+export function formatMessage(modelName: string, role: 'system' | 'user' | 'assistant', content: string): string {
+  switch (role) {
+    case 'system':
+      return formatSystemMessage(modelName, content);
+    case 'user':
+      return formatUserMessage(modelName, content);
+    case 'assistant':
+      return formatAssistantMessage(modelName, content);
+    default:
+      return content;
+  }
+}
+
+/**
  * Sends a chat request to an Ollama model
  */
 export async function sendChatMessage(
@@ -77,15 +108,27 @@ export async function sendChatMessage(
   options = {}
 ): Promise<string> {
   try {
+    // Get model-specific template if available
+    const modelTemplate = getOllamaTemplate(model);
+    
     const chatRequest: OllamaChatRequest = {
       model,
-      messages,
+      messages: messages.map(msg => ({
+        role: msg.role,
+        content: msg.content
+      })),
       stream: false,
       options: {
         temperature: 0.7,
         ...options
       }
     };
+    
+    // Add template if available for the model
+    if (modelTemplate) {
+      console.log(`Using custom template for model: ${model}`);
+      chatRequest.template = modelTemplate;
+    }
     
     const response = await fetch(`${OLLAMA_API_URL}/chat`, {
       method: 'POST',
