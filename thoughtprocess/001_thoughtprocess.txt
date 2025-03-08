@@ -1,0 +1,14 @@
+Date: 2025-03-08
+Description: Next.js project initialization and basic structure setup
+Decisions:
+- Selected Next.js 14 with TypeScript, Tailwind CSS, and App Router as foundation
+- Implemented shadcn/ui for reusable UI components
+- Added Framer Motion for animations
+- Created project structure according to README requirements
+- Added README files for all subdirectories for better documentation
+
+Next Steps:
+- Add basic UI components (Button, Input, etc.)
+- Implement chat layout and main page
+- Create chat components (message container, input)
+- Prepare integration with Ollama for local AI models 
