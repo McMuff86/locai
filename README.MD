@@ -114,7 +114,7 @@ Beiträge zum Projekt sind willkommen! Beachte bitte die folgenden Schritte:
 Dieses Projekt ist unter der MIT-Lizenz lizenziert - siehe die LICENSE-Datei für Details.
 
 Creator:
-'''plaintext
+```plaintext
 -+=--+=--+=--+=--+=--+=--+=--+=--+=--+=--+=--+=--+=--+=--+=--+=-
   ##     ##            ###       ###  ##    ##   ########  ########
   ###   ###            ####     ####  ##    ##   ########  ########     
@@ -126,7 +126,7 @@ Creator:
   ##     ##   ##       ##         ##  ##    ##   ##        ##     
   ##     ##    #####   ##         ##  ########   ##        ##     
 -+=--+=--+=--+=--+=--+=--+=--+=--+=--+=--+=--+=--+=--+=--+=--+=-
-'''
+```
 ---
 
 ## 🙏 Danksagungen
