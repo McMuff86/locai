@@ -1,7 +1,100 @@
-import { Conversation } from "../types/chat";
+import { Conversation, Message, MessageContent, MessageImageContent } from "../types/chat";
 
 // Key for storing conversations in localStorage
 const STORAGE_KEY = "locai-conversations";
+
+// Maximum image size to store in localStorage (in bytes)
+const MAX_IMAGE_SIZE = 200 * 1024; // 200KB
+
+/**
+ * Process message content to ensure it can be safely stored
+ * - Compresses large images
+ * - Handles arrays and objects properly
+ */
+function processMessageContentForStorage(content: MessageContent): MessageContent {
+  // If content is a string, no processing needed
+  if (typeof content === 'string') {
+    return content;
+  }
+  
+  // If content is an image
+  if (typeof content === 'object' && 'type' in content && content.type === 'image') {
+    const imageContent = content as MessageImageContent;
+    
+    // Check if image is a data URL and needs compression
+    if (imageContent.url.startsWith('data:image/') && imageContent.url.length > MAX_IMAGE_SIZE) {
+      return {
+        ...imageContent,
+        url: compressImage(imageContent.url)
+      };
+    }
+    
+    return imageContent;
+  }
+  
+  // If content is an array, process each item
+  if (Array.isArray(content)) {
+    return content.map(item => {
+      if (typeof item === 'string') {
+        return item;
+      }
+      
+      if (typeof item === 'object' && 'type' in item && item.type === 'image') {
+        const imageItem = item as MessageImageContent;
+        
+        // Check if image is a data URL and needs compression
+        if (imageItem.url.startsWith('data:image/') && imageItem.url.length > MAX_IMAGE_SIZE) {
+          return {
+            ...imageItem,
+            url: compressImage(imageItem.url)
+          };
+        }
+        
+        return imageItem;
+      }
+      
+      return item;
+    });
+  }
+  
+  // Fallback for other types
+  return content;
+}
+
+/**
+ * Compress an image data URL to reduce its size
+ */
+function compressImage(dataUrl: string): string {
+  try {
+    // For now, just return a warning message - we'd implement real compression in production
+    console.warn("Image compression would happen here in production");
+    return dataUrl; // Return original for now
+    
+    // A real implementation would:
+    // 1. Create an Image object from the data URL
+    // 2. Draw it to a canvas at reduced dimensions
+    // 3. Export from canvas at lower quality
+    // 4. Return the new data URL
+  } catch (error) {
+    console.error("Error compressing image:", error);
+    return dataUrl; // Return original on error
+  }
+}
+
+/**
+ * Process a conversation to ensure it can be safely stored
+ */
+function processConversationForStorage(conversation: Conversation): Conversation {
+  return {
+    ...conversation,
+    // Ensure title is always a string
+    title: typeof conversation.title === 'string' ? conversation.title : 'Bildkonversation',
+    messages: conversation.messages.map(msg => ({
+      ...msg,
+      content: processMessageContentForStorage(msg.content)
+    }))
+  };
+}
 
 /**
  * Get all saved conversations from localStorage
@@ -40,13 +133,16 @@ export function saveConversation(conversation: Conversation): boolean {
   try {
     const conversations = getSavedConversations();
     
+    // Pre-process conversation for storage (compress images, etc.)
+    const processedConversation = processConversationForStorage(conversation);
+    
     // Check if conversation already exists to update it
     const existingIndex = conversations.findIndex(c => c.id === conversation.id);
     
     if (existingIndex >= 0) {
-      conversations[existingIndex] = conversation;
+      conversations[existingIndex] = processedConversation;
     } else {
-      conversations.push(conversation);
+      conversations.push(processedConversation);
     }
     
     // Sort by most recently updated

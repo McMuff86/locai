@@ -1,8 +1,8 @@
 import React from 'react';
-import { Conversation } from '../../types/chat';
+import { Conversation, MessageContent, MessageImageContent } from '../../types/chat';
 import { Button } from '../ui/button';
 import { ScrollArea } from '../ui/scroll-area';
-import { Trash2, MessageSquare, PlusCircle, Download, Upload, Trash } from 'lucide-react';
+import { Trash2, MessageSquare, PlusCircle, Download, Upload, Trash, Image } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 
 interface ConversationSidebarProps {
@@ -28,6 +28,35 @@ export function ConversationSidebar({
   onClearAllConversations,
   className = ''
 }: ConversationSidebarProps) {
+  // Helper function to extract preview text from message content
+  const getTextFromContent = (content: MessageContent): string => {
+    // If content is a string, use it directly
+    if (typeof content === 'string') {
+      return content;
+    }
+    
+    // If content is an image
+    if (typeof content === 'object' && 'type' in content && content.type === 'image') {
+      return '[Bild]';
+    }
+    
+    // If content is an array, extract text from first string item
+    if (Array.isArray(content)) {
+      const textItem = content.find(item => typeof item === 'string');
+      if (textItem && typeof textItem === 'string') {
+        return textItem;
+      }
+      
+      // If no text items, return placeholder for images
+      if (content.some(item => typeof item === 'object' && 'type' in item && item.type === 'image')) {
+        return '[Bild]';
+      }
+    }
+    
+    // Fallback
+    return 'Inhalt';
+  };
+  
   // Function to get conversation summary/preview
   const getConversationPreview = (conversation: Conversation): string => {
     // Get the last user message or fallback to system message
@@ -36,13 +65,33 @@ export function ConversationSidebar({
       .find(msg => msg.role === 'user');
       
     if (lastUserMessage) {
-      return lastUserMessage.content.length > 60 
-        ? `${lastUserMessage.content.substring(0, 60)}...` 
-        : lastUserMessage.content;
+      const previewText = getTextFromContent(lastUserMessage.content);
+      return previewText.length > 60 
+        ? `${previewText.substring(0, 60)}...` 
+        : previewText;
     }
     
     // Fallback to conversation title
-    return conversation.title;
+    return typeof conversation.title === 'string' 
+      ? conversation.title 
+      : 'Konversation';
+  };
+  
+  // Function to check if a conversation contains images
+  const hasImages = (conversation: Conversation): boolean => {
+    return conversation.messages.some(msg => {
+      const content = msg.content;
+      
+      if (typeof content === 'object' && 'type' in content && content.type === 'image') {
+        return true;
+      }
+      
+      if (Array.isArray(content)) {
+        return content.some(item => typeof item === 'object' && 'type' in item && item.type === 'image');
+      }
+      
+      return false;
+    });
   };
   
   return (
@@ -123,8 +172,9 @@ export function ConversationSidebar({
               >
                 <div className="flex items-start justify-between gap-2">
                   <div className="flex-1 min-w-0">
-                    <div className="font-medium text-sm truncate">
-                      {conversation.title}
+                    <div className="font-medium text-sm truncate flex items-center gap-1">
+                      {hasImages(conversation) && <Image className="h-3 w-3 mr-1 text-muted-foreground" />}
+                      {typeof conversation.title === 'string' ? conversation.title : 'Bildkonversation'}
                     </div>
                     <div className="text-xs text-muted-foreground truncate mt-1">
                       {getConversationPreview(conversation)}

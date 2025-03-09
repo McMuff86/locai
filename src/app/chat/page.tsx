@@ -4,7 +4,7 @@ import React, { useState, useEffect } from "react";
 import { v4 as uuidv4 } from "uuid";
 import { ChatContainer } from "../../components/chat/ChatContainer";
 import { ChatInput } from "../../components/chat/ChatInput";
-import { Conversation, Message } from "../../types/chat";
+import { Conversation, Message, MessageContent, MessageImageContent } from "../../types/chat";
 import { getOllamaModels, sendChatMessage, OllamaModel, getModelSystemContent } from "../../lib/ollama";
 import { Button } from "../../components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardFooter, CardDescription } from "../../components/ui/card";
@@ -124,6 +124,32 @@ export default function ChatPage() {
     }
   }, [selectedModel]);
 
+  // Check for vision model availability during startup
+  useEffect(() => {
+    const checkVisionModelAvailability = async () => {
+      try {
+        const availableModels = await getOllamaModels();
+        const hasVisionModel = availableModels.some(model => 
+          model.name.toLowerCase().includes('vision')
+        );
+        
+        if (!hasVisionModel) {
+          // Show a toast indicating that users might want to install a vision model
+          toast({
+            title: "Vision-Modell nicht gefunden",
+            description: "Um Bilder analysieren zu können, führen Sie bitte 'ollama pull llama3.2-vision' aus.",
+            variant: "default",
+            duration: 10000,
+          });
+        }
+      } catch (error) {
+        console.error("Error checking for vision models:", error);
+      }
+    };
+    
+    checkVisionModelAvailability();
+  }, [toast]);
+
   // Save the current conversation
   const handleSaveConversation = () => {
     // Don't save empty conversations
@@ -136,23 +162,43 @@ export default function ChatPage() {
       return;
     }
     
+    // Create a copy of the conversation to save
+    const conversationToSave = {
+      ...conversation,
+      updatedAt: new Date() // Update timestamp
+    };
+    
     // Generate a title from the first user message if title is default
     if (conversation.title === "New Conversation" || conversation.title === `Chat with ${selectedModel}`) {
       const firstUserMessage = conversation.messages.find(msg => msg.role === 'user');
       if (firstUserMessage) {
-        const title = firstUserMessage.content.length > 30 
-          ? `${firstUserMessage.content.substring(0, 30)}...` 
-          : firstUserMessage.content;
-          
-        conversation.title = title;
+        let title = "Neue Konversation";
+        const content = firstUserMessage.content;
+        
+        if (typeof content === 'string') {
+          // Text content
+          title = content.length > 30 ? `${content.substring(0, 30)}...` : content;
+        } else if (Array.isArray(content) && content.length > 0) {
+          // Mixed content array
+          // Try to find first text item
+          const firstText = content.find(item => typeof item === 'string');
+          if (firstText && typeof firstText === 'string') {
+            title = firstText.length > 30 ? `${firstText.substring(0, 30)}...` : firstText;
+          } else {
+            // If no text, indicate it's an image conversation
+            title = "Bildanalyse-Konversation";
+          }
+        } else if (typeof content === 'object' && (content as any).type === 'image') {
+          // Single image content
+          title = "Bildanalyse-Konversation";
+        }
+        
+        conversationToSave.title = title;
       }
     }
     
-    // Update timestamp
-    conversation.updatedAt = new Date();
-    
     // Save and update the list
-    if (saveConversation(conversation)) {
+    if (saveConversation(conversationToSave)) {
       setSavedConversations(getSavedConversations());
       toast({
         title: "Conversation saved",
@@ -198,7 +244,7 @@ export default function ChatPage() {
 
   // Load a conversation
   const handleSelectConversation = (selectedConversation: Conversation) => {
-    // Mark all messages as loaded
+    // Make sure to create a deep copy of the loaded conversation to avoid reference issues
     const loadedConversation = {
       ...selectedConversation,
       messages: selectedConversation.messages.map(msg => ({
@@ -217,19 +263,27 @@ export default function ChatPage() {
       
       // Also set the appropriate prompt template
       const defaultSystemContent = getModelSystemContent(systemMsg.modelName);
-      if (systemMsg.content !== defaultSystemContent) {
-        setCustomPrompt(systemMsg.content);
-        setIsEditingPrompt(true);
+      
+      // Only set custom prompt if the content is a string
+      if (typeof systemMsg.content === 'string') {
+        if (systemMsg.content !== defaultSystemContent) {
+          setCustomPrompt(systemMsg.content);
+          setIsEditingPrompt(true);
+        } else {
+          setCustomPrompt(defaultSystemContent);
+          setIsEditingPrompt(false);
+        }
       } else {
+        // If the content is not a string (e.g., contains images), just use the default prompt
         setCustomPrompt(defaultSystemContent);
         setIsEditingPrompt(false);
       }
     }
     
-    // Show toast confirmation
+    // Show toast confirmation when loading a conversation
     toast({
       title: "Konversation geladen",
-      description: `"${loadedConversation.title}" wurde erfolgreich geladen.`,
+      description: `"${typeof loadedConversation.title === 'string' ? loadedConversation.title : 'Bildkonversation'}" wurde erfolgreich geladen.`,
     });
   };
 
@@ -249,12 +303,12 @@ export default function ChatPage() {
     }
   };
 
-  // Starting a new conversation with a model
+  // Function to set up a new conversation
   const startConversation = () => {
     if (!selectedModel) return;
 
     // Determine which system prompt to use based on the active tab
-    let systemContent;
+    let systemContent: string;
     switch (activeTab) {
       case "image":
         systemContent = imagePrompt;
@@ -297,7 +351,8 @@ export default function ChatPage() {
       id: uuidv4(),
       role: "system",
       content: `Switching to model: ${newModel}. Previous context is maintained, but response style may change based on the new model's capabilities.`,
-      timestamp: new Date()
+      timestamp: new Date(),
+      modelName: newModel
     };
     
     setConversation(prev => ({
@@ -311,15 +366,80 @@ export default function ChatPage() {
   };
 
   // Send chat message
-  const handleSendMessage = async (content: string) => {
-    if (!selectedModel || !content.trim()) return;
+  const handleSendMessage = async (content: string, images?: File[]) => {
+    if (!selectedModel || (!content.trim() && (!images || images.length === 0))) return;
+
+    // Check if we need to switch to a vision model
+    let currentModel = selectedModel;
+    if (images && images.length > 0) {
+      // We need a vision model for images
+      const isCurrentlyVisionModel = currentModel.toLowerCase().includes('vision');
+      
+      if (!isCurrentlyVisionModel) {
+        // Find vision models
+        const visionModels = models.filter(m => 
+          m.name.toLowerCase().includes('vision')
+        );
+        
+        if (visionModels.length > 0) {
+          // Switch to the first available vision model
+          currentModel = visionModels[0].name;
+          
+          toast({
+            title: "Verwende Vision-Modell",
+            description: `Bilder werden mit ${currentModel} analysiert`,
+          });
+          
+          // Update the selected model for future messages
+          setSelectedModel(currentModel);
+        } else {
+          toast({
+            title: "Warnung",
+            description: "Kein Vision-Modell verfügbar. Bilder können möglicherweise nicht korrekt verarbeitet werden.",
+            variant: "destructive"
+          });
+        }
+      }
+    }
+
+    // Process images if any
+    let messageContent: MessageContent = content;
+    
+    if (images && images.length > 0) {
+      // Convert images to data URLs
+      const imageContents: MessageImageContent[] = await Promise.all(
+        images.map(async (file) => {
+          return new Promise<MessageImageContent>((resolve) => {
+            const reader = new FileReader();
+            reader.onload = (e) => {
+              if (e.target?.result) {
+                resolve({
+                  type: 'image',
+                  url: e.target.result as string,
+                  alt: file.name
+                });
+              }
+            };
+            reader.readAsDataURL(file);
+          });
+        })
+      );
+      
+      // If there's also text content, add it as well
+      if (content.trim()) {
+        messageContent = [content, ...imageContents] as MessageContent;
+      } else {
+        messageContent = imageContents as unknown as MessageContent;
+      }
+    }
 
     // Create user message
     const userMessage: Message = {
       id: uuidv4(),
       role: "user",
-      content,
-      timestamp: new Date()
+      content: messageContent,
+      timestamp: new Date(),
+      modelName: currentModel
     };
 
     // Update conversation
@@ -342,11 +462,11 @@ export default function ChatPage() {
       // Add the new user message
       apiMessages.push({
         role: 'user',
-        content
+        content: messageContent
       });
 
-      // Send chat request to Ollama
-      let responseContent = await sendChatMessage(selectedModel, apiMessages);
+      // Send chat request to Ollama using the potentially updated model
+      let responseContent = await sendChatMessage(currentModel, apiMessages);
       
       // For testing/demo purposes only: Add thinking process tags if not present and content contains a question mark
       // In a real scenario, these tags would come from models that naturally include reasoning steps
@@ -371,7 +491,7 @@ Let me think through this step-by-step:
         role: "assistant",
         content: responseContent,
         timestamp: new Date(),
-        modelName: selectedModel
+        modelName: currentModel
       };
 
       // Update conversation with bot response
@@ -389,7 +509,7 @@ Let me think through this step-by-step:
         role: "assistant",
         content: "An error occurred. Please try again later.",
         timestamp: new Date(),
-        modelName: selectedModel
+        modelName: currentModel
       };
       
       setConversation(prev => ({
@@ -552,7 +672,7 @@ Let me think through this step-by-step:
                       key={conv.id}
                       onClick={() => handleSelectConversation(conv)}
                     >
-                      {conv.title}
+                      {typeof conv.title === 'string' ? conv.title : 'Bildkonversation'}
                     </DropdownMenuItem>
                   ))
                 )}
@@ -641,7 +761,7 @@ Let me think through this step-by-step:
                       key={conv.id}
                       onClick={() => handleSelectConversation(conv)}
                     >
-                      {conv.title}
+                      {typeof conv.title === 'string' ? conv.title : 'Bildkonversation'}
                     </DropdownMenuItem>
                   ))
                 )}
@@ -691,54 +811,54 @@ Let me think through this step-by-step:
             <ThemeToggle />
           </div>
         </div>
-        
-        <main className="flex-1 flex flex-col overflow-hidden">
+      
+      <main className="flex-1 flex flex-col overflow-hidden">
           {/* Model selection and system prompt setup if no conversation started */}
-          {conversation.messages.length === 0 ? (
-            <div className="flex-1 flex items-center justify-center p-4">
+        {conversation.messages.length === 0 ? (
+          <div className="flex-1 flex items-center justify-center p-4">
               <Card className="w-full max-w-3xl">
-                <CardHeader>
+              <CardHeader>
                   <CardTitle>Setup Your AI Assistant</CardTitle>
                   <CardDescription>
                     Select a model and customize how it should behave
                   </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  {isModelLoading ? (
-                    <div className="text-center p-4">
-                      <div className="animate-pulse flex space-x-2 justify-center mb-4">
-                        <div className="h-3 w-3 bg-gray-400 rounded-full"></div>
-                        <div className="h-3 w-3 bg-gray-400 rounded-full"></div>
-                        <div className="h-3 w-3 bg-gray-400 rounded-full"></div>
-                      </div>
-                      <p>Loading available models...</p>
+              </CardHeader>
+              <CardContent>
+                {isModelLoading ? (
+                  <div className="text-center p-4">
+                    <div className="animate-pulse flex space-x-2 justify-center mb-4">
+                      <div className="h-3 w-3 bg-gray-400 rounded-full"></div>
+                      <div className="h-3 w-3 bg-gray-400 rounded-full"></div>
+                      <div className="h-3 w-3 bg-gray-400 rounded-full"></div>
                     </div>
-                  ) : modelError ? (
-                    <div className="text-center text-red-500 p-4">
-                      {modelError}
-                    </div>
-                  ) : models.length === 0 ? (
-                    <div className="text-center p-4">
-                      <p>No models found. Please ensure you have models installed in Ollama.</p>
-                    </div>
-                  ) : (
+                    <p>Loading available models...</p>
+                  </div>
+                ) : modelError ? (
+                  <div className="text-center text-red-500 p-4">
+                    {modelError}
+                  </div>
+                ) : models.length === 0 ? (
+                  <div className="text-center p-4">
+                    <p>No models found. Please ensure you have models installed in Ollama.</p>
+                  </div>
+                ) : (
                     <div className="space-y-6">
-                      <div>
+                  <div>
                         <label className="block text-sm font-medium mb-2">
                           Select Model
                         </label>
                         <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
-                          {models.map((model) => (
-                            <Button
-                              key={model.name}
-                              variant={selectedModel === model.name ? "default" : "outline"}
+                      {models.map((model) => (
+                        <Button
+                          key={model.name}
+                          variant={selectedModel === model.name ? "default" : "outline"}
                               className="justify-start overflow-hidden text-ellipsis"
-                              onClick={() => setSelectedModel(model.name)}
-                            >
-                              {model.name}
-                            </Button>
-                          ))}
-                        </div>
+                          onClick={() => setSelectedModel(model.name)}
+                        >
+                          {model.name}
+                        </Button>
+                      ))}
+                    </div>
                       </div>
                       
                       <div className="space-y-2">
@@ -821,25 +941,25 @@ Let me think through this step-by-step:
                   )}
                 </CardContent>
                 <CardFooter className="flex justify-end gap-2">
-                  <Button
+                    <Button 
                     className="w-full sm:w-auto" 
-                    onClick={startConversation}
+                      onClick={startConversation}
                     disabled={!selectedModel || 
                       (activeTab === "custom" && !customPrompt.trim()) ||
                       (activeTab === "image" && !imagePrompt.trim())}
-                  >
-                    Start Conversation
-                  </Button>
+                    >
+                      Start Conversation
+                    </Button>
                 </CardFooter>
-              </Card>
-            </div>
-          ) : (
-            <>
-              <ChatContainer conversation={conversation} isLoading={isLoading} />
-              <ChatInput onSend={handleSendMessage} disabled={isLoading} />
-            </>
-          )}
-        </main>
+            </Card>
+          </div>
+        ) : (
+          <>
+            <ChatContainer conversation={conversation} isLoading={isLoading} />
+            <ChatInput onSend={handleSendMessage} disabled={isLoading} />
+          </>
+        )}
+      </main>
       </div>
     </div>
   );

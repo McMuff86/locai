@@ -1,0 +1,15 @@
+Date: 2024-03-13
+Description: Verbesserte Chatfunktionalität und Konversationsverwaltung
+Decisions:
+- Implementierung von Konversationsspeicherung mit localStorage
+- Hinzufügen von Export- und Import-Funktionalität für Konversationen als JSON-Dateien
+- Deaktivierung des Thinking-Prozesses für geladene Konversationen
+- Ergänzung von APIs für Dateidialog (File System Access API mit Fallbacks)
+- Hinzufügen der Möglichkeit zum Löschen des gesamten Chatverlaufs
+- Behebung eines Bugs beim Abbrechen des Export-Dialogs
+
+Next Steps:
+- Mögliche Optimierungen bei der Speicherung größerer Konversationen
+- Verbesserung der Benutzererfahrung bei Import/Export-Operationen
+- Implementierung einer Bestätigungskomponente statt Browser-Dialogen
+- Erweitern der Konversationsmetadaten (Tags, Kategorien, etc.) 

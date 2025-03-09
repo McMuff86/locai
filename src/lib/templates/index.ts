@@ -9,6 +9,7 @@ import * as llama3 from './llama3';
 import * as mistral from './mistral';
 import * as gemma from './gemma';
 import * as deepseek from './deepseek';
+import * as llama3Vision from './llama3-vision';
 
 // Default template if no specific one is found
 const defaultTemplate = {
@@ -37,6 +38,7 @@ export const templates = {
   mistral,
   gemma,
   deepseek,
+  llama3Vision,
   default: defaultTemplate
 };
 
@@ -50,7 +52,9 @@ export function getTemplateForModel(modelName: string) {
   // Normalize model name to lowercase and remove version numbers/punctuation
   const normalizedName = modelName.toLowerCase().replace(/[\d:.-]/g, '');
   
-  if (normalizedName.includes('llama')) {
+  if (normalizedName.includes('llama') && normalizedName.includes('vision')) {
+    return templates.llama3Vision;
+  } else if (normalizedName.includes('llama')) {
     return templates.llama3;
   } else if (normalizedName.includes('mistral')) {
     return templates.mistral;
@@ -119,4 +123,15 @@ export function formatAssistantMessage(modelName: string, content: string) {
 export function getOllamaTemplate(modelName: string): string | undefined {
   const template = getTemplateForModel(modelName);
   return (template as any).ollamaTemplate;
+}
+
+/**
+ * Get default options for a specific model if available
+ * 
+ * @param modelName - The name of the model
+ * @returns The default options or an empty object if not available
+ */
+export function getDefaultOptions(modelName: string): Record<string, any> {
+  const template = getTemplateForModel(modelName);
+  return (template as any).defaultOptions || {};
 } 

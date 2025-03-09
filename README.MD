@@ -10,7 +10,7 @@ This document provides detailed instructions for the AI Coding Agent to systemat
 Ensure a clear and comprehensive overview of the project folder structure from the start.
 
 ### Instructions
-- **Detailed Description**: Provide a detailed explanation of each folder’s purpose and contents (see "Project Structure" section for an example).
+- **Detailed Description**: Provide a detailed explanation of each folder's purpose and contents (see "Project Structure" section for an example).
 - **Automation**: Use a script to automatically generate and update a Markdown representation of the folder structure. Save it as `folder_structure.md` in the project root.
   - Example script command: `tree -f --noreport -I "node_modules" > folder_structure.md`.
 - **Updates**: Re-run the script and update `folder_structure.md` whenever the structure changes.
@@ -28,7 +28,7 @@ Document the thought process and project development in a traceable and consiste
 
 ### Instructions
 1. **Check**: Verify if a `thoughtprocess` folder exists in the project root.
-2. **Create**: If it doesn’t exist, create the `thoughtprocess` folder.
+2. **Create**: If it doesn't exist, create the `thoughtprocess` folder.
 3. **Document**:
    - **Numbering**: Determine the next sequential number (three digits, e.g., `001`, `002`) based on existing files.
    - **Text File Creation**:
@@ -73,7 +73,7 @@ Equip each subfolder with its own `README.md` file containing specific, relevant
    ## Instructions
    [Add specific instructions or notes for this subfolder.]
    ```
-3. **Updates**: Revise the `README.md` file whenever the subfolder’s purpose or contents change.
+3. **Updates**: Revise the `README.md` file whenever the subfolder's purpose or contents change.
 
 ### Why This Matters
 - A template ensures uniform documentation across the project.
@@ -212,5 +212,15 @@ The design draws from the Grok 3, ChatGPT, and Claude 3.7 Realworld applications
 5. **Setup Clarity**: Enhanced "Getting Started" with troubleshooting.
 6. **Visual Consistency**: Defined a detailed design system.
 
-#   l o c a i  
+# Supabase CLI installieren
+npm install -g supabase
+
+# Projektordner initialisieren
+supabase init
+
+# Lokalen Supabase-Server starten
+supabase start
+
+#   l o c a i 
+ 
  

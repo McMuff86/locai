@@ -1,7 +1,9 @@
+// ChatMessage.tsx - Komponente mit Logik für Thinking-Prozess und geladene Nachrichten
+
 import React, { useState, useEffect, useRef } from "react";
 import { Avatar, AvatarFallback, AvatarImage } from "../ui/avatar";
 import { Card, CardContent } from "../ui/card";
-import { ChatMessageProps, MessageContent, MessageImageContent } from "../../types/chat";
+import { ChatMessageProps } from "../../types/chat";
 import { cn } from "../../lib/utils";
 import { motion } from "framer-motion";
 import { ThinkingProcess } from "./ThinkingProcess";
@@ -9,71 +11,10 @@ import { ThinkingProcess } from "./ThinkingProcess";
 // Regular expression to extract thinking process from messages
 const THINK_REGEX = /<think>([\s\S]*?)<\/think>/;
 
-// Render message content (text or images or both)
-const MessageContentRenderer = ({ content }: { content: MessageContent }) => {
-  // Sicherheitscheck für ungültige Inhalte
-  if (content === null || content === undefined) {
-    return <p className="text-sm whitespace-pre-wrap text-muted-foreground">Keine Inhalte</p>;
-  }
-  
-  // If content is a string, render it directly
-  if (typeof content === 'string') {
-    return <p className="text-sm whitespace-pre-wrap">{content}</p>;
-  }
-  
-  // If content is an image
-  if (typeof content === 'object' && 'type' in content && content.type === 'image') {
-    const imageContent = content as MessageImageContent;
-    return (
-      <div className="my-2">
-        <img 
-          src={imageContent.url} 
-          alt={imageContent.alt || "Image"} 
-          className="max-w-full rounded-md"
-          style={{ maxHeight: '300px' }}
-        />
-      </div>
-    );
-  }
-  
-  // If content is an array
-  if (Array.isArray(content)) {
-    return (
-      <>
-        {content.map((item, index) => {
-          if (typeof item === 'string') {
-            return <p key={index} className="text-sm whitespace-pre-wrap mb-2">{item}</p>;
-          }
-          
-          if (typeof item === 'object' && 'type' in item && item.type === 'image') {
-            const imageItem = item as MessageImageContent;
-            return (
-              <div key={index} className="my-2">
-                <img 
-                  src={imageItem.url} 
-                  alt={imageItem.alt || "Image"} 
-                  className="max-w-full rounded-md"
-                  style={{ maxHeight: '300px' }}
-                />
-              </div>
-            );
-          }
-          
-          return null;
-        })}
-      </>
-    );
-  }
-  
-  // Fallback for unexpected content
-  console.warn("Unbekannter Inhaltstyp:", content);
-  return <p className="text-sm whitespace-pre-wrap text-muted-foreground">Nicht unterstützter Inhalt</p>;
-};
-
 export function ChatMessage({ message, isLastMessage = false }: ChatMessageProps) {
   const isUser = message.role === 'user';
   const [thinkingProcess, setThinkingProcess] = useState<string | null>(null);
-  const [finalContent, setFinalContent] = useState<MessageContent>(message.content);
+  const [finalContent, setFinalContent] = useState(message.content);
   const [showResponse, setShowResponse] = useState(false);
   
   // Use a ref to track if animation has already played
@@ -105,8 +46,8 @@ export function ChatMessage({ message, isLastMessage = false }: ChatMessageProps
     // For loaded messages, skip thinking process
     if (message.isLoaded) {
       setFinalContent(message.content);
-      // Only process as string if the content is actually a string
-      if (typeof message.content === 'string' && message.content.includes("<think>")) {
+      // Strip out thinking process tag if present
+      if (message.content.includes("<think>")) {
         const cleanedContent = message.content.replace(THINK_REGEX, '').trim();
         setFinalContent(cleanedContent);
       }
@@ -115,31 +56,27 @@ export function ChatMessage({ message, isLastMessage = false }: ChatMessageProps
       return;
     }
     
-    // Only process thinking tags for string content
-    if (typeof message.content === 'string') {
-      const match = message.content.match(THINK_REGEX);
-      if (match && match[1]) {
-        // Found thinking process
-        setThinkingProcess(match[1].trim());
-        
-        // Remove thinking process from displayed message
-        const cleanedContent = message.content.replace(THINK_REGEX, '').trim();
-        setFinalContent(cleanedContent);
-        
-        // If this animation was already completed before, show the response immediately
-        if (animationCompletedRef.current) {
-          setShowResponse(true);
-        } else {
-          setShowResponse(false); // Hide response until thinking animation completes
-        }
-        return;
+    const match = message.content.match(THINK_REGEX);
+    if (match && match[1]) {
+      // Found thinking process
+      setThinkingProcess(match[1].trim());
+      
+      // Remove thinking process from displayed message
+      const cleanedContent = message.content.replace(THINK_REGEX, '').trim();
+      setFinalContent(cleanedContent);
+      
+      // If this animation was already completed before, show the response immediately
+      if (animationCompletedRef.current) {
+        setShowResponse(true);
+      } else {
+        setShowResponse(false); // Hide response until thinking animation completes
       }
+    } else {
+      // No thinking process found
+      setFinalContent(message.content);
+      setThinkingProcess(null);
+      setShowResponse(true); // Show response immediately
     }
-    
-    // No thinking process found or non-string content
-    setFinalContent(message.content);
-    setThinkingProcess(null);
-    setShowResponse(true); // Show response immediately
   }, [message.content, message.id, isUser, message.isLoaded]);
   
   // Callback for when thinking animation completes
@@ -183,11 +120,13 @@ export function ChatMessage({ message, isLastMessage = false }: ChatMessageProps
               ? "bg-primary text-primary-foreground" 
               : "bg-muted/50 text-foreground"
           )}>
-            <CardContent className={cn(
-              "p-3",
-              !isUser && "font-mono"
-            )}>
-              <MessageContentRenderer content={finalContent} />
+            <CardContent className="p-3">
+              <p className={cn(
+                "text-sm whitespace-pre-wrap",
+                !isUser && "font-mono"
+              )}>
+                {finalContent}
+              </p>
             </CardContent>
           </Card>
           
