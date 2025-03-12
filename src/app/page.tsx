@@ -1,5 +1,6 @@
 import React from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { Button } from "../components/ui/button";
 import { ThemeToggle } from "../components/ui/theme-toggle";
 import { ArrowRight, Terminal, Shield, Cpu } from "lucide-react";
@@ -12,9 +13,15 @@ export default function Home() {
       </div>
       
       <div className="text-center max-w-3xl mx-auto px-4">
-        <div className="flex items-center justify-center mb-6">
-          <div className="flex items-center justify-center w-20 h-20 rounded-2xl bg-primary text-primary-foreground">
-            <Terminal className="w-10 h-10" />
+        <div className="flex items-center justify-center mb-6 -mt-12">
+          <div className="flex items-center justify-center w-64 h-64 rounded-2xl overflow-hidden">
+            <Image 
+              src="/LocAI_logo_v0.2.svg" 
+              alt="LocAI Logo" 
+              width={256} 
+              height={256} 
+              priority
+            />
           </div>
         </div>
         

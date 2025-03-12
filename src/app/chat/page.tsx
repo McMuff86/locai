@@ -894,7 +894,7 @@ Let me think through this step-by-step:
                             <div className="relative">
                               <Textarea 
                                 value={defaultPrompt}
-                                className="min-h-[200px] font-mono text-sm bg-muted" 
+                                className="min-h-[400px] max-h-[400px] overflow-y-auto font-mono text-sm bg-muted" 
                                 readOnly
                               />
                               <Button
@@ -918,7 +918,7 @@ Let me think through this step-by-step:
                               value={customPrompt}
                               onChange={handleCustomPromptChange}
                               placeholder="Enter custom system instructions..."
-                              className="min-h-[200px] font-mono text-sm"
+                              className="min-h-[400px] max-h-[400px] overflow-y-auto font-mono text-sm"
                             />
                             <p className="text-xs text-muted-foreground">
                               Customize how the AI should behave. These instructions act as a foundation for the entire conversation.
@@ -929,7 +929,7 @@ Let me think through this step-by-step:
                               value={imagePrompt}
                               onChange={handleImagePromptChange}
                               placeholder="Enter image generation instructions..."
-                              className="min-h-[200px] font-mono text-sm"
+                              className="min-h-[400px] max-h-[400px] overflow-y-auto font-mono text-sm"
                             />
                             <p className="text-xs text-muted-foreground">
                               Specialized instructions for creating detailed prompts for AI image generators. Use with image generation models.

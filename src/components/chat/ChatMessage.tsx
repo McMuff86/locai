@@ -5,6 +5,7 @@ import { ChatMessageProps, MessageContent, MessageImageContent } from "../../typ
 import { cn } from "../../lib/utils";
 import { motion } from "framer-motion";
 import { ThinkingProcess } from "./ThinkingProcess";
+import { User, UserCircle } from "lucide-react";
 
 // Regular expression to extract thinking process from messages
 const THINK_REGEX = /<think>([\s\S]*?)<\/think>/;
@@ -171,21 +172,24 @@ export function ChatMessage({ message, isLastMessage = false }: ChatMessageProps
           transition={{ duration: 0.3 }}
         >
           {!isUser && (
-            <Avatar className="h-8 w-8 mr-2 self-start mt-1">
-              <AvatarImage src="/bot-avatar.png" alt="Bot" />
-              <AvatarFallback className="bg-primary text-primary-foreground">AI</AvatarFallback>
-            </Avatar>
+            <div className="h-40 w-40 mr-4 self-start flex-shrink-0">
+              <img 
+                src="/LocAI_logo_v0.2.svg" 
+                alt="LocAI" 
+                className="h-full w-full object-contain"
+              />
+            </div>
           )}
           
           <Card className={cn(
             "max-w-[80%]",
             isUser 
-              ? "bg-primary text-primary-foreground" 
+              ? "bg-muted/50 text-foreground" 
               : "bg-muted/50 text-foreground"
           )}>
             <CardContent className={cn(
               "p-3",
-              !isUser && "font-mono"
+              "font-mono"
             )}>
               <MessageContentRenderer content={finalContent} />
             </CardContent>
@@ -193,7 +197,9 @@ export function ChatMessage({ message, isLastMessage = false }: ChatMessageProps
           
           {isUser && (
             <Avatar className="h-8 w-8 ml-2 self-start mt-1">
-              <AvatarImage src="/user-avatar.png" alt="User" />
+              <div className="flex items-center justify-center w-full h-full bg-background text-primary">
+                <User className="h-6 w-6" />
+              </div>
               <AvatarFallback className="bg-primary text-primary-foreground">U</AvatarFallback>
             </Avatar>
           )}
