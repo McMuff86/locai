@@ -1,23 +1,44 @@
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import { Button } from "../ui/button";
-import { Input } from "../ui/input";
+import { Textarea } from "../ui/textarea";
 import { ChatInputProps } from "../../types/chat";
 import { motion } from "framer-motion";
 import { Send, Image, X } from "lucide-react";
 
-export function ChatInput({ onSend, disabled = false }: ChatInputProps) {
+export function ChatInput({ onSend, disabled = false, inputRef }: ChatInputProps) {
   const [message, setMessage] = useState("");
   const [selectedImages, setSelectedImages] = useState<File[]>([]);
   const [imagePreviews, setImagePreviews] = useState<string[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const localInputRef = useRef<HTMLTextAreaElement>(null);
+  
+  // Use provided ref or local ref
+  const textareaRef = inputRef || localInputRef;
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSubmit = (e?: React.FormEvent) => {
+    e?.preventDefault();
     if ((message.trim() || selectedImages.length > 0) && !disabled) {
       onSend(message, selectedImages);
       setMessage("");
       setSelectedImages([]);
       setImagePreviews([]);
+    }
+  };
+
+  // Handle keyboard shortcuts in textarea
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    // Ctrl/Cmd + Enter to send
+    if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+      e.preventDefault();
+      handleSubmit();
+      return;
+    }
+    
+    // Enter without shift sends (if single line)
+    if (e.key === 'Enter' && !e.shiftKey && !message.includes('\n')) {
+      e.preventDefault();
+      handleSubmit();
+      return;
     }
   };
 
@@ -80,13 +101,16 @@ export function ChatInput({ onSend, disabled = false }: ChatInputProps) {
         </div>
       )}
 
-      <form onSubmit={handleSubmit} className="flex gap-2 max-w-4xl mx-auto">
-        <Input
+      <form onSubmit={handleSubmit} className="flex gap-2 max-w-4xl mx-auto items-end">
+        <Textarea
+          ref={textareaRef as React.RefObject<HTMLTextAreaElement>}
           value={message}
           onChange={(e) => setMessage(e.target.value)}
-          placeholder="Enter message or upload an image..."
+          onKeyDown={handleKeyDown}
+          placeholder="Enter message... (Ctrl+Enter or Enter to send)"
           disabled={disabled}
-          className="flex-grow"
+          className="flex-grow min-h-[44px] max-h-[200px] resize-none"
+          rows={1}
         />
         <input
           type="file"

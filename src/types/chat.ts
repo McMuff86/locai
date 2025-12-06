@@ -1,3 +1,5 @@
+import React from 'react';
+
 export type MessageRole = 'user' | 'assistant' | 'system';
 
 // Define simple message content types first
@@ -31,6 +33,7 @@ export interface Conversation {
 export interface ChatInputProps {
   onSend: (message: string, images?: File[]) => void;
   disabled?: boolean;
+  inputRef?: React.RefObject<HTMLTextAreaElement | null>;
 }
 
 export interface ChatMessageProps {

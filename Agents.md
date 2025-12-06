@@ -12,9 +12,12 @@
 ### Key Features
 - 💬 Local chat with multiple AI models (Llama3, Gemma, Mistral, DeepSeek)
 - 🖼️ Image analysis with vision models
-- 💾 Local data storage (LocalStorage/FileSystem)
-- 🎨 Dark/Light theme support
-- 📱 Responsive design
+- 💾 Local data storage (LocalStorage/FileSystem) with Auto-Save
+- 🎨 Dark/Light theme support (Grok-style dark theme)
+- 📱 Responsive design with resizable sidebar
+- 🔍 Chat search across conversations
+- 📊 Conversation statistics
+- 🎨 **ComfyUI Integration** - Launch & monitor from LocAI
 
 ---
 
@@ -27,6 +30,8 @@
 | TypeScript | 5.9.3 | ✅ Current |
 | Tailwind CSS | 4.1.17 | ✅ Current |
 | Framer Motion | 12.23.25 | ✅ Current |
+| react-markdown | 10.x | ✅ NEW - GFM support |
+| react-syntax-highlighter | 15.x | ✅ NEW - Code highlighting |
 | Shadcn/UI | - | ✅ Current |
 | Supabase CLI | 2.65.6 | ✅ Current |
 
@@ -37,26 +42,46 @@
 ```
 src/
 ├── app/                    # Next.js App Router
-│   ├── chat/              # Main chat functionality
-│   │   └── page.tsx       # Chat page component (965 lines)
-│   ├── layout.tsx         # Root layout
-│   └── globals.css        # Global styles
+│   ├── api/
+│   │   ├── comfyui/       # ComfyUI Integration APIs
+│   │   │   ├── launch/route.ts   # Start ComfyUI
+│   │   │   └── status/route.ts   # Check if running
+│   │   └── system-stats/route.ts # System monitoring
+│   ├── chat/              
+│   │   └── page.tsx       # Chat page (~550 lines, resizable sidebar)
+│   ├── layout.tsx         
+│   └── globals.css        # Grok/Ollama-style dark theme
 ├── components/
 │   ├── chat/              # Chat-specific components
 │   │   ├── ChatContainer.tsx
+│   │   ├── ChatHeader.tsx
 │   │   ├── ChatInput.tsx
-│   │   ├── ChatMessage.tsx
-│   │   ├── ConversationSidebar.tsx
-│   │   └── ThinkingProcess.tsx
+│   │   ├── ChatMessage.tsx    # Uses MarkdownRenderer
+│   │   ├── ChatSearch.tsx     # Conversation search
+│   │   ├── ConversationSidebar.tsx  # Settings + ComfyUI widget
+│   │   ├── ConversationStats.tsx    # Per-chat statistics
+│   │   ├── MarkdownRenderer.tsx     # GFM + syntax highlighting
+│   │   ├── SetupCard.tsx
+│   │   ├── ThinkingProcess.tsx
+│   │   └── TokenCounter.tsx
 │   ├── ui/                # Shadcn UI components
+│   ├── ComfyUIWidget.tsx  # NEW: ComfyUI status & launcher
+│   ├── SystemMonitor.tsx
 │   └── ThemeProvider.tsx
+├── hooks/
+│   ├── index.ts
+│   ├── useChat.ts         # Chat + streaming + tokens
+│   ├── useConversations.ts # Auto-save conversations
+│   ├── useModels.ts       # Ollama models
+│   ├── useKeyboardShortcuts.ts
+│   └── useSettings.ts     # NEW: App settings (localStorage)
 ├── lib/
-│   ├── ollama.ts          # Ollama API integration
-│   ├── storage.ts         # Local storage utilities
-│   ├── templates/         # Model-specific prompts
+│   ├── ollama.ts
+│   ├── storage.ts
+│   ├── templates/         # Model prompts
 │   └── utils.ts
 └── types/
-    └── chat.ts            # TypeScript definitions
+    └── chat.ts
 ```
 
 ---
@@ -106,8 +131,8 @@ These are major version updates that may have breaking changes:
 
 ## Known Issues
 
-1. **Large component**: `src/app/chat/page.tsx` is 965 lines - should be split
-2. **No streaming**: Chat responses are not streamed (all-at-once)
+1. ~~**Large component**: `src/app/chat/page.tsx` is 965 lines~~ ✅ FIXED (now ~300 lines)
+2. ~~**No streaming**: Chat responses are not streamed~~ ✅ FIXED (streaming implemented)
 3. **Supabase unused**: Config exists but no database integration
 4. **LocalStorage only**: Data persistence is browser-local only
 
@@ -161,6 +186,50 @@ ollama pull llama3.2-vision
 - ✅ 0 vulnerabilities remaining
 - ✅ Fixed tsconfig.json to exclude `thoughtprocess/` from compilation
 - ✅ Build successful with Next.js 15.5.7
+- ✅ Optimized all model templates:
+  - DeepSeek R1: Added `<think>` reasoning support
+  - Granite Vision: New template for IBM models
+  - Llama3 Vision: Enhanced system prompt
+  - Llama3/Gemma/Mistral: Improved prompts
+- ✅ New Dark Theme (Grok/Ollama style)
+  - Deep black background (#141414)
+  - Teal/Cyan accent color
+  - Enhanced contrast
+- ✅ System Monitor Component
+  - Real-time CPU usage
+  - RAM usage tracking
+  - VRAM monitoring via Ollama API
+  - Live updates during generation
+- ✅ Major Refactoring (968 → ~300 lines in page.tsx)
+  - Extracted: useModels, useConversations, useChat hooks
+  - Extracted: ChatHeader, SetupCard, TokenCounter components
+  - ollama.ts now returns token statistics
+  - Token Counter shows: input/output tokens, speed, duration
+- ✅ New Features implemented:
+  - **Streaming Responses**: Live token-by-token output
+  - **Context Window Display**: Shows model's context limit & usage
+  - **Keyboard Shortcuts**: Ctrl+N (new), Ctrl+S (save), Escape (stop), / (focus)
+  - **Code Block Copy Button**: Click to copy code snippets
+  - **Stop Button**: Cancel generation mid-stream
+  - **Multi-line Input**: Textarea with Enter/Ctrl+Enter support
+- ✅ **Chat Search** (NEW):
+  - Full-text search across all conversations
+  - Highlights matching text
+  - Shows context preview
+  - Relevance-based sorting
+- ✅ **Markdown Rendering** (NEW):
+  - react-markdown with GitHub Flavored Markdown (GFM)
+  - Syntax highlighting for 100+ languages via Prism
+  - Tables, task lists, strikethrough support
+  - Beautiful blockquotes and inline code
+  - Copy button for all code blocks
+- ✅ **Conversation Statistics** (NEW):
+  - Word & character count per conversation
+  - Message breakdown (user/assistant)
+  - Estimated token count
+  - Duration tracking
+  - Model information display
+  - Expandable stats panel in sidebar
 
 ### 2025-03-08 (Last Active)
 - Initial project structure

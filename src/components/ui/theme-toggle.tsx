@@ -7,14 +7,32 @@ import { useTheme } from "next-themes";
 import { Button } from "./button";
 
 export function ThemeToggle() {
-  const { theme, setTheme } = useTheme();
+  const { theme, setTheme, resolvedTheme } = useTheme();
+  const [mounted, setMounted] = React.useState(false);
+
+  // Only show theme toggle after hydration to avoid mismatch
+  React.useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  // Avoid hydration mismatch by not rendering until mounted
+  if (!mounted) {
+    return (
+      <Button variant="ghost" size="icon" disabled>
+        <Sun className="h-5 w-5" />
+        <span className="sr-only">Theme wechseln</span>
+      </Button>
+    );
+  }
+
+  const isDark = resolvedTheme === "dark";
 
   return (
     <Button
       variant="ghost"
       size="icon"
-      onClick={() => setTheme(theme === "light" ? "dark" : "light")}
-      title={theme === "light" ? "Dunkles Thema aktivieren" : "Helles Thema aktivieren"}
+      onClick={() => setTheme(isDark ? "light" : "dark")}
+      title={isDark ? "Helles Thema aktivieren" : "Dunkles Thema aktivieren"}
     >
       <Sun className="h-5 w-5 rotate-0 scale-100 transition-all dark:-rotate-90 dark:scale-0" />
       <Moon className="absolute h-5 w-5 rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100" />

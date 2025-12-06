@@ -57,7 +57,7 @@ export interface OllamaChatRequest {
   template?: string; // Optional template parameter for Ollama
 }
 
-// Interface for chat responses
+// Interface for chat responses from Ollama API
 export interface OllamaChatResponse {
   model: string;
   message: {
@@ -65,6 +65,46 @@ export interface OllamaChatResponse {
     content: string;
   };
   done: boolean;
+  done_reason?: string;
+  total_duration?: number;
+  load_duration?: number;
+  prompt_eval_count?: number;
+  prompt_eval_duration?: number;
+  eval_count?: number;
+  eval_duration?: number;
+}
+
+// Token statistics interface
+export interface TokenStats {
+  promptTokens: number;
+  completionTokens: number;
+  totalTokens: number;
+  totalDuration: number;
+  tokensPerSecond: number;
+}
+
+// Our enriched response interface
+export interface ChatResponse {
+  content: string;
+  tokenStats: TokenStats | null;
+}
+
+// Streaming chunk interface
+export interface StreamChunk {
+  model: string;
+  created_at: string;
+  message: {
+    role: 'assistant';
+    content: string;
+  };
+  done: boolean;
+  // Final chunk includes these
+  total_duration?: number;
+  load_duration?: number;
+  prompt_eval_count?: number;
+  prompt_eval_duration?: number;
+  eval_count?: number;
+  eval_duration?: number;
 }
 
 /**
@@ -83,6 +123,80 @@ export async function getOllamaModels(): Promise<OllamaModel[]> {
   } catch (error) {
     console.error('Error fetching Ollama models:', error);
     return [];
+  }
+}
+
+/**
+ * Model info response from /api/show
+ */
+export interface ModelInfo {
+  modelfile: string;
+  parameters: string;
+  template: string;
+  details: {
+    format: string;
+    family: string;
+    parameter_size: string;
+    quantization_level: string;
+  };
+  model_info: {
+    [key: string]: string | number | boolean | null;
+  };
+}
+
+/**
+ * Get detailed info about a specific model including context length
+ */
+export async function getModelInfo(modelName: string): Promise<{ contextLength: number; parameterSize: string } | null> {
+  try {
+    const response = await fetch(`${OLLAMA_API_URL}/show`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ model: modelName })
+    });
+    
+    if (!response.ok) {
+      return null;
+    }
+    
+    const data = await response.json() as ModelInfo;
+    
+    // Extract context length from model_info
+    // Different models use different keys
+    const modelInfo = data.model_info || {};
+    let contextLength = 0;
+    
+    // Check common context length keys
+    for (const key of Object.keys(modelInfo)) {
+      if (key.includes('context_length') || key.includes('context_window')) {
+        const value = modelInfo[key];
+        if (typeof value === 'number') {
+          contextLength = value;
+          break;
+        }
+      }
+    }
+    
+    // Fallback: try to parse from parameters string
+    if (contextLength === 0 && data.parameters) {
+      const match = data.parameters.match(/num_ctx\s+(\d+)/);
+      if (match) {
+        contextLength = parseInt(match[1], 10);
+      }
+    }
+    
+    // Default fallback
+    if (contextLength === 0) {
+      contextLength = 4096; // Conservative default
+    }
+    
+    return {
+      contextLength,
+      parameterSize: data.details?.parameter_size || 'Unknown'
+    };
+  } catch (error) {
+    console.error('Error fetching model info:', error);
+    return null;
   }
 }
 
@@ -161,12 +275,13 @@ export function formatMessageContent(content: MessageContent): string | OllamaCh
 
 /**
  * Sends a chat request to an Ollama model with support for images
+ * Returns content and token statistics
  */
 export async function sendChatMessage(
   model: string,
   messages: { role: 'system' | 'user' | 'assistant'; content: MessageContent }[],
   options = {}
-): Promise<string> {
+): Promise<ChatResponse> {
   try {
     // Get model-specific template if available
     const modelTemplate = getOllamaTemplate(model);
@@ -265,9 +380,188 @@ export async function sendChatMessage(
     }
     
     const data = await response.json() as OllamaChatResponse;
-    return data.message.content;
+    
+    // Calculate token statistics
+    let tokenStats: TokenStats | null = null;
+    if (data.prompt_eval_count !== undefined || data.eval_count !== undefined) {
+      const promptTokens = data.prompt_eval_count || 0;
+      const completionTokens = data.eval_count || 0;
+      const totalDuration = (data.total_duration || 0) / 1e9; // Convert nanoseconds to seconds
+      const evalDuration = (data.eval_duration || 0) / 1e9;
+      
+      tokenStats = {
+        promptTokens,
+        completionTokens,
+        totalTokens: promptTokens + completionTokens,
+        totalDuration: Math.round(totalDuration * 100) / 100,
+        tokensPerSecond: evalDuration > 0 
+          ? Math.round((completionTokens / evalDuration) * 10) / 10 
+          : 0
+      };
+    }
+    
+    return {
+      content: data.message.content,
+      tokenStats
+    };
   } catch (error) {
     console.error('Error sending chat message:', error);
-    return 'An error occurred. Please try again later.';
+    return {
+      content: 'An error occurred. Please try again later.',
+      tokenStats: null
+    };
+  }
+}
+
+/**
+ * Sends a streaming chat request to an Ollama model
+ * Calls onChunk for each token received, onComplete when done
+ */
+export async function sendStreamingChatMessage(
+  model: string,
+  messages: { role: 'system' | 'user' | 'assistant'; content: MessageContent }[],
+  onChunk: (content: string, fullContent: string) => void,
+  onComplete: (response: ChatResponse) => void,
+  onError?: (error: Error) => void,
+  options = {}
+): Promise<void> {
+  try {
+    const modelTemplate = getOllamaTemplate(model);
+    const modelOptions = getDefaultOptions(model);
+    const isVisionModel = model.toLowerCase().includes('vision');
+    
+    // Format messages (same logic as non-streaming)
+    const formattedMessages = messages.map(msg => {
+      if (isVisionModel && msg.role === 'user') {
+        const content = msg.content;
+        const hasImages = 
+          (Array.isArray(content) && content.some(item => typeof item !== 'string')) ||
+          (typeof content !== 'string' && (content as MessageImageContent)?.type === 'image');
+        
+        if (hasImages) {
+          let textContent = '';
+          let images: string[] = [];
+          
+          if (Array.isArray(content)) {
+            content.forEach(item => {
+              if (typeof item === 'string') {
+                textContent += (textContent ? ' ' : '') + item;
+              } else if ((item as MessageImageContent).type === 'image') {
+                const imageItem = item as MessageImageContent;
+                const imageData = imageItem.url.startsWith('data:')
+                  ? imageItem.url.split(',')[1]
+                  : imageItem.url;
+                images.push(imageData);
+              }
+            });
+          } else if ((content as MessageImageContent).type === 'image') {
+            const imageContent = content as MessageImageContent;
+            const imageData = imageContent.url.startsWith('data:')
+              ? imageContent.url.split(',')[1]
+              : imageContent.url;
+            images.push(imageData);
+          }
+          
+          return {
+            role: msg.role,
+            content: textContent || "What is in this image?",
+            images: images
+          };
+        }
+      }
+      
+      return {
+        role: msg.role,
+        content: formatMessageContent(msg.content)
+      };
+    });
+    
+    const chatRequest: OllamaChatRequest = {
+      model,
+      messages: formattedMessages,
+      stream: true, // Enable streaming!
+      options: {
+        ...modelOptions,
+        ...options
+      }
+    };
+    
+    if (modelTemplate) {
+      chatRequest.template = modelTemplate;
+    }
+    
+    const response = await fetch(`${OLLAMA_API_URL}/chat`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(chatRequest)
+    });
+    
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Error in chat request: ${response.statusText}. Details: ${errorText}`);
+    }
+    
+    if (!response.body) {
+      throw new Error('Response body is null');
+    }
+    
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let fullContent = '';
+    let finalChunk: StreamChunk | null = null;
+    
+    while (true) {
+      const { done, value } = await reader.read();
+      
+      if (done) break;
+      
+      const text = decoder.decode(value, { stream: true });
+      const lines = text.split('\n').filter(line => line.trim());
+      
+      for (const line of lines) {
+        try {
+          const chunk = JSON.parse(line) as StreamChunk;
+          
+          if (chunk.message?.content) {
+            fullContent += chunk.message.content;
+            onChunk(chunk.message.content, fullContent);
+          }
+          
+          if (chunk.done) {
+            finalChunk = chunk;
+          }
+        } catch {
+          // Skip invalid JSON lines
+        }
+      }
+    }
+    
+    // Calculate token stats from final chunk
+    let tokenStats: TokenStats | null = null;
+    if (finalChunk) {
+      const promptTokens = finalChunk.prompt_eval_count || 0;
+      const completionTokens = finalChunk.eval_count || 0;
+      const totalDuration = (finalChunk.total_duration || 0) / 1e9;
+      const evalDuration = (finalChunk.eval_duration || 0) / 1e9;
+      
+      tokenStats = {
+        promptTokens,
+        completionTokens,
+        totalTokens: promptTokens + completionTokens,
+        totalDuration: Math.round(totalDuration * 100) / 100,
+        tokensPerSecond: evalDuration > 0 
+          ? Math.round((completionTokens / evalDuration) * 10) / 10 
+          : 0
+      };
+    }
+    
+    onComplete({
+      content: fullContent,
+      tokenStats
+    });
+    
+  } catch (error) {
+    console.error('Error in streaming chat:', error);
+    onError?.(error instanceof Error ? error : new Error('Unknown error'));
   }
 } 

@@ -1,25 +1,31 @@
 import React, { useState, useEffect, useRef } from "react";
-import { Avatar, AvatarFallback, AvatarImage } from "../ui/avatar";
+import { Avatar, AvatarFallback } from "../ui/avatar";
 import { Card, CardContent } from "../ui/card";
 import { ChatMessageProps, MessageContent, MessageImageContent } from "../../types/chat";
 import { cn } from "../../lib/utils";
 import { motion } from "framer-motion";
 import { ThinkingProcess } from "./ThinkingProcess";
-import { User, UserCircle } from "lucide-react";
+import { MarkdownRenderer } from "./MarkdownRenderer";
+import { User } from "lucide-react";
 
 // Regular expression to extract thinking process from messages
 const THINK_REGEX = /<think>([\s\S]*?)<\/think>/;
 
 // Render message content (text or images or both)
-const MessageContentRenderer = ({ content }: { content: MessageContent }) => {
+const MessageContentRenderer = ({ content, isUser }: { content: MessageContent; isUser: boolean }) => {
   // Sicherheitscheck für ungültige Inhalte
   if (content === null || content === undefined) {
     return <p className="text-sm whitespace-pre-wrap text-muted-foreground">Keine Inhalte</p>;
   }
   
-  // If content is a string, render it directly
+  // If content is a string
   if (typeof content === 'string') {
-    return <p className="text-sm whitespace-pre-wrap">{content}</p>;
+    // For user messages, use simple text rendering
+    if (isUser) {
+      return <p className="text-sm whitespace-pre-wrap">{content}</p>;
+    }
+    // For assistant messages, use markdown renderer
+    return <MarkdownRenderer content={content} className="text-sm" />;
   }
   
   // If content is an image
@@ -43,7 +49,10 @@ const MessageContentRenderer = ({ content }: { content: MessageContent }) => {
       <>
         {content.map((item, index) => {
           if (typeof item === 'string') {
-            return <p key={index} className="text-sm whitespace-pre-wrap mb-2">{item}</p>;
+            if (isUser) {
+              return <p key={index} className="text-sm whitespace-pre-wrap mb-2">{item}</p>;
+            }
+            return <MarkdownRenderer key={index} content={item} className="text-sm mb-2" />;
           }
           
           if (typeof item === 'object' && 'type' in item && item.type === 'image') {
@@ -189,9 +198,9 @@ export function ChatMessage({ message, isLastMessage = false }: ChatMessageProps
           )}>
             <CardContent className={cn(
               "p-3",
-              "font-mono"
+              isUser ? "" : "prose-sm"
             )}>
-              <MessageContentRenderer content={finalContent} />
+              <MessageContentRenderer content={finalContent} isUser={isUser} />
             </CardContent>
           </Card>
           
