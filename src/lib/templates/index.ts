@@ -11,6 +11,7 @@ import * as gemma from './gemma';
 import * as deepseek from './deepseek';
 import * as llama3Vision from './llama3-vision';
 import * as graniteVision from './granite-vision';
+import * as qwenCoder from './qwen-coder';
 
 // Default template if no specific one is found
 const defaultTemplate = {
@@ -41,6 +42,7 @@ export const templates = {
   deepseek,
   llama3Vision,
   graniteVision,
+  qwenCoder,
   default: defaultTemplate
 };
 
@@ -60,6 +62,12 @@ export function getTemplateForModel(modelName: string) {
   } else if (normalizedName.includes('llama') && normalizedName.includes('vision')) {
     return templates.llama3Vision;
   }
+  // Code models (specific match before general)
+  else if (normalizedName.includes('qwen') && normalizedName.includes('coder')) {
+    return templates.qwenCoder;
+  } else if (normalizedName.includes('codellama') || normalizedName.includes('codegemma') || normalizedName.includes('starcoder')) {
+    return templates.qwenCoder; // Use qwenCoder template for code models
+  }
   // Then general models
   else if (normalizedName.includes('llama') || normalizedName.includes('dolphin')) {
     return templates.llama3;
@@ -69,6 +77,8 @@ export function getTemplateForModel(modelName: string) {
     return templates.gemma;
   } else if (normalizedName.includes('deepseek')) {
     return templates.deepseek;
+  } else if (normalizedName.includes('qwen')) {
+    return templates.qwenCoder; // Default Qwen models to coder template
   } else if (normalizedName.includes('granite')) {
     return templates.graniteVision; // Granite models default to vision template
   }

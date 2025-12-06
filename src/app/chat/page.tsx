@@ -11,6 +11,8 @@ import { SetupCard, IMAGE_PROMPT } from "../../components/chat/SetupCard";
 import { ConversationSidebar } from "../../components/chat/ConversationSidebar";
 import { TokenCounter } from "../../components/chat/TokenCounter";
 import { SystemMonitor } from "../../components/SystemMonitor";
+import { GpuMonitorDialog } from "../../components/GpuMonitorDialog";
+import { RightSidebar } from "../../components/RightSidebar";
 import { ImageGallery } from "../../components/ImageGallery";
 import { ModelPullDialog } from "../../components/ModelPullDialog";
 import { Button } from "../../components/ui/button";
@@ -27,6 +29,7 @@ import { useSettings } from "../../hooks/useSettings";
 import { Message } from "../../types/chat";
 import { getModelSystemContent } from "../../lib/ollama";
 import { useToast } from "../../components/ui/use-toast";
+import { IMAGE_ANALYSIS_PROMPT } from "../../lib/prompt-templates";
 
 export default function ChatPage() {
   const { toast } = useToast();
@@ -77,6 +80,7 @@ export default function ChatPage() {
   const [isResizing, setIsResizing] = useState(false);
   const [showGallery, setShowGallery] = useState(false);
   const [showModelPull, setShowModelPull] = useState(false);
+  const [showRightSidebar, setShowRightSidebar] = useState(false);
   const chatInputRef = useRef<HTMLTextAreaElement>(null);
   const sidebarRef = useRef<HTMLDivElement>(null);
 
@@ -155,7 +159,7 @@ export default function ChatPage() {
   const [defaultPrompt, setDefaultPrompt] = useState<string>("");
   const [customPrompt, setCustomPrompt] = useState<string>("");
   const [imagePrompt, setImagePrompt] = useState<string>(IMAGE_PROMPT);
-  const [activeTab, setActiveTab] = useState<string>("default");
+  const [activeTab, setActiveTab] = useState<string>("templates");
   const [isEditingPrompt, setIsEditingPrompt] = useState<boolean>(false);
 
   // Update default prompt when model changes
@@ -296,7 +300,9 @@ export default function ChatPage() {
         systemContent = imagePrompt;
         break;
       case "custom":
-        systemContent = customPrompt;
+      case "templates":
+        // Templates copy their prompt to customPrompt when selected
+        systemContent = customPrompt || defaultPrompt;
         break;
       default:
         systemContent = defaultPrompt;
@@ -376,8 +382,8 @@ export default function ChatPage() {
       
       // Start new conversation if needed
       if (conversation.messages.length === 0) {
-        // Start conversation with system message
-        const systemContent = imagePrompt;
+        // Use IMAGE_ANALYSIS_PROMPT for analyzing images (NOT image generation prompt!)
+        const systemContent = IMAGE_ANALYSIS_PROMPT;
         
         const systemMessage: Message = {
           id: uuidv4(),
@@ -424,7 +430,7 @@ Image filename: ${filename}`;
         variant: "destructive"
       });
     }
-  }, [visionModels, selectedModel, conversation, imagePrompt, sendMessage, addMessage, updateConversationTitle, toast, setSelectedModel]);
+  }, [visionModels, selectedModel, conversation, sendMessage, addMessage, updateConversationTitle, toast, setSelectedModel]);
 
   // Handle send message
   const handleSendMessage = useCallback(async (content: string, images?: File[]) => {
@@ -584,9 +590,15 @@ Image filename: ${filename}`;
           onClearAllConversations={handleClearAllConversations}
         />
 
-        {/* System Monitor */}
+        {/* System Monitor - Click to open right sidebar with GPU Monitor */}
         <div className="hidden md:block px-4 py-2 border-b">
-          <SystemMonitor isGenerating={isChatLoading} compact />
+          <button 
+            onClick={() => setShowRightSidebar(true)}
+            className="w-full text-left hover:bg-accent/50 rounded-lg transition-colors cursor-pointer"
+            title="Click to open GPU Monitor panel"
+          >
+            <SystemMonitor isGenerating={isChatLoading} compact />
+          </button>
         </div>
       
         <main className="flex-1 flex flex-col overflow-hidden">
@@ -675,6 +687,13 @@ Image filename: ${filename}`;
           });
           // Refresh models list - the useModels hook should auto-refresh
         }}
+      />
+
+      {/* Right Sidebar - GPU Monitor & Tools */}
+      <RightSidebar
+        isOpen={showRightSidebar}
+        onToggle={() => setShowRightSidebar(!showRightSidebar)}
+        isGenerating={isChatLoading}
       />
     </div>
   );

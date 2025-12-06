@@ -1,9 +1,13 @@
 import { NextResponse } from 'next/server';
 import os from 'os';
+import { exec } from 'child_process';
+import { promisify } from 'util';
+
+const execAsync = promisify(exec);
 
 /**
  * System Stats API
- * Returns CPU, RAM usage and Ollama model information
+ * Returns CPU, RAM, GPU usage and Ollama model information
  */
 
 interface OllamaModel {
@@ -18,6 +22,32 @@ interface OllamaPsResponse {
   models: OllamaModel[];
 }
 
+interface GpuProcess {
+  pid: number;
+  name: string;
+  memoryUsed: number; // MB
+  type: 'ollama' | 'comfyui' | 'other';
+}
+
+interface GpuStats {
+  available: boolean;
+  name: string;
+  driver: string;
+  vram: {
+    total: number;  // GB
+    used: number;   // GB
+    free: number;   // GB
+    usagePercent: number;
+  };
+  utilization: number;  // %
+  temperature: number;  // °C
+  power: {
+    current: number;  // W
+    limit: number;    // W
+  };
+  processes: GpuProcess[];
+}
+
 interface SystemStats {
   cpu: {
     usage: number;
@@ -30,6 +60,7 @@ interface SystemStats {
     free: number;
     usagePercent: number;
   };
+  gpu: GpuStats;
   ollama: {
     running: boolean;
     models: {
@@ -84,6 +115,104 @@ function getMemoryStats() {
   };
 }
 
+// Detect process type from name
+function detectProcessType(processName: string): GpuProcess['type'] {
+  const name = processName.toLowerCase();
+  
+  if (name.includes('ollama')) {
+    return 'ollama';
+  }
+  
+  // ComfyUI runs as python process
+  if (name.includes('python') || name.includes('comfy')) {
+    return 'comfyui';
+  }
+  
+  return 'other';
+}
+
+// Get GPU stats using nvidia-smi
+async function getGpuStats(): Promise<GpuStats> {
+  const defaultStats: GpuStats = {
+    available: false,
+    name: 'No GPU detected',
+    driver: '',
+    vram: { total: 0, used: 0, free: 0, usagePercent: 0 },
+    utilization: 0,
+    temperature: 0,
+    power: { current: 0, limit: 0 },
+    processes: []
+  };
+
+  try {
+    // Query GPU info with nvidia-smi
+    const { stdout: gpuInfo } = await execAsync(
+      'nvidia-smi --query-gpu=name,driver_version,memory.total,memory.used,memory.free,utilization.gpu,temperature.gpu,power.draw,power.limit --format=csv,noheader,nounits',
+      { timeout: 5000 }
+    );
+
+    const parts = gpuInfo.trim().split(', ').map(s => s.trim());
+    
+    if (parts.length < 9) {
+      return defaultStats;
+    }
+
+    const [name, driver, memTotal, memUsed, memFree, utilization, temperature, powerDraw, powerLimit] = parts;
+    
+    const totalMB = parseFloat(memTotal) || 0;
+    const usedMB = parseFloat(memUsed) || 0;
+    const freeMB = parseFloat(memFree) || 0;
+
+    // Get GPU processes
+    let processes: GpuProcess[] = [];
+    try {
+      const { stdout: processInfo } = await execAsync(
+        'nvidia-smi --query-compute-apps=pid,process_name,used_memory --format=csv,noheader,nounits',
+        { timeout: 5000 }
+      );
+
+      if (processInfo.trim()) {
+        processes = processInfo.trim().split('\n').map(line => {
+          const [pid, processName, memory] = line.split(', ').map(s => s.trim());
+          // Extract just the executable name from full path
+          const name = processName.split(/[/\\]/).pop() || processName;
+          return {
+            pid: parseInt(pid) || 0,
+            name,
+            memoryUsed: parseFloat(memory) || 0,
+            type: detectProcessType(name)
+          };
+        }).filter(p => p.pid > 0);
+      }
+    } catch {
+      // No processes or error - that's fine
+    }
+
+    return {
+      available: true,
+      name: name || 'Unknown GPU',
+      driver: driver || '',
+      vram: {
+        total: Math.round(totalMB / 1024 * 100) / 100,  // Convert to GB
+        used: Math.round(usedMB / 1024 * 100) / 100,
+        free: Math.round(freeMB / 1024 * 100) / 100,
+        usagePercent: totalMB > 0 ? Math.round((usedMB / totalMB) * 1000) / 10 : 0
+      },
+      utilization: parseFloat(utilization) || 0,
+      temperature: parseFloat(temperature) || 0,
+      power: {
+        current: Math.round(parseFloat(powerDraw) || 0),
+        limit: Math.round(parseFloat(powerLimit) || 0)
+      },
+      processes
+    };
+  } catch (error) {
+    // nvidia-smi not available or failed
+    console.log('nvidia-smi not available:', error instanceof Error ? error.message : 'Unknown error');
+    return defaultStats;
+  }
+}
+
 // Get Ollama running models
 async function getOllamaStats(): Promise<SystemStats['ollama']> {
   try {
@@ -117,8 +246,9 @@ async function getOllamaStats(): Promise<SystemStats['ollama']> {
 
 export async function GET() {
   try {
-    const [cpuUsage, ollamaStats] = await Promise.all([
+    const [cpuUsage, gpuStats, ollamaStats] = await Promise.all([
       getCpuUsage(),
+      getGpuStats(),
       getOllamaStats()
     ]);
     
@@ -132,6 +262,7 @@ export async function GET() {
         model: cpuInfo?.model || 'Unknown'
       },
       memory: memoryStats,
+      gpu: gpuStats,
       ollama: ollamaStats
     };
     
@@ -144,4 +275,3 @@ export async function GET() {
     );
   }
 }
-

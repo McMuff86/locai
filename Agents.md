@@ -10,7 +10,7 @@
 **LocAI** is a modern local AI chat application that runs AI models directly on local hardware using Ollama. The project emphasizes privacy, data control, and cloud-independence.
 
 ### Key Features
-- 💬 Local chat with multiple AI models (Llama3, Gemma, Mistral, DeepSeek, Granite)
+- 💬 Local chat with multiple AI models (Llama3, Gemma, Mistral, DeepSeek, Granite, Qwen)
 - 🖼️ Image analysis with vision models (Granite Vision, Llama3.2 Vision)
 - 💾 Local data storage (LocalStorage) with Auto-Save
 - 🎨 Dark/Light theme support (Grok-style dark theme)
@@ -19,6 +19,11 @@
 - 📊 Conversation statistics
 - 🎨 **ComfyUI Integration** - Launch, monitor & image gallery
 - ⭐ **Image Gallery** - Favorites, metadata, delete, analyze, use as input
+- 📥 **Model Pull UI** - Download 60+ models directly from LocAI
+- ✨ **Prompt Templates** - 12 specialized templates in 5 categories
+- 🖥️ **GPU Monitor** - Real-time NVIDIA GPU stats, VRAM, temp, processes
+- 📊 **Right Sidebar** - Dockable tools panel with widgets
+- ⚡ **Process Kill** - Terminate GPU processes with safety warnings
 
 ---
 
@@ -54,11 +59,11 @@ src/
 │   │   │   ├── launch/route.ts         # Start ComfyUI
 │   │   │   └── status/route.ts         # Check if running
 │   │   ├── ollama/
-│   │   │   └── pull/route.ts           # NEW: Pull models (streaming)
+│   │   │   └── pull/route.ts           # Pull models (streaming, 60+ models)
 │   │   ├── folder-picker/route.ts      # Native folder dialog
 │   │   └── system-stats/route.ts       # CPU/RAM/VRAM monitoring
 │   ├── chat/              
-│   │   └── page.tsx                    # Chat page (622 lines)
+│   │   └── page.tsx                    # Chat page (~680 lines)
 │   ├── layout.tsx         
 │   └── globals.css                     # Grok/Ollama-style dark theme
 ├── components/
@@ -71,16 +76,32 @@ src/
 │   │   ├── ConversationSidebar.tsx     # 543 lines ⚠️
 │   │   ├── ConversationStats.tsx       # 261 lines
 │   │   ├── MarkdownRenderer.tsx        # 234 lines
-│   │   ├── SetupCard.tsx               # 210 lines
+│   │   ├── SetupCard.tsx               # ~280 lines (with Template Picker)
 │   │   ├── ThinkingProcess.tsx         # 85 lines
 │   │   └── TokenCounter.tsx            # 107 lines
+│   ├── gallery/                        # ✅ NEW: Refactored Image Gallery
+│   │   ├── types.ts                    # Type definitions
+│   │   ├── hooks/
+│   │   │   ├── index.ts
+│   │   │   ├── useGalleryImages.ts     # Image fetching (~80 lines)
+│   │   │   ├── useFavorites.ts         # Favorites management (~70 lines)
+│   │   │   ├── useImageMetadata.ts     # PNG metadata (~45 lines)
+│   │   │   └── useImageActions.ts      # Delete/copy/download (~75 lines)
+│   │   ├── GalleryHeader.tsx           # Header with controls (~120 lines)
+│   │   ├── ImageCard.tsx               # Image thumbnail (~75 lines)
+│   │   ├── Lightbox.tsx                # Full-screen viewer (~175 lines)
+│   │   ├── MetadataPanel.tsx           # Metadata display (~120 lines)
+│   │   ├── DeleteConfirmDialog.tsx     # Confirmation dialog (~55 lines)
+│   │   ├── EmptyState.tsx              # Empty/error states (~45 lines)
+│   │   ├── ImageGallery.tsx            # Main component (~230 lines)
+│   │   └── index.ts                    # Exports
 │   ├── ui/                             # Shadcn UI components
 │   ├── ComfyUIWidget.tsx               # 238 lines
-│   ├── ErrorBoundary.tsx               # NEW: Error handling
-│   ├── ClientErrorBoundary.tsx         # NEW: Client wrapper
-│   ├── ImageGallery.tsx                # 958 lines ⚠️ NEEDS REFACTORING
-│   ├── ModelPullDialog.tsx             # NEW: Download models
-│   ├── OllamaStatus.tsx                # NEW: Connection indicator
+│   ├── ErrorBoundary.tsx               # Error handling
+│   ├── ClientErrorBoundary.tsx         # Client wrapper
+│   ├── ImageGallery.tsx                # Legacy wrapper → gallery/
+│   ├── ModelPullDialog.tsx             # Download models (~400 lines)
+│   ├── OllamaStatus.tsx                # Connection indicator
 │   ├── SystemMonitor.tsx               # 246 lines
 │   └── ThemeProvider.tsx
 ├── hooks/
@@ -89,7 +110,7 @@ src/
 │   ├── useConversations.ts             # 231 lines
 │   ├── useModels.ts                    # 108 lines
 │   ├── useKeyboardShortcuts.ts         # 70 lines
-│   ├── useOllamaStatus.ts              # NEW: Connection monitoring
+│   ├── useOllamaStatus.ts              # Connection monitoring
 │   └── useSettings.ts                  # ComfyUI paths, etc.
 ├── lib/
 │   ├── ollama.ts                       # 550 lines
@@ -101,7 +122,9 @@ src/
 │   │   ├── granite-vision.ts
 │   │   ├── llama3.ts
 │   │   ├── llama3-vision.ts
-│   │   └── mistral.ts
+│   │   ├── mistral.ts
+│   │   └── qwen-coder.ts               # Qwen3-Coder template
+│   ├── prompt-templates.ts             # ✅ NEW: 12 Prompt Templates
 │   └── utils.ts
 └── types/
     ├── chat.ts
@@ -114,16 +137,18 @@ src/
 
 | File | Lines | Status |
 |------|-------|--------|
-| `ImageGallery.tsx` | 958 | ⚠️ Needs refactoring |
-| `page.tsx` | 622 | ✅ Acceptable |
+| ~~`ImageGallery.tsx`~~ | ~~958~~ | ✅ Refactored into gallery/ |
+| `page.tsx` | 680 | ✅ Acceptable |
 | `ollama.ts` | 550 | ✅ Utility file |
 | `ConversationSidebar.tsx` | 543 | ⚠️ Could be split |
+| `ModelPullDialog.tsx` | 400 | ✅ Standalone feature |
 | `storage.ts` | 389 | ✅ OK |
 | `ConversationStats.tsx` | 261 | ✅ OK |
 | `metadata/route.ts` | 259 | ✅ OK |
 | `SystemMonitor.tsx` | 246 | ✅ OK |
 | `ComfyUIWidget.tsx` | 238 | ✅ OK |
 | `MarkdownRenderer.tsx` | 234 | ✅ OK |
+| `gallery/ImageGallery.tsx` | 230 | ✅ Refactored |
 | `useConversations.ts` | 231 | ✅ OK |
 | `useChat.ts` | 228 | ✅ OK |
 | `ChatSearch.tsx` | 226 | ✅ OK |
@@ -167,7 +192,10 @@ src/
 | Error Boundaries | ✅ | Graceful error handling |
 | Ollama Status | ✅ | Real-time connection indicator |
 | Loading Skeletons | ✅ | All loading states |
-| Model Pull UI | ✅ | Download models in-app |
+| Model Pull UI | ✅ | Download 60+ models in-app |
+| Qwen3-Coder Template | ✅ | Optimized for code models |
+| Prompt Templates | ✅ | 12 templates in 5 categories |
+| GPU Monitor | ✅ | nvidia-smi: VRAM, Temp, Utilization, Processes |
 
 ### ✅ Recently Completed (Current Session)
 
@@ -176,65 +204,56 @@ src/
 | 1 | Error Boundaries | ✅ Global error catching with recovery UI |
 | 2 | Ollama Connection Status | ✅ Real-time indicator in sidebar |
 | 3 | Loading Skeletons | ✅ Skeleton components for all loading states |
-| 4 | Model Pull UI | ✅ Download models directly from LocAI |
+| 4 | Model Pull UI | ✅ 60+ models in 6 categories, custom model support |
+| 5 | ImageGallery Refactoring | ✅ 992 lines → 11 files (~200 lines each) |
+| 6 | Qwen3-Coder Template | ✅ Optimized system prompt for code models |
+| 7 | Prompt Templates | ✅ 12 templates: Code Review, Debugging, Translation, etc. |
+| 8 | Template Picker UI | ✅ Integrated into SetupCard with categories |
+| 9 | GPU Monitor | ✅ nvidia-smi integration, VRAM, Temp, GPU Processes |
 
 ### 🟡 TODO: Medium Priority
 
 | # | Feature | Effort | Description |
 |---|---------|--------|-------------|
-| 5 | ImageGallery Refactoring | 4h | Split 958 lines |
-| 6 | ConversationSidebar Refactoring | 3h | Split 543 lines |
-| 7 | Prompt Templates | 4h | Code review, translation, etc. |
-| 8 | Export Chat | 2h | Markdown/JSON/PDF |
-| 9 | Image Drag & Drop | 3h | Gallery → Chat |
-| 10 | Conversation Tags | 4h | Categorization |
-| 11 | Keyboard Shortcuts Modal | 2h | Show all (? key) |
+| 1 | ConversationSidebar Refactoring | 3h | Split 543 lines |
+| 2 | Export Chat | 2h | Markdown/JSON/PDF |
+| 3 | Image Drag & Drop | 3h | Gallery → Chat |
+| 4 | Conversation Tags | 4h | Categorization |
+| 5 | Keyboard Shortcuts Modal | 2h | Show all (? key) |
 
 ### 🟢 TODO: Low Priority (Future)
 
 | # | Feature | Effort | Description |
 |---|---------|--------|-------------|
-| 12 | Supabase Integration | 8h | Cloud sync |
-| 13 | Multi-Model Chat | 6h | Different models in one chat |
-| 14 | RAG Integration | 12h | Document upload |
-| 15 | ComfyUI Workflow Editor | 20h | Edit workflows in LocAI |
-| 16 | Voice Input | 6h | Whisper integration |
+| 7 | Supabase Integration | 8h | Cloud sync |
+| 8 | Multi-Model Chat | 6h | Different models in one chat |
+| 9 | RAG Integration | 12h | Document upload |
+| 10 | ComfyUI Workflow Editor | 20h | Edit workflows in LocAI |
+| 11 | Voice Input | 6h | Whisper integration |
 
 ---
 
-## Known Issues
+## Model Templates
 
-1. ⚠️ **ImageGallery.tsx too large** (958 lines) - needs refactoring
-2. ⚠️ **ConversationSidebar.tsx** (543 lines) - contains Settings + Widget
-3. **No error boundaries** - crashes if Ollama offline
-4. **Supabase unused** - config exists but no integration
-5. **LocalStorage only** - no cloud sync
+| Model | Template File | Special Features |
+|-------|---------------|------------------|
+| Llama 3.x | `llama3.ts` | General purpose |
+| Llama 3.2 Vision | `llama3-vision.ts` | Image analysis |
+| Mistral | `mistral.ts` | Instruction format |
+| Gemma 2 | `gemma.ts` | Google style |
+| DeepSeek R1 | `deepseek.ts` | `<think>` reasoning tags |
+| Granite Vision | `granite-vision.ts` | IBM format, image analysis |
+| **Qwen3 Coder** | `qwen-coder.ts` | **NEW**: ChatML, code-focused |
 
----
-
-## Development Commands
-
-```bash
-# Start development server
-npm run dev
-
-# Build for production
-npm run build
-
-# Clear cache (if build errors)
-Remove-Item -Recurse -Force .next; npm run build
-
-# Check outdated packages
-npm outdated
-
-# Start Ollama (required)
-ollama serve
-
-# Pull recommended models
-ollama pull granite3.2-vision
-ollama pull llama3.2-vision
-ollama pull llama3
-ollama pull deepseek-r1
+### Qwen3-Coder Recommended Settings
+```typescript
+{
+  temperature: 0.7,
+  top_p: 0.8,
+  top_k: 20,
+  repeat_penalty: 1.05,
+  num_predict: 8192
+}
 ```
 
 ---
@@ -245,7 +264,7 @@ ollama pull deepseek-r1
 |-------|--------|-------------|
 | `/api/system-stats` | GET | CPU, RAM, VRAM, active models |
 | `/api/folder-picker` | GET | Native OS folder dialog |
-| `/api/ollama/pull` | GET | List suggested models |
+| `/api/ollama/pull` | GET | List 60+ suggested models |
 | `/api/ollama/pull` | POST | Pull/download a model (streaming) |
 | `/api/comfyui/status` | GET | Check if ComfyUI running |
 | `/api/comfyui/launch` | POST | Start ComfyUI |
@@ -293,16 +312,19 @@ ollama pull deepseek-r1
 - ✅ Auto-save
 - ✅ Resizable sidebar (400px default)
 - ✅ ComfyUI integration (launch, status)
-- ✅ Image Gallery with:
-  - Multiple grid sizes (XS/S/M/L)
-  - Favorites (localStorage)
-  - Delete with confirmation
-  - PNG metadata (prompt/seed/sampler)
-  - Copy prompt
-  - Analyze with vision model (Granite preferred)
-  - Use as ComfyUI input
+- ✅ Image Gallery with all features
 - ✅ Native folder picker
-- ✅ Toast notifications (replaced alerts)
+- ✅ Toast notifications
+- ✅ Error Boundaries + Ollama Status
+- ✅ Loading Skeletons
+- ✅ **Model Pull UI** (60+ models, categories, custom names)
+- ✅ **ImageGallery Refactoring** (992 → 11 files)
+- ✅ **Qwen3-Coder Template** (optimized system prompt)
+- ✅ **Prompt Templates** (12 templates in 5 categories)
+- ✅ **Template Picker UI** (SetupCard with category filter & preview)
+- ✅ **GPU Monitor** (nvidia-smi: VRAM, Temp, Utilization, Processes)
+- ✅ **Right Sidebar** (Tools Panel with GPU Monitor widget)
+- ✅ **Process Kill** (Kill GPU processes with safety confirmation)
 
 ### 2025-03-08
 - Initial project structure
@@ -316,6 +338,10 @@ ollama pull deepseek-r1
 1. ~~Error Boundaries + Ollama Status~~ ✅
 2. ~~Loading Skeletons~~ ✅
 3. ~~Model Pull UI~~ ✅
-4. **ImageGallery Refactoring** ← NEXT
-5. Prompt Templates
-6. Export Chat (Markdown/JSON/PDF)
+4. ~~ImageGallery Refactoring~~ ✅
+5. ~~Qwen3-Coder Template~~ ✅
+6. ~~Prompt Templates~~ ✅ (12 templates in 5 categories)
+7. ~~Template Picker UI~~ ✅ (integrated into SetupCard)
+8. ~~GPU Monitor~~ ✅ (nvidia-smi integration)
+9. **ConversationSidebar Refactoring** ← NEXT (optional)
+10. Export Chat (Markdown/JSON/PDF)
