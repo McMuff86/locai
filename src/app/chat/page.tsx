@@ -337,6 +337,93 @@ export default function ChatPage() {
     setSelectedModel(newModel);
   }, [selectedModel, addMessage, updateConversationTitle, setSelectedModel]);
 
+  // Handle analyze image from gallery
+  const handleAnalyzeGalleryImage = useCallback(async (imageUrl: string, filename: string) => {
+    // Check if we have a vision model
+    if (visionModels.length === 0) {
+      toast({
+        title: "Kein Vision-Modell verfügbar",
+        description: "Bitte installieren Sie ein Vision-Modell mit 'ollama pull granite3.2-vision'",
+        variant: "destructive"
+      });
+      return;
+    }
+    
+    try {
+      // Fetch the image and convert to File
+      const response = await fetch(imageUrl);
+      const blob = await response.blob();
+      const file = new File([blob], filename, { type: blob.type });
+      
+      // Prefer granite3.2-vision, then llama3.2-vision, then first available
+      const currentModelIsVision = visionModels.some(vm => vm.name === selectedModel);
+      let modelToUse = selectedModel;
+      
+      if (!currentModelIsVision) {
+        // Priority: granite3.2-vision > llama3.2-vision > first available
+        const graniteVision = visionModels.find(vm => vm.name.includes('granite') && vm.name.includes('vision'));
+        const llamaVision = visionModels.find(vm => vm.name.includes('llama') && vm.name.includes('vision'));
+        
+        modelToUse = graniteVision?.name || llamaVision?.name || visionModels[0].name;
+        setSelectedModel(modelToUse);
+        toast({
+          title: "Vision-Modell ausgewählt",
+          description: `Wechsel zu ${modelToUse} für Bildanalyse.`,
+        });
+      }
+      
+      // Start new conversation if needed
+      if (conversation.messages.length === 0) {
+        // Start conversation with system message
+        const systemContent = imagePrompt;
+        
+        const systemMessage: Message = {
+          id: uuidv4(),
+          role: 'system',
+          content: systemContent,
+          timestamp: new Date(),
+          modelName: modelToUse
+        };
+        
+        addMessage(systemMessage);
+        updateConversationTitle(`Image Analysis: ${filename}`);
+      }
+      
+      // Small delay to ensure system message is processed
+      await new Promise(resolve => setTimeout(resolve, 100));
+      
+      // Send the image with detailed analysis request in English
+      const analysisPrompt = `Please analyze this image in detail. Describe:
+1. The main subject and composition
+2. Colors, lighting, and visual style
+3. Technical aspects (if it's AI-generated: apparent model, quality, artifacts)
+4. Mood and atmosphere
+5. Any text, symbols, or notable elements
+
+Image filename: ${filename}`;
+      
+      await sendMessage(
+        analysisPrompt,
+        [file],
+        conversation,
+        modelToUse,
+        (userMsg) => addMessage(userMsg),
+        (botMsg) => addMessage(botMsg),
+        (newModel) => {
+          setSelectedModel(newModel);
+        }
+      );
+      
+    } catch (err) {
+      console.error('Failed to analyze image:', err);
+      toast({
+        title: "Fehler bei der Bildanalyse",
+        description: "Das Bild konnte nicht geladen werden.",
+        variant: "destructive"
+      });
+    }
+  }, [visionModels, selectedModel, conversation, imagePrompt, sendMessage, addMessage, updateConversationTitle, toast, setSelectedModel]);
+
   // Handle send message
   const handleSendMessage = useCallback(async (content: string, images?: File[]) => {
     await sendMessage(
@@ -565,6 +652,10 @@ export default function ChatPage() {
         outputPath={settings.comfyUIOutputPath}
         isOpen={showGallery}
         onClose={() => setShowGallery(false)}
+        onAnalyzeImage={handleAnalyzeGalleryImage}
+        onShowToast={(title, description, variant) => {
+          toast({ title, description, variant: variant || 'default' });
+        }}
       />
     </div>
   );
