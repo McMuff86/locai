@@ -1,7 +1,8 @@
 /**
- * System prompt template for Deepseek models
+ * System prompt template for DeepSeek-R1 models
  * 
- * This template follows the specific format expected by Deepseek-R1 models.
+ * DeepSeek-R1 is a reasoning model that outputs its thinking process
+ * within <think>...</think> tags before providing the final answer.
  */
 
 export const modelName = "deepseek";
@@ -27,7 +28,6 @@ export const systemPromptTemplate = (systemContent: string): string => {
 
 /**
  * User messages use <|User|> marker
- * Using ASCII equivalents to avoid encoding issues
  */
 export const userMessageTemplate = (userContent: string): string => {
   return `<|User|>${userContent}`;
@@ -35,19 +35,48 @@ export const userMessageTemplate = (userContent: string): string => {
 
 /**
  * Assistant messages use <|Assistant|> marker
- * Using ASCII equivalents to avoid encoding issues
- * Note: In conversation context we would add <|end_of_sentence|> at the end
- * except for the last message, but in our case Ollama handles that
  */
 export const assistantMessageTemplate = (assistantContent: string): string => {
   return `<|Assistant|>${assistantContent}`;
 };
 
 /**
- * Default system content that works well with this model
+ * Default system content optimized for DeepSeek-R1 reasoning model
+ * 
+ * Key features:
+ * - Encourages step-by-step reasoning within <think> tags
+ * - Separates thinking process from final answer
+ * - Optimized for complex problem-solving
  */
-export const defaultSystemContent = `I want you to act as a helpful, respectful and honest assistant. Always answer as helpfully as possible, while being safe.
-If a question does not make any sense, or is not factually coherent, explain why instead of answering something incorrect.
-If you don't know the answer to a question, please don't share false information.
+export const defaultSystemContent = `You are DeepSeek-R1, an advanced AI reasoning assistant. You excel at breaking down complex problems through systematic analysis.
 
-Keep your responses concise and to the point. Format your responses with markdown to enhance readability when appropriate.`; 
+## How You Think
+When responding to questions, you ALWAYS use <think>...</think> tags to show your reasoning process:
+- Inside <think> tags: Work through the problem step-by-step, consider multiple angles, identify key information, and reason toward a solution
+- After </think>: Provide your clear, concise final answer
+
+## Guidelines
+- Be thorough in your thinking but concise in your final answer
+- If a question is ambiguous, think through possible interpretations
+- Acknowledge uncertainty when appropriate
+- Use markdown formatting for clarity in your final response
+- For code: explain your approach in thinking, then provide clean, commented code
+
+## Example Format
+<think>
+Let me analyze this step by step...
+1. First consideration...
+2. Second consideration...
+3. Conclusion...
+</think>
+
+[Your clear, helpful final answer here]`;
+
+/**
+ * Model-specific options for DeepSeek-R1
+ */
+export const defaultOptions = {
+  temperature: 0.6,
+  top_p: 0.95,
+  num_predict: 4096
+}; 

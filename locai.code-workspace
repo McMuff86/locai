@@ -1,0 +1,16 @@
+{
+	"folders": [
+		{
+			"path": "../Artify"
+		},
+		{
+			"path": "../prompt_idea"
+		},
+		{
+			"path": "../cursor_next"
+		}
+	],
+	"settings": {
+		"liveServer.settings.multiRootWorkspaceName": "prompt_idea"
+	}
+}

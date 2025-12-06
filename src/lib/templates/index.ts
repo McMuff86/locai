@@ -10,6 +10,7 @@ import * as mistral from './mistral';
 import * as gemma from './gemma';
 import * as deepseek from './deepseek';
 import * as llama3Vision from './llama3-vision';
+import * as graniteVision from './granite-vision';
 
 // Default template if no specific one is found
 const defaultTemplate = {
@@ -39,6 +40,7 @@ export const templates = {
   gemma,
   deepseek,
   llama3Vision,
+  graniteVision,
   default: defaultTemplate
 };
 
@@ -52,9 +54,14 @@ export function getTemplateForModel(modelName: string) {
   // Normalize model name to lowercase and remove version numbers/punctuation
   const normalizedName = modelName.toLowerCase().replace(/[\d:.-]/g, '');
   
-  if (normalizedName.includes('llama') && normalizedName.includes('vision')) {
+  // Vision models first (more specific match)
+  if (normalizedName.includes('granite') && normalizedName.includes('vision')) {
+    return templates.graniteVision;
+  } else if (normalizedName.includes('llama') && normalizedName.includes('vision')) {
     return templates.llama3Vision;
-  } else if (normalizedName.includes('llama')) {
+  }
+  // Then general models
+  else if (normalizedName.includes('llama') || normalizedName.includes('dolphin')) {
     return templates.llama3;
   } else if (normalizedName.includes('mistral')) {
     return templates.mistral;
@@ -62,6 +69,8 @@ export function getTemplateForModel(modelName: string) {
     return templates.gemma;
   } else if (normalizedName.includes('deepseek')) {
     return templates.deepseek;
+  } else if (normalizedName.includes('granite')) {
+    return templates.graniteVision; // Granite models default to vision template
   }
   
   return templates.default;
