@@ -3,6 +3,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { ThemeProvider } from "../components/ThemeProvider";
 import { Toaster } from "../components/ui/toaster";
+import { ClientErrorBoundary } from "../components/ClientErrorBoundary";
 
 export const metadata = {
   title: 'LocAI',
@@ -35,7 +36,9 @@ export default function RootLayout({
           enableSystem
           disableTransitionOnChange
         >
-          {children}
+          <ClientErrorBoundary>
+            {children}
+          </ClientErrorBoundary>
           <Toaster />
         </ThemeProvider>
       </body>

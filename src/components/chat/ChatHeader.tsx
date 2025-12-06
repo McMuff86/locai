@@ -4,7 +4,7 @@ import React from 'react';
 import Link from 'next/link';
 import { 
   Home, ChevronDown, Check, Save, FolderOpen, 
-  Download, Upload, Trash, Menu 
+  Download, Upload, Trash, Menu, Plus
 } from 'lucide-react';
 import { Button } from '../ui/button';
 import { ThemeToggle } from '../ui/theme-toggle';
@@ -25,6 +25,7 @@ interface ChatHeaderProps {
   selectedModel: string;
   onModelChange: (model: string) => void;
   showModelSelector: boolean;
+  onPullModel?: () => void;
   
   // Conversation props
   savedConversations: Conversation[];
@@ -44,6 +45,7 @@ export function ChatHeader({
   selectedModel,
   onModelChange,
   showModelSelector,
+  onPullModel,
   savedConversations,
   onSaveConversation,
   onSelectConversation,
@@ -119,6 +121,15 @@ export function ChatHeader({
             {model.name === selectedModel && <Check className="h-4 w-4 ml-2" />}
           </DropdownMenuItem>
         ))}
+        {onPullModel && (
+          <>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem onClick={onPullModel}>
+              <Plus className="h-4 w-4 mr-2" />
+              Neues Modell herunterladen
+            </DropdownMenuItem>
+          </>
+        )}
       </DropdownMenuContent>
     </DropdownMenu>
   );

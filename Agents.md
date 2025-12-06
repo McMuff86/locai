@@ -1,7 +1,7 @@
 # LocAI - AI Agent Documentation
 
 > Last Updated: 2025-12-06
-> Status: Active Development (Resumed)
+> Status: Active Development
 
 ---
 
@@ -10,14 +10,15 @@
 **LocAI** is a modern local AI chat application that runs AI models directly on local hardware using Ollama. The project emphasizes privacy, data control, and cloud-independence.
 
 ### Key Features
-- 💬 Local chat with multiple AI models (Llama3, Gemma, Mistral, DeepSeek)
-- 🖼️ Image analysis with vision models
-- 💾 Local data storage (LocalStorage/FileSystem) with Auto-Save
+- 💬 Local chat with multiple AI models (Llama3, Gemma, Mistral, DeepSeek, Granite)
+- 🖼️ Image analysis with vision models (Granite Vision, Llama3.2 Vision)
+- 💾 Local data storage (LocalStorage) with Auto-Save
 - 🎨 Dark/Light theme support (Grok-style dark theme)
-- 📱 Responsive design with resizable sidebar
+- 📱 Responsive design with resizable sidebar (400px default)
 - 🔍 Chat search across conversations
 - 📊 Conversation statistics
-- 🎨 **ComfyUI Integration** - Launch & monitor from LocAI
+- 🎨 **ComfyUI Integration** - Launch, monitor & image gallery
+- ⭐ **Image Gallery** - Favorites, metadata, delete, analyze, use as input
 
 ---
 
@@ -30,10 +31,10 @@
 | TypeScript | 5.9.3 | ✅ Current |
 | Tailwind CSS | 4.1.17 | ✅ Current |
 | Framer Motion | 12.23.25 | ✅ Current |
-| react-markdown | 10.x | ✅ NEW - GFM support |
-| react-syntax-highlighter | 15.x | ✅ NEW - Code highlighting |
+| react-markdown | 10.x | ✅ GFM support |
+| react-syntax-highlighter | 15.x | ✅ Code highlighting |
 | Shadcn/UI | - | ✅ Current |
-| Supabase CLI | 2.65.6 | ✅ Current |
+| date-fns | 4.x | ✅ Date formatting |
 
 ---
 
@@ -41,109 +42,173 @@
 
 ```
 src/
-├── app/                    # Next.js App Router
+├── app/                          # Next.js App Router
 │   ├── api/
-│   │   ├── comfyui/       # ComfyUI Integration APIs
-│   │   │   ├── launch/route.ts   # Start ComfyUI
-│   │   │   └── status/route.ts   # Check if running
-│   │   └── system-stats/route.ts # System monitoring
+│   │   ├── comfyui/
+│   │   │   ├── gallery/
+│   │   │   │   ├── route.ts            # List images
+│   │   │   │   ├── [id]/route.ts       # Serve single image
+│   │   │   │   ├── metadata/route.ts   # PNG metadata extraction
+│   │   │   │   ├── delete/route.ts     # Delete image
+│   │   │   │   └── copy-to-input/route.ts  # Copy to ComfyUI input
+│   │   │   ├── launch/route.ts         # Start ComfyUI
+│   │   │   └── status/route.ts         # Check if running
+│   │   ├── ollama/
+│   │   │   └── pull/route.ts           # NEW: Pull models (streaming)
+│   │   ├── folder-picker/route.ts      # Native folder dialog
+│   │   └── system-stats/route.ts       # CPU/RAM/VRAM monitoring
 │   ├── chat/              
-│   │   └── page.tsx       # Chat page (~550 lines, resizable sidebar)
+│   │   └── page.tsx                    # Chat page (622 lines)
 │   ├── layout.tsx         
-│   └── globals.css        # Grok/Ollama-style dark theme
+│   └── globals.css                     # Grok/Ollama-style dark theme
 ├── components/
-│   ├── chat/              # Chat-specific components
+│   ├── chat/                           # Chat-specific components
 │   │   ├── ChatContainer.tsx
-│   │   ├── ChatHeader.tsx
-│   │   ├── ChatInput.tsx
-│   │   ├── ChatMessage.tsx    # Uses MarkdownRenderer
-│   │   ├── ChatSearch.tsx     # Conversation search
-│   │   ├── ConversationSidebar.tsx  # Settings + ComfyUI widget
-│   │   ├── ConversationStats.tsx    # Per-chat statistics
-│   │   ├── MarkdownRenderer.tsx     # GFM + syntax highlighting
-│   │   ├── SetupCard.tsx
-│   │   ├── ThinkingProcess.tsx
-│   │   └── TokenCounter.tsx
-│   ├── ui/                # Shadcn UI components
-│   ├── ComfyUIWidget.tsx  # NEW: ComfyUI status & launcher
-│   ├── SystemMonitor.tsx
+│   │   ├── ChatHeader.tsx              # 172 lines
+│   │   ├── ChatInput.tsx               # 134 lines
+│   │   ├── ChatMessage.tsx             # 216 lines
+│   │   ├── ChatSearch.tsx              # 226 lines
+│   │   ├── ConversationSidebar.tsx     # 543 lines ⚠️
+│   │   ├── ConversationStats.tsx       # 261 lines
+│   │   ├── MarkdownRenderer.tsx        # 234 lines
+│   │   ├── SetupCard.tsx               # 210 lines
+│   │   ├── ThinkingProcess.tsx         # 85 lines
+│   │   └── TokenCounter.tsx            # 107 lines
+│   ├── ui/                             # Shadcn UI components
+│   ├── ComfyUIWidget.tsx               # 238 lines
+│   ├── ErrorBoundary.tsx               # NEW: Error handling
+│   ├── ClientErrorBoundary.tsx         # NEW: Client wrapper
+│   ├── ImageGallery.tsx                # 958 lines ⚠️ NEEDS REFACTORING
+│   ├── ModelPullDialog.tsx             # NEW: Download models
+│   ├── OllamaStatus.tsx                # NEW: Connection indicator
+│   ├── SystemMonitor.tsx               # 246 lines
 │   └── ThemeProvider.tsx
 ├── hooks/
 │   ├── index.ts
-│   ├── useChat.ts         # Chat + streaming + tokens
-│   ├── useConversations.ts # Auto-save conversations
-│   ├── useModels.ts       # Ollama models
-│   ├── useKeyboardShortcuts.ts
-│   └── useSettings.ts     # NEW: App settings (localStorage)
+│   ├── useChat.ts                      # 228 lines
+│   ├── useConversations.ts             # 231 lines
+│   ├── useModels.ts                    # 108 lines
+│   ├── useKeyboardShortcuts.ts         # 70 lines
+│   ├── useOllamaStatus.ts              # NEW: Connection monitoring
+│   └── useSettings.ts                  # ComfyUI paths, etc.
 ├── lib/
-│   ├── ollama.ts
-│   ├── storage.ts
-│   ├── templates/         # Model prompts
+│   ├── ollama.ts                       # 550 lines
+│   ├── storage.ts                      # 389 lines
+│   ├── templates/                      # Model prompts
+│   │   ├── index.ts
+│   │   ├── deepseek.ts                 # <think> reasoning support
+│   │   ├── gemma.ts
+│   │   ├── granite-vision.ts
+│   │   ├── llama3.ts
+│   │   ├── llama3-vision.ts
+│   │   └── mistral.ts
 │   └── utils.ts
 └── types/
-    └── chat.ts
+    ├── chat.ts
+    └── index.ts
 ```
 
 ---
 
-## Pending Updates (npm outdated)
+## File Size Overview (Files > 200 lines)
 
-### ✅ Completed Updates (2025-12-06)
-All safe updates have been applied:
-- React 19.0.0 → 19.2.1
-- Framer Motion 12.4.10 → 12.23.25
-- Tailwind CSS 4.0.12 → 4.1.17
-- TypeScript 5.8.2 → 5.9.3
-- All @radix-ui/* packages → latest
-- Next.js 15.2.1 → 15.5.7 (Security fix)
-- Supabase CLI 2.15.8 → 2.65.6
-
-### 🟡 Available Major Updates (Optional)
-These are major version updates that may have breaking changes:
-
-| Package | Current | Target | Notes |
-|---------|---------|--------|-------|
-| next | 15.5.7 | 16.0.7 | Major version - new features |
-| uuid | 11.1.0 | 13.0.0 | Major version jump |
-| lucide-react | 0.479.0 | 0.556.0 | Icon updates |
-| @types/node | 20.19.25 | 24.10.1 | Node.js type definitions |
+| File | Lines | Status |
+|------|-------|--------|
+| `ImageGallery.tsx` | 958 | ⚠️ Needs refactoring |
+| `page.tsx` | 622 | ✅ Acceptable |
+| `ollama.ts` | 550 | ✅ Utility file |
+| `ConversationSidebar.tsx` | 543 | ⚠️ Could be split |
+| `storage.ts` | 389 | ✅ OK |
+| `ConversationStats.tsx` | 261 | ✅ OK |
+| `metadata/route.ts` | 259 | ✅ OK |
+| `SystemMonitor.tsx` | 246 | ✅ OK |
+| `ComfyUIWidget.tsx` | 238 | ✅ OK |
+| `MarkdownRenderer.tsx` | 234 | ✅ OK |
+| `useConversations.ts` | 231 | ✅ OK |
+| `useChat.ts` | 228 | ✅ OK |
+| `ChatSearch.tsx` | 226 | ✅ OK |
+| `ChatMessage.tsx` | 216 | ✅ OK |
+| `SetupCard.tsx` | 210 | ✅ OK |
 
 ---
 
-## Upgrade Recommendations
+## Feature Status
 
-### Phase 1: Quick Wins (Einfachste Upgrades)
-1. **Safe dependency updates**: `npm update`
-2. **TypeScript strict mode** improvements
-3. **Code cleanup** in chat/page.tsx (currently 965 lines)
+### ✅ Implemented Features
 
-### Phase 2: Feature Enhancements
-1. **Streaming responses** - Enable `stream: true` in Ollama API
-2. **Better error handling** with toast notifications
-3. **Loading states** optimization
+| Feature | Status | Notes |
+|---------|--------|-------|
+| Chat with Ollama | ✅ | Multiple models |
+| Streaming Responses | ✅ | Token-by-token |
+| Vision Model Support | ✅ | Granite, Llama3.2 |
+| Token Counter | ✅ | Input/output/speed |
+| Context Window Display | ✅ | Shows usage |
+| Dark/Light Theme | ✅ | Grok-style |
+| Conversation History | ✅ | LocalStorage |
+| Auto-Save | ✅ | After each message |
+| Chat Search | ✅ | Full-text |
+| Conversation Stats | ✅ | Words, tokens, time |
+| Markdown Rendering | ✅ | GFM + syntax highlight |
+| Code Copy Button | ✅ | One-click copy |
+| Keyboard Shortcuts | ✅ | Ctrl+N/S, Escape, / |
+| Resizable Sidebar | ✅ | 240-500px, default 400px |
+| System Monitor | ✅ | CPU/RAM/VRAM |
+| ComfyUI Launch | ✅ | Start from LocAI |
+| ComfyUI Status | ✅ | Running indicator |
+| Image Gallery | ✅ | Grid view, lightbox |
+| Gallery Grid Sizes | ✅ | XS/S/M/L |
+| Image Favorites | ✅ | LocalStorage |
+| Image Delete | ✅ | With confirmation |
+| PNG Metadata | ✅ | Prompt/Seed/Sampler |
+| Copy Prompt | ✅ | From metadata |
+| Analyze with Vision | ✅ | Granite preferred |
+| Use as ComfyUI Input | ✅ | Copy to input folder |
+| Native Folder Picker | ✅ | OS dialogs |
+| Error Boundaries | ✅ | Graceful error handling |
+| Ollama Status | ✅ | Real-time connection indicator |
+| Loading Skeletons | ✅ | All loading states |
+| Model Pull UI | ✅ | Download models in-app |
 
-### Phase 3: Architecture Improvements
-1. **Supabase integration** - config exists but not implemented
-2. **Server Actions** for better security
-3. **Component refactoring** - break down large components
+### ✅ Recently Completed (Current Session)
+
+| # | Feature | Status |
+|---|---------|--------|
+| 1 | Error Boundaries | ✅ Global error catching with recovery UI |
+| 2 | Ollama Connection Status | ✅ Real-time indicator in sidebar |
+| 3 | Loading Skeletons | ✅ Skeleton components for all loading states |
+| 4 | Model Pull UI | ✅ Download models directly from LocAI |
+
+### 🟡 TODO: Medium Priority
+
+| # | Feature | Effort | Description |
+|---|---------|--------|-------------|
+| 5 | ImageGallery Refactoring | 4h | Split 958 lines |
+| 6 | ConversationSidebar Refactoring | 3h | Split 543 lines |
+| 7 | Prompt Templates | 4h | Code review, translation, etc. |
+| 8 | Export Chat | 2h | Markdown/JSON/PDF |
+| 9 | Image Drag & Drop | 3h | Gallery → Chat |
+| 10 | Conversation Tags | 4h | Categorization |
+| 11 | Keyboard Shortcuts Modal | 2h | Show all (? key) |
+
+### 🟢 TODO: Low Priority (Future)
+
+| # | Feature | Effort | Description |
+|---|---------|--------|-------------|
+| 12 | Supabase Integration | 8h | Cloud sync |
+| 13 | Multi-Model Chat | 6h | Different models in one chat |
+| 14 | RAG Integration | 12h | Document upload |
+| 15 | ComfyUI Workflow Editor | 20h | Edit workflows in LocAI |
+| 16 | Voice Input | 6h | Whisper integration |
 
 ---
 
 ## Known Issues
 
-1. ~~**Large component**: `src/app/chat/page.tsx` is 965 lines~~ ✅ FIXED (now ~300 lines)
-2. ~~**No streaming**: Chat responses are not streamed~~ ✅ FIXED (streaming implemented)
-3. **Supabase unused**: Config exists but no database integration
-4. **LocalStorage only**: Data persistence is browser-local only
-
----
-
-## Related Documentation
-
-- [README.md](./README.md) - Project overview and setup
-- [README_AIAGENT.MD](./README_AIAGENT.MD) - AI Agent instructions
-- [folder_structure.md](./folder_structure.md) - Project structure
-- [thoughtprocess/](./thoughtprocess/) - Development thought process
+1. ⚠️ **ImageGallery.tsx too large** (958 lines) - needs refactoring
+2. ⚠️ **ConversationSidebar.tsx** (543 lines) - contains Settings + Widget
+3. **No error boundaries** - crashes if Ollama offline
+4. **Supabase unused** - config exists but no integration
+5. **LocalStorage only** - no cloud sync
 
 ---
 
@@ -154,10 +219,10 @@ These are major version updates that may have breaking changes:
 npm run dev
 
 # Build for production
-npm build
+npm run build
 
-# Update safe dependencies
-npm update
+# Clear cache (if build errors)
+Remove-Item -Recurse -Force .next; npm run build
 
 # Check outdated packages
 npm outdated
@@ -166,73 +231,91 @@ npm outdated
 ollama serve
 
 # Pull recommended models
-ollama pull llama3
+ollama pull granite3.2-vision
 ollama pull llama3.2-vision
+ollama pull llama3
+ollama pull deepseek-r1
 ```
+
+---
+
+## API Routes
+
+| Route | Method | Description |
+|-------|--------|-------------|
+| `/api/system-stats` | GET | CPU, RAM, VRAM, active models |
+| `/api/folder-picker` | GET | Native OS folder dialog |
+| `/api/ollama/pull` | GET | List suggested models |
+| `/api/ollama/pull` | POST | Pull/download a model (streaming) |
+| `/api/comfyui/status` | GET | Check if ComfyUI running |
+| `/api/comfyui/launch` | POST | Start ComfyUI |
+| `/api/comfyui/gallery` | GET | List images |
+| `/api/comfyui/gallery/[id]` | GET | Serve single image |
+| `/api/comfyui/gallery/metadata` | GET | Extract PNG metadata |
+| `/api/comfyui/gallery/delete` | DELETE | Delete image |
+| `/api/comfyui/gallery/copy-to-input` | POST | Copy to input folder |
+
+---
+
+## Keyboard Shortcuts
+
+| Shortcut | Action |
+|----------|--------|
+| `Ctrl+N` | New conversation |
+| `Ctrl+S` | Save conversation |
+| `Ctrl+B` | Toggle sidebar |
+| `/` | Focus chat input |
+| `Escape` | Stop generation / Close |
+| `←` `→` | Navigate lightbox |
+| `F` | Toggle favorite (lightbox) |
+| `I` | Toggle metadata (lightbox) |
+| `Delete` | Delete image (lightbox) |
 
 ---
 
 ## Changelog
 
-### 2025-12-06
-- ✅ Resumed development after pause
-- ✅ Created Agents.md documentation
-- ✅ Updated all safe dependencies via `npm update`
-- ✅ Applied critical security patch (Next.js 15.2.1 → 15.5.7)
-  - Fixed: Information exposure in dev server
-  - Fixed: Authorization bypass in middleware
-  - Fixed: RCE vulnerability in React flight protocol
-  - Fixed: SSRF vulnerability
-- ✅ 0 vulnerabilities remaining
-- ✅ Fixed tsconfig.json to exclude `thoughtprocess/` from compilation
-- ✅ Build successful with Next.js 15.5.7
-- ✅ Optimized all model templates:
-  - DeepSeek R1: Added `<think>` reasoning support
-  - Granite Vision: New template for IBM models
-  - Llama3 Vision: Enhanced system prompt
-  - Llama3/Gemma/Mistral: Improved prompts
-- ✅ New Dark Theme (Grok/Ollama style)
-  - Deep black background (#141414)
-  - Teal/Cyan accent color
-  - Enhanced contrast
-- ✅ System Monitor Component
-  - Real-time CPU usage
-  - RAM usage tracking
-  - VRAM monitoring via Ollama API
-  - Live updates during generation
-- ✅ Major Refactoring (968 → ~300 lines in page.tsx)
-  - Extracted: useModels, useConversations, useChat hooks
-  - Extracted: ChatHeader, SetupCard, TokenCounter components
-  - ollama.ts now returns token statistics
-  - Token Counter shows: input/output tokens, speed, duration
-- ✅ New Features implemented:
-  - **Streaming Responses**: Live token-by-token output
-  - **Context Window Display**: Shows model's context limit & usage
-  - **Keyboard Shortcuts**: Ctrl+N (new), Ctrl+S (save), Escape (stop), / (focus)
-  - **Code Block Copy Button**: Click to copy code snippets
-  - **Stop Button**: Cancel generation mid-stream
-  - **Multi-line Input**: Textarea with Enter/Ctrl+Enter support
-- ✅ **Chat Search** (NEW):
-  - Full-text search across all conversations
-  - Highlights matching text
-  - Shows context preview
-  - Relevance-based sorting
-- ✅ **Markdown Rendering** (NEW):
-  - react-markdown with GitHub Flavored Markdown (GFM)
-  - Syntax highlighting for 100+ languages via Prism
-  - Tables, task lists, strikethrough support
-  - Beautiful blockquotes and inline code
-  - Copy button for all code blocks
-- ✅ **Conversation Statistics** (NEW):
-  - Word & character count per conversation
-  - Message breakdown (user/assistant)
-  - Estimated token count
-  - Duration tracking
-  - Model information display
-  - Expandable stats panel in sidebar
+### 2025-12-06 (Current Session)
+- ✅ Resumed development
+- ✅ Updated all safe dependencies
+- ✅ Security patch (Next.js 15.5.7)
+- ✅ Optimized all model templates
+- ✅ New Grok-style dark theme
+- ✅ System Monitor (CPU/RAM/VRAM)
+- ✅ Major refactoring (968 → 622 lines in page.tsx)
+- ✅ Streaming responses
+- ✅ Token counter & context window
+- ✅ Keyboard shortcuts
+- ✅ Code copy button
+- ✅ Chat search
+- ✅ Markdown rendering (GFM + syntax highlight)
+- ✅ Conversation statistics
+- ✅ Auto-save
+- ✅ Resizable sidebar (400px default)
+- ✅ ComfyUI integration (launch, status)
+- ✅ Image Gallery with:
+  - Multiple grid sizes (XS/S/M/L)
+  - Favorites (localStorage)
+  - Delete with confirmation
+  - PNG metadata (prompt/seed/sampler)
+  - Copy prompt
+  - Analyze with vision model (Granite preferred)
+  - Use as ComfyUI input
+- ✅ Native folder picker
+- ✅ Toast notifications (replaced alerts)
 
-### 2025-03-08 (Last Active)
+### 2025-03-08
 - Initial project structure
 - Basic chat functionality
 - Vision model support
 
+---
+
+## Next Steps (In Order)
+
+1. ~~Error Boundaries + Ollama Status~~ ✅
+2. ~~Loading Skeletons~~ ✅
+3. ~~Model Pull UI~~ ✅
+4. **ImageGallery Refactoring** ← NEXT
+5. Prompt Templates
+6. Export Chat (Markdown/JSON/PDF)

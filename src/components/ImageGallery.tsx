@@ -28,6 +28,7 @@ import {
 } from 'lucide-react';
 import { Button } from './ui/button';
 import { ScrollArea } from './ui/scroll-area';
+import { ImageGridSkeleton } from './ui/skeleton';
 import { formatDistanceToNow } from 'date-fns';
 import { de } from 'date-fns/locale';
 
@@ -630,11 +631,9 @@ export function ImageGallery({
                   </div>
                 )}
                 
-                {/* Loading indicator */}
+                {/* Loading skeleton */}
                 {isLoading && images.length === 0 && (
-                  <div className="flex justify-center py-12">
-                    <Loader2 className="h-8 w-8 animate-spin text-primary" />
-                  </div>
+                  <ImageGridSkeleton count={24} />
                 )}
               </>
             )}

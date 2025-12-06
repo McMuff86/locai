@@ -29,6 +29,7 @@ import { de } from 'date-fns/locale';
 import { ChatSearch } from './ChatSearch';
 import { ConversationStats } from './ConversationStats';
 import { ComfyUIWidget } from '../ComfyUIWidget';
+import { OllamaStatus } from '../OllamaStatus';
 import { useTheme } from 'next-themes';
 import { AppSettings } from '../../hooks/useSettings';
 
@@ -44,6 +45,7 @@ interface ConversationSidebarProps {
   settings?: AppSettings;
   onUpdateSettings?: (updates: Partial<AppSettings>) => void;
   onOpenGallery?: () => void;
+  onPullModel?: () => void;
   className?: string;
 }
 
@@ -59,6 +61,7 @@ export function ConversationSidebar({
   settings,
   onUpdateSettings,
   onOpenGallery,
+  onPullModel,
   className = ''
 }: ConversationSidebarProps) {
   const [showStats, setShowStats] = useState<string | null>(null);
@@ -200,6 +203,23 @@ export function ConversationSidebar({
           conversations={conversations}
           onSelectConversation={onSelectConversation}
         />
+      </div>
+      
+      {/* Ollama Status + Model Pull */}
+      <div className="px-4 pb-2 space-y-2">
+        <OllamaStatus showVersion compact={false} />
+        
+        {onPullModel && (
+          <Button 
+            variant="outline" 
+            size="sm" 
+            className="w-full"
+            onClick={onPullModel}
+          >
+            <Download className="h-4 w-4 mr-2" />
+            Modell herunterladen
+          </Button>
+        )}
       </div>
       
       {/* ComfyUI Widget - if settings available */}

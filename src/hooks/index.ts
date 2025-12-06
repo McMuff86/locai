@@ -13,3 +13,6 @@ export type { KeyboardShortcut } from './useKeyboardShortcuts';
 export { useSettings } from './useSettings';
 export type { UseSettingsReturn, AppSettings } from './useSettings';
 
+export { useOllamaStatus } from './useOllamaStatus';
+export type { OllamaStatus } from './useOllamaStatus';
+

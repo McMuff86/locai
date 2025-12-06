@@ -12,6 +12,7 @@ import { ConversationSidebar } from "../../components/chat/ConversationSidebar";
 import { TokenCounter } from "../../components/chat/TokenCounter";
 import { SystemMonitor } from "../../components/SystemMonitor";
 import { ImageGallery } from "../../components/ImageGallery";
+import { ModelPullDialog } from "../../components/ModelPullDialog";
 import { Button } from "../../components/ui/button";
 import { X, GripVertical } from "lucide-react";
 
@@ -75,6 +76,7 @@ export default function ChatPage() {
   const [sidebarWidth, setSidebarWidth] = useState(400); // Default 400px
   const [isResizing, setIsResizing] = useState(false);
   const [showGallery, setShowGallery] = useState(false);
+  const [showModelPull, setShowModelPull] = useState(false);
   const chatInputRef = useRef<HTMLTextAreaElement>(null);
   const sidebarRef = useRef<HTMLDivElement>(null);
 
@@ -534,6 +536,7 @@ Image filename: ${filename}`;
           settings={settings}
           onUpdateSettings={updateSettings}
           onOpenGallery={() => setShowGallery(true)}
+          onPullModel={() => setShowModelPull(true)}
           className="h-full md:h-screen"
         />
         
@@ -555,6 +558,7 @@ Image filename: ${filename}`;
           selectedModel={selectedModel}
           onModelChange={handleModelChange}
           showModelSelector={hasConversationStarted}
+          onPullModel={() => setShowModelPull(true)}
           savedConversations={savedConversations}
           onSaveConversation={handleSaveConversation}
           onSelectConversation={handleSelectConversation}
@@ -571,6 +575,7 @@ Image filename: ${filename}`;
           selectedModel={selectedModel}
           onModelChange={handleModelChange}
           showModelSelector={hasConversationStarted}
+          onPullModel={() => setShowModelPull(true)}
           savedConversations={savedConversations}
           onSaveConversation={handleSaveConversation}
           onSelectConversation={handleSelectConversation}
@@ -655,6 +660,20 @@ Image filename: ${filename}`;
         onAnalyzeImage={handleAnalyzeGalleryImage}
         onShowToast={(title, description, variant) => {
           toast({ title, description, variant: variant || 'default' });
+        }}
+      />
+      
+      {/* Model Pull Dialog */}
+      <ModelPullDialog
+        isOpen={showModelPull}
+        onClose={() => setShowModelPull(false)}
+        installedModels={models.map(m => m.name)}
+        onModelPulled={(modelName) => {
+          toast({
+            title: 'Modell installiert',
+            description: `${modelName} wurde erfolgreich heruntergeladen.`,
+          });
+          // Refresh models list - the useModels hook should auto-refresh
         }}
       />
     </div>
