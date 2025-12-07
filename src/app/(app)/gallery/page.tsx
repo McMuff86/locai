@@ -1,6 +1,7 @@
 "use client";
 
 import React from 'react';
+import { useRouter } from 'next/navigation';
 import { ImageGallery } from '@/components/gallery';
 import { useSettings } from '@/hooks/useSettings';
 import { Button } from '@/components/ui/button';
@@ -8,6 +9,7 @@ import { FolderOpen, Image, Settings, Loader2 } from 'lucide-react';
 import Link from 'next/link';
 
 export default function GalleryPage() {
+  const router = useRouter();
   const { settings, isLoaded } = useSettings();
 
   // Show loading while settings are being fetched
@@ -52,9 +54,11 @@ export default function GalleryPage() {
         comfyUIPath={settings.comfyUIPath}
         inputPath={settings.comfyUIPath ? `${settings.comfyUIPath}\\ComfyUI\\input` : undefined}
         standalone={true}
-        onAnalyzeImage={(imageUrl) => {
-          // Navigate to chat with image for analysis
-          console.log('Analyze image:', imageUrl);
+        onAnalyzeImage={(imageUrl, filename) => {
+          // Store image info in sessionStorage for the chat page to pick up
+          sessionStorage.setItem('analyzeImage', JSON.stringify({ imageUrl, filename }));
+          // Navigate to chat page
+          router.push('/chat?analyzeImage=true');
         }}
       />
     </div>

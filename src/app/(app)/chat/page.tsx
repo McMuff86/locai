@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useCallback, useRef, useMemo } from "react";
+import { useSearchParams } from "next/navigation";
 import { v4 as uuidv4 } from "uuid";
 
 // Components
@@ -31,6 +32,7 @@ import { IMAGE_ANALYSIS_PROMPT } from "@/lib/prompt-templates";
 
 export default function ChatPage() {
   const { toast } = useToast();
+  const searchParams = useSearchParams();
   
   // Settings hook
   const { settings, updateSettings } = useSettings();
@@ -352,6 +354,65 @@ export default function ChatPage() {
       visionModels.map(m => m.name)
     );
   }, [sendMessage, conversation, selectedModel, addMessage, setSelectedModel, visionModels, toast]);
+
+  // Handle image analysis from gallery
+  useEffect(() => {
+    const shouldAnalyze = searchParams.get('analyzeImage');
+    if (shouldAnalyze && hasVisionModel && visionModels.length > 0) {
+      const storedData = sessionStorage.getItem('analyzeImage');
+      if (storedData) {
+        try {
+          const { imageUrl, filename } = JSON.parse(storedData);
+          sessionStorage.removeItem('analyzeImage');
+          
+          // Select a vision model
+          const visionModel = visionModels[0]?.name;
+          if (visionModel) {
+            setSelectedModel(visionModel);
+            
+            // Create a new conversation with vision system prompt
+            const systemMessage: Message = {
+              id: uuidv4(),
+              role: "system",
+              content: IMAGE_ANALYSIS_PROMPT,
+              timestamp: new Date(),
+              modelName: visionModel
+            };
+            
+            setConversation(prev => ({
+              ...prev,
+              id: uuidv4(),
+              title: `Bildanalyse: ${filename}`,
+              messages: [systemMessage],
+              createdAt: new Date(),
+              updatedAt: new Date()
+            }));
+            
+            // Fetch the image and send it for analysis
+            fetch(imageUrl)
+              .then(res => res.blob())
+              .then(blob => {
+                const file = new File([blob], filename, { type: blob.type || 'image/png' });
+                // Small delay to ensure conversation is set up
+                setTimeout(() => {
+                  handleSendMessage(`Bitte analysiere dieses Bild: ${filename}`, [file]);
+                }, 100);
+              })
+              .catch(err => {
+                console.error('Failed to fetch image for analysis:', err);
+                toast({
+                  title: "Fehler beim Laden des Bildes",
+                  description: "Das Bild konnte nicht geladen werden.",
+                  variant: "destructive"
+                });
+              });
+          }
+        } catch (err) {
+          console.error('Failed to parse analyze image data:', err);
+        }
+      }
+    }
+  }, [searchParams, hasVisionModel, visionModels, setSelectedModel, setConversation, handleSendMessage, toast]);
 
   // Handle import/export
   const handleExportConversations = useCallback(async () => {

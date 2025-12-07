@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useMemo } from 'react';
 import { Note, NoteSummary, NoteForm } from '../types';
 
 interface UseNotesOptions {
@@ -15,6 +15,8 @@ interface UseNotesReturn {
   selectedId: string | null;
   isNoteLoading: boolean;
   form: NoteForm;
+  originalForm: NoteForm;
+  hasUnsavedChanges: boolean;
   setForm: React.Dispatch<React.SetStateAction<NoteForm>>;
   setSelectedId: React.Dispatch<React.SetStateAction<string | null>>;
   setError: React.Dispatch<React.SetStateAction<string | null>>;
@@ -23,6 +25,7 @@ interface UseNotesReturn {
   upsertNote: () => Promise<boolean>;
   deleteNote: (id: string) => Promise<boolean>;
   createNewNote: () => void;
+  discardChanges: () => void;
 }
 
 export function useNotes({ basePath }: UseNotesOptions): UseNotesReturn {
@@ -33,6 +36,16 @@ export function useNotes({ basePath }: UseNotesOptions): UseNotesReturn {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [isNoteLoading, setIsNoteLoading] = useState(false);
   const [form, setForm] = useState<NoteForm>({ title: '', content: '' });
+  const [originalForm, setOriginalForm] = useState<NoteForm>({ title: '', content: '' });
+
+  // Check if there are unsaved changes
+  const hasUnsavedChanges = useMemo(() => {
+    // Only check if we have a selected note or if we started typing a new note
+    if (!selectedId && !form.title.trim() && !form.content.trim()) {
+      return false;
+    }
+    return form.title !== originalForm.title || form.content !== originalForm.content;
+  }, [form, originalForm, selectedId]);
 
   const fetchNotes = useCallback(async () => {
     if (!basePath) return;
@@ -67,8 +80,10 @@ export function useNotes({ basePath }: UseNotesOptions): UseNotesReturn {
         throw new Error(text || 'Fehler beim Laden der Notiz');
       }
       const data = (await res.json()) as Note;
+      const newForm = { title: data.title, content: data.content };
       setSelectedId(id);
-      setForm({ title: data.title, content: data.content });
+      setForm(newForm);
+      setOriginalForm(newForm); // Track original state for change detection
       return data;
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unbekannter Fehler');
@@ -106,7 +121,12 @@ export function useNotes({ basePath }: UseNotesOptions): UseNotesReturn {
       }
       await fetchNotes();
       if (!selectedId) {
-        setForm({ title: '', content: '' });
+        const emptyForm = { title: '', content: '' };
+        setForm(emptyForm);
+        setOriginalForm(emptyForm);
+      } else {
+        // Update original form to match current form after save
+        setOriginalForm({ ...form });
       }
       return true;
     } catch (err) {
@@ -145,9 +165,15 @@ export function useNotes({ basePath }: UseNotesOptions): UseNotesReturn {
   }, [basePath, selectedId, fetchNotes]);
 
   const createNewNote = useCallback(() => {
+    const emptyForm = { title: '', content: '' };
     setSelectedId(null);
-    setForm({ title: '', content: '' });
+    setForm(emptyForm);
+    setOriginalForm(emptyForm);
   }, []);
+
+  const discardChanges = useCallback(() => {
+    setForm({ ...originalForm });
+  }, [originalForm]);
 
   return {
     notes,
@@ -157,6 +183,8 @@ export function useNotes({ basePath }: UseNotesOptions): UseNotesReturn {
     selectedId,
     isNoteLoading,
     form,
+    originalForm,
+    hasUnsavedChanges,
     setForm,
     setSelectedId,
     setError,
@@ -165,6 +193,7 @@ export function useNotes({ basePath }: UseNotesOptions): UseNotesReturn {
     upsertNote,
     deleteNote,
     createNewNote,
+    discardChanges,
   };
 }
 

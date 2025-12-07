@@ -2,10 +2,18 @@
 
 import React, { useState, useRef, useCallback, useEffect } from 'react';
 import { useSearchParams } from 'next/navigation';
-import { FolderOpen, FileText, Settings, Network } from 'lucide-react';
+import { FolderOpen, FileText, Settings, Network, AlertTriangle } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import { 
   NotesList, 
   NoteEditor, 
@@ -40,6 +48,7 @@ export default function NotesPage() {
     selectedId,
     isNoteLoading,
     form,
+    hasUnsavedChanges,
     setForm,
     setSelectedId,
     setError,
@@ -48,6 +57,7 @@ export default function NotesPage() {
     upsertNote,
     deleteNote,
     createNewNote,
+    discardChanges,
   } = useNotes({ basePath });
   
   // Search hook
@@ -67,6 +77,15 @@ export default function NotesPage() {
   const [highlightTerm, setHighlightTerm] = useState<string | null>(null);
   const [model, setModel] = useState(selectedModel || '');
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  
+  // Unsaved changes dialog state
+  const [showUnsavedDialog, setShowUnsavedDialog] = useState(false);
+  const [pendingNoteId, setPendingNoteId] = useState<string | null>(null);
+  const [pendingSearchTerm, setPendingSearchTerm] = useState<string | undefined>(undefined);
+  const [pendingAction, setPendingAction] = useState<'load' | 'new' | null>(null);
+  
+  // Track if we've handled the initial URL note
+  const urlNoteHandledRef = useRef<string | null>(null);
 
   // Fetch notes on mount and sync with context
   useEffect(() => {
@@ -82,18 +101,31 @@ export default function NotesPage() {
     }
   }, [selectedModel]);
 
-  // Handle note ID from URL (from graph navigation)
+  // Handle note ID from URL (from graph navigation) - only once per URL change
   useEffect(() => {
-    if (noteIdFromUrl && basePath && notes.length > 0) {
+    // Only process if we have a new URL note that we haven't handled yet
+    if (noteIdFromUrl && basePath && notes.length > 0 && urlNoteHandledRef.current !== noteIdFromUrl) {
       const noteExists = notes.some(n => n.id === noteIdFromUrl);
-      if (noteExists && selectedId !== noteIdFromUrl) {
-        handleLoadNote(noteIdFromUrl);
+      if (noteExists) {
+        urlNoteHandledRef.current = noteIdFromUrl;
+        // Use loadNote directly to avoid unsaved changes dialog on initial load
+        loadNote(noteIdFromUrl);
       }
     }
-  }, [noteIdFromUrl, basePath, notes, selectedId]);
+    // Reset when URL note is cleared
+    if (!noteIdFromUrl) {
+      urlNoteHandledRef.current = null;
+    }
+  }, [noteIdFromUrl, basePath, notes, loadNote]);
 
-  // Handle note selection with optional search term highlight
-  const handleLoadNote = useCallback(async (noteId: string, searchTerm?: string) => {
+  // Actually load the note (internal)
+  const doLoadNote = useCallback(async (noteId: string, searchTerm?: string) => {
+    // Clear URL parameter if it exists to prevent interference
+    if (noteIdFromUrl && noteIdFromUrl !== noteId) {
+      router.replace('/notes', { scroll: false });
+      urlNoteHandledRef.current = null;
+    }
+    
     const note = await loadNote(noteId);
     if (note && searchTerm) {
       setHighlightTerm(searchTerm);
@@ -119,7 +151,64 @@ export default function NotesPage() {
     } else {
       setHighlightTerm(null);
     }
-  }, [loadNote]);
+  }, [loadNote, noteIdFromUrl, router]);
+
+  // Handle note selection with unsaved changes check
+  const handleLoadNote = useCallback(async (noteId: string, searchTerm?: string) => {
+    // Skip if trying to load the already selected note
+    if (noteId === selectedId) return;
+    
+    // Check for unsaved changes
+    if (hasUnsavedChanges) {
+      setPendingNoteId(noteId);
+      setPendingSearchTerm(searchTerm);
+      setPendingAction('load');
+      setShowUnsavedDialog(true);
+      return;
+    }
+    
+    await doLoadNote(noteId, searchTerm);
+  }, [selectedId, hasUnsavedChanges, doLoadNote]);
+
+  // Handle dialog actions
+  const handleSaveAndContinue = useCallback(async () => {
+    const saved = await upsertNote();
+    if (saved) {
+      setShowUnsavedDialog(false);
+      if (pendingAction === 'load' && pendingNoteId) {
+        await doLoadNote(pendingNoteId, pendingSearchTerm);
+      } else if (pendingAction === 'new') {
+        createNewNote();
+        setHighlightTerm(null);
+        setIsNoteMinimized(false);
+      }
+      setPendingNoteId(null);
+      setPendingSearchTerm(undefined);
+      setPendingAction(null);
+    }
+  }, [upsertNote, pendingAction, pendingNoteId, pendingSearchTerm, doLoadNote, createNewNote]);
+
+  const handleDiscardAndContinue = useCallback(async () => {
+    discardChanges();
+    setShowUnsavedDialog(false);
+    if (pendingAction === 'load' && pendingNoteId) {
+      await doLoadNote(pendingNoteId, pendingSearchTerm);
+    } else if (pendingAction === 'new') {
+      createNewNote();
+      setHighlightTerm(null);
+      setIsNoteMinimized(false);
+    }
+    setPendingNoteId(null);
+    setPendingSearchTerm(undefined);
+    setPendingAction(null);
+  }, [discardChanges, pendingAction, pendingNoteId, pendingSearchTerm, doLoadNote, createNewNote]);
+
+  const handleCancelDialog = useCallback(() => {
+    setShowUnsavedDialog(false);
+    setPendingNoteId(null);
+    setPendingSearchTerm(undefined);
+    setPendingAction(null);
+  }, []);
 
   // Handle search result selection
   const handleSearchSelect = useCallback((noteId: string, searchTerm: string) => {
@@ -127,12 +216,19 @@ export default function NotesPage() {
     clearSearch();
   }, [handleLoadNote, clearSearch]);
 
-  // Handle new note
+  // Handle new note with unsaved changes check
   const handleNewNote = useCallback(() => {
+    // Check for unsaved changes
+    if (hasUnsavedChanges) {
+      setPendingAction('new');
+      setShowUnsavedDialog(true);
+      return;
+    }
+    
     createNewNote();
     setHighlightTerm(null);
     setIsNoteMinimized(false);
-  }, [createNewNote]);
+  }, [hasUnsavedChanges, createNewNote]);
 
   // Handle AI result application
   const handleApplyAiResult = useCallback((mode: 'append' | 'replace', result: string) => {
@@ -250,6 +346,42 @@ export default function NotesPage() {
       {error && (
         <p className="text-xs text-destructive mt-2">{error}</p>
       )}
+      
+      {/* Unsaved Changes Dialog */}
+      <Dialog open={showUnsavedDialog} onOpenChange={setShowUnsavedDialog}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <AlertTriangle className="h-5 w-5 text-yellow-500" />
+              Ungespeicherte Änderungen
+            </DialogTitle>
+            <DialogDescription>
+              Du hast ungespeicherte Änderungen in der aktuellen Notiz. Was möchtest du tun?
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="flex-col sm:flex-row gap-2">
+            <Button
+              variant="outline"
+              onClick={handleCancelDialog}
+            >
+              Abbrechen
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={handleDiscardAndContinue}
+            >
+              Verwerfen
+            </Button>
+            <Button
+              onClick={handleSaveAndContinue}
+              disabled={saving}
+            >
+              {saving ? 'Speichere...' : 'Speichern'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
+
