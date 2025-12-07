@@ -165,3 +165,166 @@
   animation: cursor-blink 0.8s ease-in-out infinite;
   vertical-align: text-bottom;
 }
+
+/* Graph Glow Effects */
+.graph-glow-cyber {
+  filter: drop-shadow(0 0 4px rgba(0, 217, 255, 0.6));
+}
+
+.graph-glow-neon {
+  filter: drop-shadow(0 0 6px rgba(255, 0, 255, 0.8)) drop-shadow(0 0 3px rgba(0, 255, 255, 0.6));
+}
+
+.graph-link-glow-cyber {
+  filter: drop-shadow(0 0 2px rgba(0, 217, 255, 0.5));
+}
+
+.graph-link-glow-neon {
+  filter: drop-shadow(0 0 3px rgba(255, 0, 255, 0.6)) drop-shadow(0 0 1px rgba(0, 255, 255, 0.4));
+}
+
+/* Futuristic Graph Container */
+.graph-container-cyber {
+  background: linear-gradient(135deg, rgba(0, 0, 0, 0.9) 0%, rgba(0, 50, 60, 0.3) 50%, rgba(0, 0, 0, 0.9) 100%);
+  position: relative;
+}
+
+.graph-container-cyber::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: 
+    radial-gradient(circle at 20% 30%, rgba(0, 217, 255, 0.1) 0%, transparent 50%),
+    radial-gradient(circle at 80% 70%, rgba(0, 255, 136, 0.1) 0%, transparent 50%);
+  pointer-events: none;
+  z-index: 0;
+}
+
+.graph-container-neon {
+  background: linear-gradient(135deg, rgba(0, 0, 0, 0.95) 0%, rgba(50, 0, 60, 0.4) 50%, rgba(0, 0, 0, 0.95) 100%);
+  position: relative;
+}
+
+.graph-container-neon::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: 
+    radial-gradient(circle at 20% 30%, rgba(255, 0, 255, 0.15) 0%, transparent 50%),
+    radial-gradient(circle at 80% 70%, rgba(0, 255, 255, 0.15) 0%, transparent 50%);
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* Force Graph 3D Label Styles */
+.graph-container-cyber canvas + div,
+.graph-container-neon canvas + div {
+  font-family: var(--font-sans);
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.9);
+  text-shadow: 
+    0 0 4px rgba(0, 217, 255, 0.8),
+    0 0 8px rgba(0, 217, 255, 0.4),
+    0 2px 4px rgba(0, 0, 0, 0.8);
+  pointer-events: none;
+  z-index: 10;
+}
+
+.graph-container-neon canvas + div {
+  text-shadow: 
+    0 0 4px rgba(255, 0, 255, 0.8),
+    0 0 8px rgba(0, 255, 255, 0.4),
+    0 2px 4px rgba(0, 0, 0, 0.8);
+}
+
+/* Always show labels when enabled */
+.graph-labels-visible canvas + div {
+  opacity: 1 !important;
+  visibility: visible !important;
+  display: block !important;
+}
+
+/* Professional graph effects */
+.graph-container-cyber canvas,
+.graph-container-neon canvas,
+.graph-container-obsidian canvas {
+  filter: contrast(1.15) brightness(1.1) saturate(1.2);
+}
+
+/* Depth and atmosphere effect */
+.graph-container-cyber,
+.graph-container-neon,
+.graph-container-obsidian {
+  position: relative;
+}
+
+/* Animated gradient background for Cyber theme */
+.graph-container-cyber {
+  background: 
+    radial-gradient(ellipse at 20% 30%, rgba(0, 100, 150, 0.15) 0%, transparent 50%),
+    radial-gradient(ellipse at 80% 70%, rgba(100, 50, 0, 0.12) 0%, transparent 50%),
+    radial-gradient(ellipse at 50% 50%, rgba(0, 50, 80, 0.1) 0%, transparent 70%),
+    linear-gradient(180deg, rgba(0, 15, 30, 0.95) 0%, rgba(5, 10, 20, 0.98) 50%, rgba(0, 8, 15, 0.99) 100%) !important;
+  animation: cyberPulse 8s ease-in-out infinite;
+}
+
+@keyframes cyberPulse {
+  0%, 100% {
+    background: 
+      radial-gradient(ellipse at 20% 30%, rgba(0, 100, 150, 0.15) 0%, transparent 50%),
+      radial-gradient(ellipse at 80% 70%, rgba(100, 50, 0, 0.12) 0%, transparent 50%),
+      radial-gradient(ellipse at 50% 50%, rgba(0, 50, 80, 0.1) 0%, transparent 70%),
+      linear-gradient(180deg, rgba(0, 15, 30, 0.95) 0%, rgba(5, 10, 20, 0.98) 50%, rgba(0, 8, 15, 0.99) 100%);
+  }
+  50% {
+    background: 
+      radial-gradient(ellipse at 30% 40%, rgba(0, 120, 180, 0.18) 0%, transparent 50%),
+      radial-gradient(ellipse at 70% 60%, rgba(120, 70, 0, 0.14) 0%, transparent 50%),
+      radial-gradient(ellipse at 50% 50%, rgba(0, 60, 100, 0.12) 0%, transparent 70%),
+      linear-gradient(180deg, rgba(0, 15, 30, 0.95) 0%, rgba(5, 10, 20, 0.98) 50%, rgba(0, 8, 15, 0.99) 100%);
+  }
+}
+
+/* Particle-like noise overlay */
+.graph-container-cyber::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 400 400' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E");
+  opacity: 0.03;
+  pointer-events: none;
+  z-index: 1;
+}
+
+/* Vignette effect */
+.graph-container-cyber::after,
+.graph-container-neon::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(ellipse at center, transparent 30%, rgba(0,0,0,0.4) 100%);
+  pointer-events: none;
+  z-index: 2;
+}
+
+/* Neon theme background */
+.graph-container-neon {
+  background: 
+    radial-gradient(ellipse at 30% 20%, rgba(150, 0, 150, 0.15) 0%, transparent 50%),
+    radial-gradient(ellipse at 70% 80%, rgba(0, 150, 150, 0.12) 0%, transparent 50%),
+    linear-gradient(180deg, rgba(20, 5, 30, 0.98) 0%, rgba(10, 0, 20, 0.99) 100%) !important;
+}
+
+/* Obsidian theme background */
+.graph-container-obsidian {
+  background: 
+    radial-gradient(ellipse at 40% 30%, rgba(100, 50, 150, 0.1) 0%, transparent 50%),
+    radial-gradient(ellipse at 60% 70%, rgba(50, 150, 100, 0.08) 0%, transparent 50%),
+    linear-gradient(180deg, rgba(15, 15, 22, 0.98) 0%, rgba(10, 10, 16, 0.99) 100%) !important;
+}

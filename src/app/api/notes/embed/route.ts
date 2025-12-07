@@ -102,17 +102,21 @@ export async function POST(req: NextRequest) {
 
         for (const note of targets) {
           try {
-            // Send progress
+            // Send progress with more detail
+            console.log(`[Embed API] Starting note: ${note.title} (${note.id})`);
             controller.enqueue(encoder.encode(`data: ${JSON.stringify({ 
               type: 'progress', 
               current: processed + 1, 
               total, 
-              noteTitle: note.title 
+              noteTitle: note.title,
+              noteId: note.id,
+              contentLength: note.content?.length || 0
             })}\n\n`));
 
             await upsertEmbeddingsForNote(basePath, note, { model, host, chunkSize, chunkOverlap });
             processed++;
 
+            console.log(`[Embed API] Completed note: ${note.title}`);
             // Send success for this note
             controller.enqueue(encoder.encode(`data: ${JSON.stringify({ 
               type: 'note_done', 
@@ -122,6 +126,8 @@ export async function POST(req: NextRequest) {
 
           } catch (err) {
             const errorMsg = err instanceof Error ? err.message : 'Unbekannter Fehler';
+            const errorStack = err instanceof Error ? err.stack : '';
+            console.error(`[Embed API] Error for ${note.title}:`, errorMsg, errorStack);
             errors.push(`${note.title}: ${errorMsg}`);
             
             controller.enqueue(encoder.encode(`data: ${JSON.stringify({ 
