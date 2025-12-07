@@ -70,11 +70,14 @@ src/
 │   │   │   ├── search/route.ts         # Lexical + semantic search
 │   │   │   └── embed/route.ts          # Build embeddings for notes
 │   │   └── system-stats/route.ts       # CPU/RAM/VRAM monitoring
-│   ├── (app)/                          # ✅ NEW: Route group with shared layout
+│   ├── (app)/                          # ✅ Route group with shared layout
 │   │   ├── layout.tsx                  # Shared nav sidebar (Chat/Gallery/Notes)
 │   │   ├── chat/page.tsx               # Chat with ConversationSidebar (~400 lines)
 │   │   ├── gallery/page.tsx            # Image Gallery (dedicated route)
-│   │   └── notes/page.tsx              # Notes with 3D Graph
+│   │   └── notes/                      # ✅ REFACTORED: Notes with tab navigation
+│   │       ├── layout.tsx              # Tab navigation (Notizen | Graph) + Context
+│   │       ├── page.tsx                # Notes editor page (~200 lines)
+│   │       └── graph/page.tsx          # 3D Knowledge Graph page (~120 lines)
 │   ├── page.tsx                        # Landing page
 │   ├── layout.tsx                      # Root layout
 │   └── globals.css                     # Grok/Ollama-style dark theme
@@ -106,6 +109,22 @@ src/
 │   │   ├── DeleteConfirmDialog.tsx     # Confirmation dialog (~55 lines)
 │   │   ├── EmptyState.tsx              # Empty/error states (~45 lines)
 │   │   ├── ImageGallery.tsx            # Main component (~230 lines)
+│   │   └── index.ts                    # Exports
+│   ├── notes/                          # ✅ REFACTORED: Notes components
+│   │   ├── types.ts                    # Shared types (~90 lines)
+│   │   ├── graphUtils.ts               # Theme colors, node colors (~70 lines)
+│   │   ├── hooks/
+│   │   │   ├── index.ts
+│   │   │   ├── useNotes.ts             # Notes CRUD (~160 lines)
+│   │   │   ├── useNoteSearch.ts        # Debounced search (~90 lines)
+│   │   │   └── useGraph.ts             # Graph data & embeddings (~200 lines)
+│   │   ├── NotesList.tsx               # Notes list (~75 lines)
+│   │   ├── NoteEditor.tsx              # Editor + Markdown toolbar (~250 lines)
+│   │   ├── NoteSearch.tsx              # Search dropdown (~130 lines)
+│   │   ├── NoteAIActions.tsx           # AI Complete/Summarize (~230 lines)
+│   │   ├── KnowledgeGraph.tsx          # 3D ForceGraph (~330 lines)
+│   │   ├── GraphControls.tsx           # Theme, Labels, Glow settings (~380 lines)
+│   │   ├── GraphTextView.tsx           # Text link view (~130 lines)
 │   │   └── index.ts                    # Exports
 │   ├── ui/                             # Shadcn UI components
 │   ├── ComfyUIWidget.tsx               # 238 lines
@@ -159,15 +178,20 @@ src/
 | File | Lines | Status |
 |------|-------|--------|
 | ~~`ImageGallery.tsx`~~ | ~~958~~ | ✅ Refactored into gallery/ |
+| ~~`NotesPanel.tsx`~~ | ~~2278~~ | ✅ Refactored into notes/ (12 files) |
 | `page.tsx` | 680 | ✅ Acceptable |
 | `ollama.ts` | 550 | ✅ Utility file |
 | `ConversationSidebar.tsx` | 543 | ⚠️ Could be split |
 | `ModelPullDialog.tsx` | 400 | ✅ Standalone feature |
+| `notes/GraphControls.tsx` | 380 | ✅ Refactored |
 | `storage.ts` | 389 | ✅ OK |
+| `notes/KnowledgeGraph.tsx` | 330 | ✅ Refactored |
 | `ConversationStats.tsx` | 261 | ✅ OK |
 | `metadata/route.ts` | 259 | ✅ OK |
+| `notes/NoteEditor.tsx` | 250 | ✅ Refactored |
 | `SystemMonitor.tsx` | 246 | ✅ OK |
 | `ComfyUIWidget.tsx` | 238 | ✅ OK |
+| `notes/NoteAIActions.tsx` | 230 | ✅ Refactored |
 | `MarkdownRenderer.tsx` | 234 | ✅ OK |
 | `gallery/ImageGallery.tsx` | 230 | ✅ Refactored |
 | `useConversations.ts` | 231 | ✅ OK |
@@ -175,6 +199,7 @@ src/
 | `ChatSearch.tsx` | 226 | ✅ OK |
 | `ChatMessage.tsx` | 216 | ✅ OK |
 | `SetupCard.tsx` | 210 | ✅ OK |
+| `notes/hooks/useGraph.ts` | 200 | ✅ Refactored |
 
 ---
 
@@ -245,6 +270,9 @@ src/
 | 7 | Prompt Templates | ✅ 12 templates: Code Review, Debugging, Translation, etc. |
 | 8 | Template Picker UI | ✅ Integrated into SetupCard with categories |
 | 9 | GPU Monitor | ✅ nvidia-smi integration, VRAM, Temp, GPU Processes |
+| 10 | **Notes Refactoring** | ✅ 2278 lines → 12 files with separate routes |
+| 11 | **Notes Tab Navigation** | ✅ /notes (Editor) + /notes/graph (3D Graph) |
+| 12 | **Notes Context Provider** | ✅ Shared state between notes pages |
 
 ### 🟡 TODO: Medium Priority
 
@@ -335,6 +363,10 @@ src/
 - ✅ **Conversation Tags** - Tag-based organization and filtering
 - ✅ **Unified Navigation** - Direct links between sections
 - ✅ **Code Cleanup** - Removed overlay patterns, simplified chat page
+- ✅ **Notes Refactoring** - 2278 lines → 12 modular files
+- ✅ **Notes Tab Navigation** - Separate routes for /notes and /notes/graph
+- ✅ **Notes Context Provider** - Shared state via React Context
+- ✅ **Graph Page** - Dedicated route for 3D Knowledge Graph visualization
 
 ### 2025-12-06
 - ✅ Resumed development
@@ -389,6 +421,7 @@ src/
 8. ~~GPU Monitor~~ ✅ (nvidia-smi integration)
 9. ~~Real Routing~~ ✅ (Chat/Gallery/Notes as separate routes)
 10. ~~Conversation Tags~~ ✅ (implemented)
-11. **Unified Search** ← NEXT (search across chat + notes)
-12. **Chat Export** (Markdown/JSON/PDF)
-13. ConversationSidebar Refactoring (optional)
+11. ~~Notes Refactoring~~ ✅ (2278 lines → 12 files with tab navigation)
+12. **Unified Search** ← NEXT (search across chat + notes)
+13. **Chat Export** (Markdown/JSON/PDF)
+14. ConversationSidebar Refactoring (optional)
