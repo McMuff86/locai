@@ -920,13 +920,13 @@ export function NotesPanel({ basePath, defaultModel, host, installedModels = [],
       <div className="flex-1 flex gap-4 min-h-0 overflow-hidden">
         {/* Left Panel: Notes List */}
         <div className="w-1/3 min-w-[200px] max-w-[350px] flex flex-col rounded-lg border border-border overflow-hidden flex-shrink-0">
-          <div className="flex items-center justify-between p-3 border-b border-border bg-muted/30">
+          <div className="flex items-center justify-between p-3 border-b border-border bg-muted/30 flex-shrink-0">
             <h2 className="text-sm font-medium">Notizen</h2>
             <Button size="sm" variant="ghost" onClick={fetchNotes} disabled={loading} className="h-7 px-2">
               {loading ? <Loader2 className="h-3 w-3 animate-spin" /> : 'Aktualisieren'}
             </Button>
           </div>
-          <ScrollArea className="flex-1">
+          <div className="flex-1 overflow-y-auto">
             <div className="p-2 space-y-1">
               {/* New Note Button */}
               <Button
@@ -967,7 +967,7 @@ export function NotesPanel({ basePath, defaultModel, host, installedModels = [],
                 ))
               )}
             </div>
-          </ScrollArea>
+          </div>
         </div>
         
         {/* Right Panel: Editor */}
@@ -994,7 +994,7 @@ export function NotesPanel({ basePath, defaultModel, host, installedModels = [],
           </div>
           
           {/* Editor Content */}
-          <ScrollArea className="flex-1">
+          <div className="flex-1 overflow-y-auto">
             <div className="p-3 space-y-3">
             {/* Highlight indicator */}
         {highlightTerm && (
@@ -1243,7 +1243,7 @@ export function NotesPanel({ basePath, defaultModel, host, installedModels = [],
               </p>
             )}
             </div>
-          </ScrollArea>
+          </div>
         </div>
       </div>
       
