@@ -127,6 +127,22 @@ export async function getOllamaModels(): Promise<OllamaModel[]> {
 }
 
 /**
+ * Delete a model from Ollama
+ */
+export async function deleteOllamaModel(modelName: string): Promise<void> {
+  const response = await fetch(`${OLLAMA_API_URL}/delete`, {
+    method: 'DELETE',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ model: modelName })
+  });
+  
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`Failed to delete model: ${errorText || response.statusText}`);
+  }
+}
+
+/**
  * Model info response from /api/show
  */
 export interface ModelInfo {

@@ -25,7 +25,7 @@ import { useSettings } from "@/hooks/useSettings";
 
 // Types & Utils
 import { Message } from "@/types/chat";
-import { getModelSystemContent } from "@/lib/ollama";
+import { getModelSystemContent, deleteOllamaModel } from "@/lib/ollama";
 import { useToast } from "@/components/ui/use-toast";
 import { IMAGE_ANALYSIS_PROMPT } from "@/lib/prompt-templates";
 
@@ -45,7 +45,8 @@ export default function ChatPage() {
     hasVisionModel,
     visionModels,
     getSystemPrompt,
-    contextInfo
+    contextInfo,
+    refreshModels
   } = useModels();
 
   const {
@@ -541,11 +542,21 @@ export default function ChatPage() {
         isOpen={showModelPull}
         onClose={() => setShowModelPull(false)}
         installedModels={models.map(m => m.name)}
+        installedModelsDetails={models}
         onModelPulled={(modelName) => {
           toast({
             title: 'Modell installiert',
             description: `${modelName} wurde erfolgreich heruntergeladen.`,
           });
+          refreshModels();
+        }}
+        onDeleteModel={async (modelName) => {
+          await deleteOllamaModel(modelName);
+          toast({
+            title: 'Modell gelöscht',
+            description: `${modelName} wurde erfolgreich entfernt.`,
+          });
+          refreshModels();
         }}
       />
 

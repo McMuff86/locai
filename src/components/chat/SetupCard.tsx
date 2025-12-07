@@ -183,16 +183,31 @@ export function SetupCard({
                   Select Model
                 </label>
                 <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
-                  {models.map((model) => (
-                    <Button
-                      key={model.name}
-                      variant={selectedModel === model.name ? "default" : "outline"}
-                      className="justify-start overflow-hidden text-ellipsis"
-                      onClick={() => onSelectModel(model.name)}
-                    >
-                      {model.name}
-                    </Button>
-                  ))}
+                  {models.map((model) => {
+                    // Format size to GB
+                    const sizeGB = model.size ? (model.size / 1024 / 1024 / 1024).toFixed(1) : null;
+                    const paramSize = model.details?.parameter_size || null;
+                    
+                    return (
+                      <Button
+                        key={model.name}
+                        variant={selectedModel === model.name ? "default" : "outline"}
+                        className="flex flex-col items-start h-auto py-2 px-3 overflow-hidden"
+                        onClick={() => onSelectModel(model.name)}
+                      >
+                        <span className="text-sm font-medium truncate w-full text-left">
+                          {model.name}
+                        </span>
+                        {(sizeGB || paramSize) && (
+                          <span className="text-xs text-muted-foreground opacity-70 mt-0.5">
+                            {paramSize && <span>{paramSize}</span>}
+                            {paramSize && sizeGB && <span> • </span>}
+                            {sizeGB && <span>{sizeGB} GB</span>}
+                          </span>
+                        )}
+                      </Button>
+                    );
+                  })}
                 </div>
               </div>
               
