@@ -107,7 +107,7 @@ export function NotesPanel({ basePath, defaultModel, host, installedModels = [],
   const [showAdvancedSettings, setShowAdvancedSettings] = useState(true); // Show by default
   const [labelSize, setLabelSize] = useState(1.0); // 1.0 = 100% (current 250% visual size), up to 2.5 = 250%
   const [labelGlow, setLabelGlow] = useState(true); // Toggle for label glow effect
-  const [nodeSize, setNodeSize] = useState(1.0);
+  const [nodeSize, setNodeSize] = useState(0.5); // 50% = nice compact size, can go 10%-150%
   const [metalness, setMetalness] = useState(0.3);
   const [roughness, setRoughness] = useState(0.2);
   const [linkWidth, setLinkWidth] = useState(0.4);
@@ -1517,7 +1517,7 @@ export function NotesPanel({ basePath, defaultModel, host, installedModels = [],
                   </div>
                 )}
                 
-                {/* Node Size */}
+                {/* Node Size - 100% = current small size, can go down to 10% */}
                 <div className="space-y-1">
                   <div className="flex items-center justify-between">
                     <span className="text-xs text-muted-foreground">Node Größe</span>
@@ -1525,9 +1525,9 @@ export function NotesPanel({ basePath, defaultModel, host, installedModels = [],
                   </div>
                   <input
                     type="range"
-                    min="0.5"
-                    max="2"
-                    step="0.1"
+                    min="0.1"
+                    max="1.5"
+                    step="0.05"
                     value={nodeSize}
                     onChange={(e) => setNodeSize(parseFloat(e.target.value))}
                     className="w-full h-1.5"
