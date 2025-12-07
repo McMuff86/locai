@@ -23,7 +23,7 @@ interface GalleryHeaderProps {
   onFilterChange: (mode: FilterMode) => void;
   onGridSizeChange: (size: GridSize) => void;
   onRefresh: () => void;
-  onClose: () => void;
+  onClose?: () => void;
 }
 
 export function GalleryHeader({
@@ -127,10 +127,12 @@ export function GalleryHeader({
           Aktualisieren
         </Button>
         
-        {/* Close */}
-        <Button variant="ghost" size="sm" onClick={onClose}>
-          <X className="h-5 w-5" />
-        </Button>
+        {/* Close - only shown in modal mode */}
+        {onClose && (
+          <Button variant="ghost" size="sm" onClick={onClose}>
+            <X className="h-5 w-5" />
+          </Button>
+        )}
       </div>
     </div>
   );

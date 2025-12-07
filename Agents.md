@@ -1,6 +1,6 @@
 # LocAI - AI Agent Documentation
 
-> Last Updated: 2025-12-06
+> Last Updated: 2025-12-07
 > Status: Active Development
 
 ---
@@ -12,7 +12,7 @@
 ### Key Features
 - 💬 Local chat with multiple AI models (Llama3, Gemma, Mistral, DeepSeek, Granite, Qwen)
 - 🖼️ Image analysis with vision models (Granite Vision, Llama3.2 Vision)
-- 💾 Local data storage (LocalStorage) with Auto-Save
+- 💾 Local data storage (LocalStorage + Filesystem) with Auto-Save
 - 🎨 Dark/Light theme support (Grok-style dark theme)
 - 📱 Responsive design with resizable sidebar (400px default)
 - 🔍 Chat search across conversations
@@ -24,6 +24,10 @@
 - 🖥️ **GPU Monitor** - Real-time NVIDIA GPU stats, VRAM, temp, processes
 - 📊 **Right Sidebar** - Dockable tools panel with widgets
 - ⚡ **Process Kill** - Terminate GPU processes with safety warnings
+- 📝 **Notes System** - Markdown notes with tags, wiki-links, AI completion
+- 🔮 **3D Knowledge Graph** - Interactive visualization of note connections
+- 🧠 **Semantic Embeddings** - Local embeddings with nomic-embed-text via Ollama
+- 🎨 **Graph Themes** - Cyber, Neon, Obsidian, Minimal with full customization
 
 ---
 
@@ -66,11 +70,13 @@ src/
 │   │   │   ├── search/route.ts         # Lexical + semantic search
 │   │   │   └── embed/route.ts          # Build embeddings for notes
 │   │   └── system-stats/route.ts       # CPU/RAM/VRAM monitoring
-│   ├── chat/              
-│   │   └── page.tsx                    # Chat page (~680 lines)
-│   ├── notes/                          # Notes UI
-│   │   └── page.tsx                    # Notes list + editor + 3D graph
-│   ├── layout.tsx         
+│   ├── (app)/                          # ✅ NEW: Route group with shared layout
+│   │   ├── layout.tsx                  # Shared nav sidebar (Chat/Gallery/Notes)
+│   │   ├── chat/page.tsx               # Chat with ConversationSidebar (~400 lines)
+│   │   ├── gallery/page.tsx            # Image Gallery (dedicated route)
+│   │   └── notes/page.tsx              # Notes with 3D Graph
+│   ├── page.tsx                        # Landing page
+│   ├── layout.tsx                      # Root layout
 │   └── globals.css                     # Grok/Ollama-style dark theme
 ├── components/
 │   ├── chat/                           # Chat-specific components
@@ -211,8 +217,22 @@ src/
 | Qwen3-Coder Template | ✅ | Optimized for code models |
 | Prompt Templates | ✅ | 12 templates in 5 categories |
 | GPU Monitor | ✅ | nvidia-smi: VRAM, Temp, Utilization, Processes |
+| **Real Routing** | ✅ | Separate /chat, /gallery, /notes routes |
+| **Conversation Tags** | ✅ | Tag-based organization and filtering |
+| **Unified Navigation** | ✅ | Vertical icon nav bar |
+| Notes System | ✅ | Markdown, tags, wiki-links |
+| Notes AI Completion | ✅ | Streaming with model selection |
+| Notes AI Summarization | ✅ | With preview & accept/reject |
+| Notes Search | ✅ | Full-text with highlighting |
+| Markdown Toolbar | ✅ | Headers, bold, italic, lists |
+| Notes Embeddings | ✅ | Local via nomic-embed-text |
+| 3D Knowledge Graph | ✅ | Force-directed with Three.js |
+| Semantic Links | ✅ | Cosine similarity visualization |
+| Graph Themes | ✅ | Cyber, Neon, Obsidian, Minimal |
+| Graph Controls | ✅ | Zoom, Pan, Rotate, Export PNG |
+| Graph Customization | ✅ | Node size, label color, glow, etc. |
 
-### ✅ Recently Completed (Current Session)
+### ✅ Recently Completed (2025-12-07)
 
 | # | Feature | Status |
 |---|---------|--------|
@@ -309,7 +329,14 @@ src/
 
 ## Changelog
 
-### 2025-12-06 (Current Session)
+### 2025-12-07 (Current Session)
+- ✅ **Real Routing** - Separate routes for Chat, Gallery, Notes
+- ✅ **App Layout** - Shared vertical navigation bar (icons)
+- ✅ **Conversation Tags** - Tag-based organization and filtering
+- ✅ **Unified Navigation** - Direct links between sections
+- ✅ **Code Cleanup** - Removed overlay patterns, simplified chat page
+
+### 2025-12-06
 - ✅ Resumed development
 - ✅ Updated all safe dependencies
 - ✅ Security patch (Next.js 15.5.7)
@@ -360,5 +387,8 @@ src/
 6. ~~Prompt Templates~~ ✅ (12 templates in 5 categories)
 7. ~~Template Picker UI~~ ✅ (integrated into SetupCard)
 8. ~~GPU Monitor~~ ✅ (nvidia-smi integration)
-9. **ConversationSidebar Refactoring** ← NEXT (optional)
-10. Export Chat (Markdown/JSON/PDF)
+9. ~~Real Routing~~ ✅ (Chat/Gallery/Notes as separate routes)
+10. ~~Conversation Tags~~ ✅ (implemented)
+11. **Unified Search** ← NEXT (search across chat + notes)
+12. **Chat Export** (Markdown/JSON/PDF)
+13. ConversationSidebar Refactoring (optional)

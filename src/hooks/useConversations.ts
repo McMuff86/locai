@@ -39,6 +39,7 @@ export interface UseConversationsReturn {
   // Helpers
   addMessage: (message: Message) => void;
   updateConversationTitle: (title: string) => void;
+  updateConversationTags: (conversationId: string, tags: string[]) => boolean;
   
   // Auto-save status
   isAutoSaveEnabled: boolean;
@@ -230,6 +231,31 @@ export function useConversations(options: UseConversationsOptions = {}): UseConv
     }));
   }, []);
 
+  const updateConversationTags = useCallback((conversationId: string, tags: string[]): boolean => {
+    // Find the conversation
+    const convIndex = savedConversations.findIndex(c => c.id === conversationId);
+    if (convIndex === -1) return false;
+    
+    // Update the conversation
+    const updatedConversation = {
+      ...savedConversations[convIndex],
+      tags,
+      updatedAt: new Date()
+    };
+    
+    // Save to storage
+    const success = saveToStorage(updatedConversation);
+    if (success) {
+      setSavedConversations(getSavedConversations());
+      
+      // Also update current conversation if it's the same
+      if (conversation.id === conversationId) {
+        setConversation(prev => ({ ...prev, tags }));
+      }
+    }
+    return success;
+  }, [savedConversations, conversation.id]);
+
   return {
     conversation,
     setConversation,
@@ -243,6 +269,7 @@ export function useConversations(options: UseConversationsOptions = {}): UseConv
     clearAllConversations,
     addMessage,
     updateConversationTitle,
+    updateConversationTags,
     isAutoSaveEnabled: autoSave,
     lastAutoSave
   };

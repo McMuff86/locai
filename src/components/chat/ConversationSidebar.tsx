@@ -1,9 +1,9 @@
 "use client";
 
 import React, { useState } from 'react';
+import Link from 'next/link';
 import { Conversation, MessageContent } from '../../types/chat';
 import { Button } from '../ui/button';
-import { Input } from '../ui/input';
 import { ScrollArea } from '../ui/scroll-area';
 import { 
   Trash2, 
@@ -14,16 +14,11 @@ import {
   Image, 
   BarChart2, 
   X,
-  Settings,
-  HelpCircle,
-  Moon,
-  ChevronDown,
-  ChevronRight,
-  AlertTriangle,
-  FolderOpen,
-  Paintbrush,
-  Loader2,
-  FileText
+  FileText,
+  Tag,
+  Filter,
+  Check,
+  ExternalLink
 } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { de } from 'date-fns/locale';
@@ -31,8 +26,9 @@ import { ChatSearch } from './ChatSearch';
 import { ConversationStats } from './ConversationStats';
 import { ComfyUIWidget } from '../ComfyUIWidget';
 import { OllamaStatus } from '../OllamaStatus';
-import { useTheme } from 'next-themes';
 import { AppSettings } from '../../hooks/useSettings';
+import { TagDisplay, TagInput } from '../shared/TagInput';
+import { getTagColor, TAG_COLORS } from '@/types/chat';
 
 interface ConversationSidebarProps {
   conversations: Conversation[];
@@ -43,10 +39,9 @@ interface ConversationSidebarProps {
   onExportConversations?: () => void;
   onImportConversations?: () => void;
   onClearAllConversations?: () => void;
+  onUpdateConversationTags?: (conversationId: string, tags: string[]) => void;
   settings?: AppSettings;
   onUpdateSettings?: (updates: Partial<AppSettings>) => void;
-  onOpenGallery?: () => void;
-  onOpenNotes?: () => void;
   onPullModel?: () => void;
   className?: string;
 }
@@ -60,72 +55,33 @@ export function ConversationSidebar({
   onExportConversations,
   onImportConversations,
   onClearAllConversations,
+  onUpdateConversationTags,
   settings,
   onUpdateSettings,
-  onOpenGallery,
-  onOpenNotes,
   onPullModel,
   className = ''
 }: ConversationSidebarProps) {
   const [showStats, setShowStats] = useState<string | null>(null);
-  const [showSettings, setShowSettings] = useState(false);
-  const [showDangerZone, setShowDangerZone] = useState(false);
-  const [showComfySettings, setShowComfySettings] = useState(false);
-  const [showNotesSettings, setShowNotesSettings] = useState(false);
-  const [isPickingFolder, setIsPickingFolder] = useState<'comfyPath' | 'outputPath' | 'notesPath' | null>(null);
-  const { theme, setTheme } = useTheme();
   
-  // Open native folder picker
-  const pickFolder = async (type: 'comfyPath' | 'outputPath' | 'notesPath') => {
-    if (!onUpdateSettings) return;
-    
-    setIsPickingFolder(type);
-    
-    try {
-      // Determine initial path for the dialog
-      let initialPath = '';
-      if (type === 'comfyPath') {
-        initialPath = settings?.comfyUIPath || '';
-      } else if (type === 'outputPath') {
-        // For output, use existing outputPath or construct default
-        initialPath = settings?.comfyUIOutputPath || 
-          (settings?.comfyUIPath ? `${settings.comfyUIPath}\\ComfyUI\\output` : '');
-      } else {
-        initialPath = settings?.notesPath || '';
-      }
-      
-      const response = await fetch('/api/folder-picker', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          initialPath,
-          title: type === 'comfyPath' 
-            ? 'ComfyUI Ordner auswählen' 
-            : type === 'outputPath'
-              ? 'Output Ordner auswählen'
-              : 'Notizen Ordner auswählen'
-        }),
-      });
-      
-      const data = await response.json();
-      
-      if (data.success && data.path) {
-        if (type === 'comfyPath') {
-          onUpdateSettings({ comfyUIPath: data.path });
-        } else if (type === 'outputPath') {
-          // Store absolute path for output folder
-          onUpdateSettings({ comfyUIOutputPath: data.path });
-        } else {
-          onUpdateSettings({ notesPath: data.path });
-        }
-      }
-    } catch (err) {
-      console.error('Folder picker error:', err);
-    } finally {
-      setIsPickingFolder(null);
-    }
-  };
-
+  // Tag filtering and editing
+  const [selectedTagFilter, setSelectedTagFilter] = useState<string | null>(null);
+  const [editingTagsFor, setEditingTagsFor] = useState<string | null>(null);
+  const [showTagFilter, setShowTagFilter] = useState(false);
+  
+  // Get all unique tags from conversations
+  const allTags = React.useMemo(() => {
+    const tagSet = new Set<string>();
+    conversations.forEach(c => {
+      c.tags?.forEach(t => tagSet.add(t));
+    });
+    return Array.from(tagSet).sort();
+  }, [conversations]);
+  
+  // Filter conversations by selected tag
+  const filteredConversations = React.useMemo(() => {
+    if (!selectedTagFilter) return conversations;
+    return conversations.filter(c => c.tags?.includes(selectedTagFilter));
+  }, [conversations, selectedTagFilter]);
   
   // Get the current conversation for stats
   const currentConversation = conversations.find(c => c.id === showStats);
@@ -193,13 +149,15 @@ export function ConversationSidebar({
       {/* Header Section */}
       <div className="p-4 space-y-3">
         {/* Brand/Logo */}
-        <div className="flex items-center gap-2 px-2 mb-4">
-          <img 
-            src="/LocAI_logo_v0.2.svg" 
-            alt="LocAI" 
-            className="h-8 w-8"
-          />
-          <span className="font-semibold text-lg text-foreground">LocAI</span>
+        <div className="flex items-center gap-2 mb-4">
+          <div className="flex items-center gap-2 px-1">
+            <img 
+              src="/LocAI_logo_v0.2.svg" 
+              alt="LocAI" 
+              className="h-6 w-6 flex-shrink-0"
+            />
+            <span className="font-semibold text-base text-foreground truncate">LocAI</span>
+          </div>
         </div>
         
         {/* New Conversation Button */}
@@ -241,45 +199,110 @@ export function ConversationSidebar({
           <ComfyUIWidget
             comfyUIPath={settings.comfyUIPath}
             comfyUIPort={settings.comfyUIPort}
-            onOpenSettings={() => {
-              setShowSettings(true);
-              setShowComfySettings(true);
-            }}
             compact
           />
           
-          {/* Gallery Button */}
-          {settings.comfyUIPath && onOpenGallery && (
+          {/* Gallery Link */}
+          {settings.comfyUIOutputPath && (
+            <Link href="/gallery">
+              <Button
+                variant="outline"
+                size="sm"
+                className="w-full justify-start gap-2"
+              >
+                <Image className="h-4 w-4" />
+                Bildergalerie
+                <ExternalLink className="h-3 w-3 ml-auto opacity-50" />
+              </Button>
+            </Link>
+          )}
+
+          {/* Notes Link */}
+          <Link href="/notes">
             <Button
               variant="outline"
               size="sm"
               className="w-full justify-start gap-2"
-              onClick={onOpenGallery}
             >
-              <Image className="h-4 w-4" />
-              Bildergalerie öffnen
+              <FileText className="h-4 w-4" />
+              Notizen
+              <ExternalLink className="h-3 w-3 ml-auto opacity-50" />
             </Button>
-          )}
-
-          {/* Notes Button */}
-          <Button
-            variant="outline"
-            size="sm"
-            className="w-full justify-start gap-2"
-            onClick={onOpenNotes}
-            disabled={!onOpenNotes}
-          >
-            <FileText className="h-4 w-4" />
-            Notizen öffnen
-          </Button>
+          </Link>
         </div>
       )}
       
-      {/* Section Label */}
-      <div className="px-4 py-2">
-        <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
-          Chat-Verlauf
-        </span>
+      {/* Section Label + Tag Filter */}
+      <div className="px-4 py-2 space-y-2">
+        <div className="flex items-center justify-between">
+          <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+            Chat-Verlauf
+          </span>
+          {allTags.length > 0 && (
+            <Button
+              variant="ghost"
+              size="sm"
+              className={`h-6 px-2 text-xs gap-1 ${selectedTagFilter ? 'text-primary' : ''}`}
+              onClick={() => setShowTagFilter(!showTagFilter)}
+            >
+              <Filter className="h-3 w-3" />
+              {selectedTagFilter || 'Filter'}
+            </Button>
+          )}
+        </div>
+        
+        {/* Tag Filter Dropdown */}
+        {showTagFilter && allTags.length > 0 && (
+          <div className="flex flex-wrap gap-1 p-2 bg-muted/30 rounded-md border border-border/50">
+            <button
+              onClick={() => {
+                setSelectedTagFilter(null);
+                setShowTagFilter(false);
+              }}
+              className={`px-2 py-0.5 text-xs rounded-full transition-colors ${
+                !selectedTagFilter 
+                  ? 'bg-primary text-primary-foreground' 
+                  : 'bg-muted hover:bg-muted/80 text-muted-foreground'
+              }`}
+            >
+              Alle
+            </button>
+            {allTags.map(tag => {
+              const colors = getTagColor(tag);
+              const isSelected = selectedTagFilter === tag;
+              return (
+                <button
+                  key={tag}
+                  onClick={() => {
+                    setSelectedTagFilter(isSelected ? null : tag);
+                    setShowTagFilter(false);
+                  }}
+                  className={`px-2 py-0.5 text-xs rounded-full transition-colors border ${
+                    isSelected 
+                      ? `${colors.bg} ${colors.text} ${colors.border}` 
+                      : 'bg-muted hover:bg-muted/80 text-muted-foreground border-transparent'
+                  }`}
+                >
+                  {tag}
+                </button>
+              );
+            })}
+          </div>
+        )}
+        
+        {/* Active filter indicator */}
+        {selectedTagFilter && !showTagFilter && (
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-muted-foreground">Gefiltert:</span>
+            <button
+              onClick={() => setSelectedTagFilter(null)}
+              className={`inline-flex items-center gap-1 px-2 py-0.5 text-xs rounded-full ${getTagColor(selectedTagFilter).bg} ${getTagColor(selectedTagFilter).text} border ${getTagColor(selectedTagFilter).border}`}
+            >
+              {selectedTagFilter}
+              <X className="h-3 w-3" />
+            </button>
+          </div>
+        )}
       </div>
       
       {/* Stats Panel (slide-in) */}
@@ -305,14 +328,30 @@ export function ConversationSidebar({
       {/* Conversations List */}
       <ScrollArea className="flex-1 px-2">
         <div className="space-y-1 pb-4">
-          {conversations.length === 0 ? (
+          {filteredConversations.length === 0 ? (
             <div className="p-4 text-center text-muted-foreground text-sm">
               <MessageSquare className="h-8 w-8 mx-auto mb-2 opacity-50" />
-              <p>Keine Chats vorhanden</p>
-              <p className="text-xs mt-1">Starte einen neuen Chat!</p>
+              {selectedTagFilter ? (
+                <>
+                  <p>Keine Chats mit Tag "{selectedTagFilter}"</p>
+                  <Button 
+                    variant="link" 
+                    size="sm" 
+                    onClick={() => setSelectedTagFilter(null)}
+                    className="mt-1"
+                  >
+                    Filter entfernen
+                  </Button>
+                </>
+              ) : (
+                <>
+                  <p>Keine Chats vorhanden</p>
+                  <p className="text-xs mt-1">Starte einen neuen Chat!</p>
+                </>
+              )}
             </div>
           ) : (
-            conversations.map(conversation => (
+            filteredConversations.map(conversation => (
               <div 
                 key={conversation.id} 
                 className={`p-2.5 rounded-lg cursor-pointer group transition-all duration-200 ${
@@ -335,6 +374,44 @@ export function ConversationSidebar({
                     <div className="text-xs text-muted-foreground truncate mt-0.5">
                       {getConversationPreview(conversation)}
                     </div>
+                    
+                    {/* Tags Display/Edit */}
+                    {editingTagsFor === conversation.id ? (
+                      <div className="mt-1.5" onClick={(e) => e.stopPropagation()}>
+                        <TagInput
+                          tags={conversation.tags || []}
+                          onChange={(newTags) => {
+                            if (onUpdateConversationTags) {
+                              onUpdateConversationTags(conversation.id, newTags);
+                            }
+                          }}
+                          compact
+                          maxTags={3}
+                        />
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="h-5 px-1.5 mt-1 text-xs"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setEditingTagsFor(null);
+                          }}
+                        >
+                          <Check className="h-3 w-3 mr-1" />
+                          Fertig
+                        </Button>
+                      </div>
+                    ) : (
+                      <div className="mt-1 flex items-center gap-1">
+                        {conversation.tags && conversation.tags.length > 0 ? (
+                          <TagDisplay 
+                            tags={conversation.tags} 
+                            onClick={(tag) => setSelectedTagFilter(tag)}
+                          />
+                        ) : null}
+                      </div>
+                    )}
+                    
                     <div className="text-xs text-muted-foreground/70 mt-1 flex items-center gap-1">
                       <span>{conversation.messages.filter(m => m.role !== 'system').length} Msg</span>
                       <span>•</span>
@@ -344,6 +421,21 @@ export function ConversationSidebar({
                   
                   {/* Action Buttons - Always visible but subtle */}
                   <div className="flex items-center gap-0.5 flex-shrink-0 opacity-50 group-hover:opacity-100 transition-opacity">
+                    {/* Tag Edit Button */}
+                    {onUpdateConversationTags && (
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        className="h-6 w-6"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setEditingTagsFor(editingTagsFor === conversation.id ? null : conversation.id);
+                        }}
+                        title="Tags bearbeiten"
+                      >
+                        <Tag className={`h-3 w-3 ${editingTagsFor === conversation.id ? 'text-primary' : 'text-muted-foreground hover:text-primary'}`} />
+                      </Button>
+                    )}
                     <Button
                       size="icon"
                       variant="ghost"
@@ -378,267 +470,28 @@ export function ConversationSidebar({
         </div>
       </ScrollArea>
       
-      {/* Bottom Section - Settings & Actions */}
-      <div className="border-t border-border bg-sidebar">
-        {/* Settings Panel (expandable) */}
-        {showSettings && (
-          <div className="p-3 border-b border-border space-y-2 animate-in slide-in-from-bottom-2 duration-200 max-h-[60vh] overflow-y-auto">
-            {/* Theme Toggle */}
-            <button
-              onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
-              className="w-full flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-muted/50 transition-colors text-sm"
-            >
-              <Moon className="h-4 w-4 text-muted-foreground" />
-              <span>Dark Mode</span>
-              <span className="ml-auto text-xs text-muted-foreground">
-                {theme === 'dark' ? 'An' : 'Aus'}
-              </span>
-            </button>
-            
-            {/* ComfyUI Settings */}
-            {settings && onUpdateSettings && (
-              <div className="pt-2 border-t border-border">
-                <button
-                  onClick={() => setShowComfySettings(!showComfySettings)}
-                  className="w-full flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-muted/50 transition-colors text-sm"
-                >
-                  <Paintbrush className="h-4 w-4 text-muted-foreground" />
-                  <span>ComfyUI</span>
-                  {showComfySettings ? (
-                    <ChevronDown className="h-4 w-4 ml-auto text-muted-foreground" />
-                  ) : (
-                    <ChevronRight className="h-4 w-4 ml-auto text-muted-foreground" />
-                  )}
-                </button>
-                
-                {showComfySettings && (
-                  <div className="mt-2 p-3 bg-muted/30 rounded-lg space-y-3">
-                    {/* ComfyUI Path */}
-                    <div>
-                      <label className="text-xs text-muted-foreground mb-1 block">
-                        ComfyUI Pfad
-                      </label>
-                      <div className="flex gap-2">
-                        <Input
-                          type="text"
-                          placeholder="C:\ComfyUI oder /home/user/ComfyUI"
-                          value={settings.comfyUIPath}
-                          onChange={(e) => onUpdateSettings({ comfyUIPath: e.target.value })}
-                          className="text-sm h-8"
-                        />
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="h-8 px-2 flex-shrink-0"
-                          title="Ordner auswählen"
-                          onClick={() => pickFolder('comfyPath')}
-                          disabled={isPickingFolder === 'comfyPath'}
-                        >
-                          {isPickingFolder === 'comfyPath' ? (
-                            <Loader2 className="h-4 w-4 animate-spin" />
-                          ) : (
-                            <FolderOpen className="h-4 w-4" />
-                          )}
-                        </Button>
-                      </div>
-                      <p className="text-xs text-muted-foreground mt-1">
-                        Pfad zum ComfyUI Ordner (enthält run_nvidia_gpu.bat etc.)
-                      </p>
-                    </div>
-                    
-                    {/* Output Path */}
-                    <div>
-                      <label className="text-xs text-muted-foreground mb-1 block">
-                        Output Ordner (für Galerie)
-                      </label>
-                      <div className="flex gap-2">
-                        <Input
-                          type="text"
-                          placeholder={settings.comfyUIPath ? `${settings.comfyUIPath}\\ComfyUI\\output` : 'Ordner auswählen...'}
-                          value={settings.comfyUIOutputPath || ''}
-                          onChange={(e) => onUpdateSettings({ comfyUIOutputPath: e.target.value })}
-                          className="text-sm h-8"
-                        />
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="h-8 px-2 flex-shrink-0"
-                          title="Output Ordner auswählen"
-                          onClick={() => pickFolder('outputPath')}
-                          disabled={isPickingFolder === 'outputPath'}
-                        >
-                          {isPickingFolder === 'outputPath' ? (
-                            <Loader2 className="h-4 w-4 animate-spin" />
-                          ) : (
-                            <FolderOpen className="h-4 w-4" />
-                          )}
-                        </Button>
-                      </div>
-                      <p className="text-xs text-muted-foreground mt-1">
-                        Absoluter Pfad zum Output-Ordner (oder leer für Standard)
-                      </p>
-                    </div>
-                    
-                    {/* Port */}
-                    <div>
-                      <label className="text-xs text-muted-foreground mb-1 block">
-                        Port
-                      </label>
-                      <Input
-                        type="number"
-                        value={settings.comfyUIPort}
-                        onChange={(e) => onUpdateSettings({ comfyUIPort: parseInt(e.target.value) || 8188 })}
-                        className="text-sm h-8 w-24"
-                      />
-                    </div>
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* Notes Settings */}
-            {settings && onUpdateSettings && (
-              <div className="pt-2 border-t border-border">
-                <button
-                  onClick={() => setShowNotesSettings(!showNotesSettings)}
-                  className="w-full flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-muted/50 transition-colors text-sm"
-                >
-                  <FileText className="h-4 w-4 text-muted-foreground" />
-                  <span>Notizen</span>
-                  {showNotesSettings ? (
-                    <ChevronDown className="h-4 w-4 ml-auto text-muted-foreground" />
-                  ) : (
-                    <ChevronRight className="h-4 w-4 ml-auto text-muted-foreground" />
-                  )}
-                </button>
-
-                {showNotesSettings && (
-                  <div className="mt-2 p-3 bg-muted/30 rounded-lg space-y-3">
-                    <div>
-                      <label className="text-xs text-muted-foreground mb-1 block">
-                        Notizen Pfad
-                      </label>
-                      <div className="flex gap-2">
-                        <Input
-                          type="text"
-                          placeholder="Pfad zum Notizen-Ordner"
-                          value={settings.notesPath || ''}
-                          onChange={(e) => onUpdateSettings({ notesPath: e.target.value })}
-                          className="text-sm h-8"
-                        />
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="h-8 px-2 flex-shrink-0"
-                          title="Notizen Ordner auswählen"
-                          onClick={() => pickFolder('notesPath')}
-                          disabled={isPickingFolder === 'notesPath'}
-                        >
-                          {isPickingFolder === 'notesPath' ? (
-                            <Loader2 className="h-4 w-4 animate-spin" />
-                          ) : (
-                            <FolderOpen className="h-4 w-4" />
-                          )}
-                        </Button>
-                      </div>
-                      <p className="text-xs text-muted-foreground mt-1">
-                        Basis-Pfad für lokale Notizen (Markdown-Dateien + Index).
-                      </p>
-                    </div>
-                  </div>
-                )}
-              </div>
-            )}
-            
-            {/* Import */}
-            {onImportConversations && (
-              <button
-                onClick={onImportConversations}
-                className="w-full flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-muted/50 transition-colors text-sm"
-              >
-                <Upload className="h-4 w-4 text-muted-foreground" />
-                <span>Chats importieren</span>
-              </button>
-            )}
-            
-            {/* Export */}
-            {onExportConversations && (
-              <button
-                onClick={onExportConversations}
-                disabled={conversations.length === 0}
-                className="w-full flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-muted/50 transition-colors text-sm disabled:opacity-50"
-              >
-                <Download className="h-4 w-4 text-muted-foreground" />
-                <span>Chats exportieren</span>
-              </button>
-            )}
-            
-            {/* Danger Zone - Expandable */}
-            {onClearAllConversations && conversations.length > 0 && (
-              <div className="pt-2 border-t border-border">
-                <button
-                  onClick={() => setShowDangerZone(!showDangerZone)}
-                  className="w-full flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-destructive/10 transition-colors text-sm text-destructive/80"
-                >
-                  <AlertTriangle className="h-4 w-4" />
-                  <span>Gefahrenzone</span>
-                  {showDangerZone ? (
-                    <ChevronDown className="h-4 w-4 ml-auto" />
-                  ) : (
-                    <ChevronRight className="h-4 w-4 ml-auto" />
-                  )}
-                </button>
-                
-                {showDangerZone && (
-                  <div className="mt-2 p-3 bg-destructive/5 rounded-lg border border-destructive/20">
-                    <p className="text-xs text-muted-foreground mb-2">
-                      Diese Aktion kann nicht rückgängig gemacht werden!
-                    </p>
-                    <Button
-                      variant="destructive"
-                      size="sm"
-                      className="w-full"
-                      onClick={() => {
-                        if (window.confirm("ACHTUNG: Alle Konversationen werden unwiderruflich gelöscht. Fortfahren?")) {
-                          onClearAllConversations();
-                          setShowDangerZone(false);
-                          setShowSettings(false);
-                        }
-                      }}
-                    >
-                      Alle Chats löschen ({conversations.length})
-                    </Button>
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
+      {/* Bottom Section - Quick Actions */}
+      <div className="border-t border-border bg-sidebar p-2 space-y-1">
+        {/* Import/Export */}
+        {onImportConversations && (
+          <button
+            onClick={onImportConversations}
+            className="w-full flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-muted/50 transition-colors text-sm"
+          >
+            <Upload className="h-4 w-4 text-muted-foreground" />
+            <span>Chats importieren</span>
+          </button>
         )}
         
-        {/* Bottom Menu Items */}
-        <div className="p-2 space-y-1">
+        {onExportConversations && conversations.length > 0 && (
           <button
-            className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-muted/50 transition-colors text-sm"
+            onClick={onExportConversations}
+            className="w-full flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-muted/50 transition-colors text-sm"
           >
-            <HelpCircle className="h-4 w-4 text-muted-foreground" />
-            <span>Hilfe</span>
+            <Download className="h-4 w-4 text-muted-foreground" />
+            <span>Chats exportieren</span>
           </button>
-          
-          <button
-            onClick={() => setShowSettings(!showSettings)}
-            className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors text-sm ${
-              showSettings ? 'bg-muted/50' : 'hover:bg-muted/50'
-            }`}
-          >
-            <Settings className="h-4 w-4 text-muted-foreground" />
-            <span>Einstellungen</span>
-            {showSettings ? (
-              <ChevronDown className="h-4 w-4 ml-auto text-muted-foreground" />
-            ) : (
-              <ChevronRight className="h-4 w-4 ml-auto text-muted-foreground" />
-            )}
-          </button>
-        </div>
+        )}
       </div>
     </div>
   );

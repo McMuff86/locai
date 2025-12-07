@@ -808,9 +808,9 @@ export function NotesPanel({ basePath, defaultModel, host, installedModels = [],
   }, [notes, semanticLinks, graphViewMode]);
 
   return (
-    <div className={className}>
+    <div className={`flex flex-col h-full ${className}`}>
       {/* Search Bar */}
-      <div className="relative mb-4">
+      <div className="relative mb-4 flex-shrink-0">
         <div className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
@@ -916,45 +916,86 @@ export function NotesPanel({ basePath, defaultModel, host, installedModels = [],
         )}
       </div>
       
-      <div className="rounded-lg border border-border p-4 space-y-3">
-        <div className="flex items-center justify-between gap-2">
-          <h2 className="text-sm font-medium">
-            {selectedId ? 'Notiz bearbeiten' : 'Neue Notiz'}
-          </h2>
-          <div className="flex items-center gap-1">
-            {selectedId && (
-              <>
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  className="h-7 w-7 p-0"
-                  onClick={() => setIsNoteMinimized(!isNoteMinimized)}
-                  title={isNoteMinimized ? 'Erweitern' : 'Minimieren'}
-                >
-                  {isNoteMinimized ? (
-                    <ChevronDown className="h-4 w-4" />
-                  ) : (
-                    <ChevronUp className="h-4 w-4" />
-                  )}
-                </Button>
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  onClick={() => {
-                    setSelectedId(null);
-                    setForm({ title: '', content: '' });
-                    setHighlightTerm(null);
-                    setIsNoteMinimized(false); // Reset minimized state
-                  }}
-                >
-                  Neu
-                </Button>
-              </>
-            )}
+      {/* Split View: Notes List (left) + Editor (right) */}
+      <div className="flex-1 flex gap-4 min-h-0 mb-4">
+        {/* Left Panel: Notes List */}
+        <div className="w-1/3 min-w-[200px] max-w-[350px] flex flex-col rounded-lg border border-border overflow-hidden">
+          <div className="flex items-center justify-between p-3 border-b border-border bg-muted/30">
+            <h2 className="text-sm font-medium">Notizen</h2>
+            <Button size="sm" variant="ghost" onClick={fetchNotes} disabled={loading} className="h-7 px-2">
+              {loading ? <Loader2 className="h-3 w-3 animate-spin" /> : 'Aktualisieren'}
+            </Button>
           </div>
+          <ScrollArea className="flex-1">
+            <div className="p-2 space-y-1">
+              {/* New Note Button */}
+              <Button
+                variant="outline"
+                size="sm"
+                className="w-full justify-start gap-2 mb-2"
+                onClick={() => {
+                  setSelectedId(null);
+                  setForm({ title: '', content: '' });
+                  setHighlightTerm(null);
+                  setIsNoteMinimized(false);
+                }}
+              >
+                <span className="text-primary">+</span> Neue Notiz
+              </Button>
+              
+              {notes.length === 0 ? (
+                <p className="text-sm text-muted-foreground p-2">Keine Notizen gefunden.</p>
+              ) : (
+                notes.map((note) => (
+                  <div
+                    key={note.id}
+                    className={`rounded-md border p-2.5 cursor-pointer transition-colors ${
+                      selectedId === note.id 
+                        ? 'border-primary bg-primary/5' 
+                        : 'border-transparent hover:bg-muted/50'
+                    }`}
+                    onClick={() => loadNote(note.id)}
+                  >
+                    <div className="text-sm font-medium truncate">{note.title}</div>
+                    <div className="text-xs text-muted-foreground truncate mt-0.5">
+                      {note.tags?.length ? note.tags.slice(0, 3).map(t => `#${t}`).join(' ') : 'Keine Tags'}
+                    </div>
+                    {selectedId === note.id && isNoteLoading && (
+                      <Loader2 className="h-3 w-3 animate-spin mt-1 text-primary" />
+                    )}
+                  </div>
+                ))
+              )}
+            </div>
+          </ScrollArea>
         </div>
         
-        {/* Highlight indicator */}
+        {/* Right Panel: Editor */}
+        <div className="flex-1 flex flex-col rounded-lg border border-border overflow-hidden">
+          <div className="flex items-center justify-between p-3 border-b border-border bg-muted/30">
+            <h2 className="text-sm font-medium">
+              {selectedId ? 'Notiz bearbeiten' : 'Neue Notiz'}
+            </h2>
+            {selectedId && (
+              <Button
+                size="sm"
+                variant="ghost"
+                className="h-7 w-7 p-0"
+                onClick={() => setIsNoteMinimized(!isNoteMinimized)}
+                title={isNoteMinimized ? 'Erweitern' : 'Minimieren'}
+              >
+                {isNoteMinimized ? (
+                  <ChevronDown className="h-4 w-4" />
+                ) : (
+                  <ChevronUp className="h-4 w-4" />
+                )}
+              </Button>
+            )}
+          </div>
+          
+          {/* Editor Content */}
+          <div className="flex-1 flex flex-col p-3 overflow-auto">
+            {/* Highlight indicator */}
         {highlightTerm && (
           <div className="flex items-center justify-between gap-2 px-3 py-2 bg-yellow-500/10 border border-yellow-500/30 rounded-md">
             <span className="text-xs text-yellow-600 dark:text-yellow-400">
@@ -1187,55 +1228,25 @@ export function NotesPanel({ basePath, defaultModel, host, installedModels = [],
           </>
         )}
         
-        {/* Minimized state indicator */}
-        {isNoteMinimized && selectedId && (
-          <div className="text-xs text-muted-foreground text-center py-2 border-t border-border/60">
-            Notiz minimiert • Klicke ↓ zum Erweitern
-          </div>
-        )}
-        
-        {error && <p className="text-xs text-destructive">{error}</p>}
-        {!basePath && (
-          <p className="text-xs text-destructive">
-            Bitte Notizen-Pfad in den Einstellungen setzen.
-          </p>
-        )}
-      </div>
-
-      <div className="rounded-lg border border-border p-4 space-y-3 mt-4">
-        <div className="flex items-center justify-between">
-          <h2 className="text-sm font-medium">Notizen Übersicht</h2>
-          <Button size="sm" variant="outline" onClick={fetchNotes} disabled={loading}>
-            {loading ? 'Lädt...' : 'Aktualisieren'}
-          </Button>
-        </div>
-        <ScrollArea className="h-[280px] pr-3">
-          <div className="space-y-2">
-            {notes.length === 0 && (
-              <p className="text-sm text-muted-foreground">Keine Notizen gefunden.</p>
-            )}
-            {notes.map((note) => (
-              <div
-                key={note.id}
-                className={`rounded-md border border-border/60 p-3 hover:border-primary/60 transition-colors cursor-pointer ${
-                  selectedId === note.id ? 'border-primary' : ''
-                }`}
-                onClick={() => loadNote(note.id)}
-              >
-                <div className="text-sm font-medium">{note.title}</div>
-                <div className="text-xs text-muted-foreground">
-                  {note.tags?.length ? `Tags: ${note.tags.join(', ')}` : 'Keine Tags'}
-                </div>
-                {selectedId === note.id && isNoteLoading && (
-                  <div className="text-xs text-muted-foreground">Lädt...</div>
-                )}
+            {/* Minimized state indicator */}
+            {isNoteMinimized && selectedId && (
+              <div className="text-xs text-muted-foreground text-center py-2 border-t border-border/60">
+                Notiz minimiert • Klicke ↓ zum Erweitern
               </div>
-            ))}
+            )}
+            
+            {error && <p className="text-xs text-destructive">{error}</p>}
+            {!basePath && (
+              <p className="text-xs text-destructive">
+                Bitte Notizen-Pfad in den Einstellungen setzen.
+              </p>
+            )}
           </div>
-        </ScrollArea>
+        </div>
       </div>
-
-      <div className="rounded-lg border border-border p-4 space-y-3 mt-4">
+      
+      {/* Graph Section */}
+      <div className="flex-shrink-0 rounded-lg border border-border p-4 space-y-3">
         <div className="flex items-center justify-between flex-wrap gap-2">
           <div>
             <h2 className="text-sm font-medium">Verknüpfungen</h2>

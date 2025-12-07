@@ -4,7 +4,7 @@ import React from 'react';
 import Link from 'next/link';
 import { 
   Home, ChevronDown, Check, Save, FolderOpen, 
-  Download, Upload, Trash, Menu, Plus
+  Download, Upload, Trash, Menu, Plus, PanelLeftClose, PanelLeft
 } from 'lucide-react';
 import { Button } from '../ui/button';
 import { ThemeToggle } from '../ui/theme-toggle';
@@ -35,8 +35,12 @@ interface ChatHeaderProps {
   onExportConversations: () => void;
   onClearAllConversations: () => void;
   
-  // Mobile props
+  // Sidebar toggle props
   onToggleSidebar?: () => void;
+  showSidebarToggle?: boolean;
+  isSidebarOpen?: boolean;
+  
+  // Mobile props
   isMobile?: boolean;
 }
 
@@ -53,6 +57,8 @@ export function ChatHeader({
   onExportConversations,
   onClearAllConversations,
   onToggleSidebar,
+  showSidebarToggle = false,
+  isSidebarOpen = true,
   isMobile = false
 }: ChatHeaderProps) {
   
@@ -160,14 +166,23 @@ export function ChatHeader({
 
   // Desktop Header
   return (
-    <div className="hidden md:flex items-center justify-between p-4 border-b">
+    <div className="flex items-center justify-between p-3 border-b">
       <div className="flex items-center gap-2">
-        <Link href="/">
-          <Button variant="outline" size="icon">
-            <Home className="h-[1.2rem] w-[1.2rem]" />
+        {showSidebarToggle && onToggleSidebar && (
+          <Button 
+            variant="ghost" 
+            size="icon"
+            onClick={onToggleSidebar}
+            title={isSidebarOpen ? "Sidebar ausblenden" : "Sidebar einblenden"}
+          >
+            {isSidebarOpen ? (
+              <PanelLeftClose className="h-5 w-5" />
+            ) : (
+              <PanelLeft className="h-5 w-5" />
+            )}
           </Button>
-        </Link>
-        <h1 className="text-xl font-bold">LocAI Chat</h1>
+        )}
+        <h1 className="text-lg font-semibold">Chat</h1>
       </div>
       <div className="flex items-center gap-2">
         <Button

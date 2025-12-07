@@ -328,3 +328,11 @@
     radial-gradient(ellipse at 60% 70%, rgba(50, 150, 100, 0.08) 0%, transparent 50%),
     linear-gradient(180deg, rgba(15, 15, 22, 0.98) 0%, rgba(10, 10, 16, 0.99) 100%) !important;
 }
+
+/* Landing page grid pattern */
+.bg-grid-pattern {
+  background-image: 
+    linear-gradient(to right, currentColor 1px, transparent 1px),
+    linear-gradient(to bottom, currentColor 1px, transparent 1px);
+  background-size: 60px 60px;
+}

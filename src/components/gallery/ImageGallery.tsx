@@ -16,24 +16,32 @@ import { DeleteConfirmDialog } from './DeleteConfirmDialog';
 import { EmptyState } from './EmptyState';
 
 interface ImageGalleryProps {
-  comfyUIPath: string;
+  comfyUIPath?: string;
   outputPath?: string;
-  isOpen: boolean;
-  onClose: () => void;
+  inputPath?: string;
+  isOpen?: boolean;
+  onClose?: () => void;
   onAnalyzeImage?: (imageUrl: string, filename: string) => void;
   onShowToast?: (title: string, description: string, variant?: 'default' | 'destructive') => void;
+  /** Standalone mode (no modal wrapper) */
+  standalone?: boolean;
 }
 
 export function ImageGallery({ 
   comfyUIPath, 
   outputPath,
-  isOpen, 
+  inputPath,
+  isOpen = true,
   onClose,
   onAnalyzeImage,
-  onShowToast
+  onShowToast,
+  standalone = false
 }: ImageGalleryProps) {
   // Config object for hooks
-  const config: GalleryConfig = { comfyUIPath, outputPath };
+  const config: GalleryConfig = { comfyUIPath: comfyUIPath || '', outputPath };
+  
+  // Use inputPath if provided, otherwise derive from comfyUIPath
+  const actualInputPath = inputPath || (comfyUIPath ? `${comfyUIPath}\\ComfyUI\\input` : undefined);
   
   // State
   const [selectedImage, setSelectedImage] = useState<ImageInfo | null>(null);
@@ -92,11 +100,11 @@ export function ImageGallery({
 
   // Initial load
   useEffect(() => {
-    if (isOpen && comfyUIPath) {
+    if (isOpen && (comfyUIPath || outputPath)) {
       fetchImages(true);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isOpen, comfyUIPath]); // fetchImages is stable now
+  }, [isOpen, comfyUIPath, outputPath]); // fetchImages is stable now
 
   // Load metadata when image is selected
   useEffect(() => {
@@ -189,6 +197,131 @@ export function ImageGallery({
 
   if (!isOpen) return null;
 
+  // Gallery content (shared between modal and standalone)
+  const galleryContent = (
+    <>
+      {/* Header */}
+      <GalleryHeader
+        total={total}
+        filterMode={filterMode}
+        gridSize={gridSize}
+        favoriteCount={favoriteCount}
+        isLoading={isLoading}
+        displayCount={displayImages.length}
+        onFilterChange={setFilterMode}
+        onGridSizeChange={setGridSize}
+        onRefresh={() => fetchImages(true)}
+        onClose={standalone ? undefined : onClose}
+      />
+      
+      {/* Gallery Content */}
+      <ScrollArea className={standalone ? "h-[calc(100vh-140px)]" : "h-[calc(100vh-73px)]"}>
+        <div className="p-4">
+          {error ? (
+            <EmptyState 
+              type="error" 
+              errorMessage={error} 
+              onRetry={() => fetchImages(true)} 
+            />
+          ) : displayImages.length === 0 && !isLoading ? (
+            <EmptyState type="empty" filterMode={filterMode} />
+          ) : (
+            <>
+              {/* Image Grid */}
+              <div className={`grid ${GRID_CLASSES[gridSize]}`}>
+                {displayImages.map((image) => (
+                  <ImageCard
+                    key={image.id}
+                    image={image}
+                    imageUrl={getImageUrl(image)}
+                    gridSize={gridSize}
+                    isFavorite={isFavorite(image.id)}
+                    onSelect={() => setSelectedImage(image)}
+                    onToggleFavorite={(e) => toggleFavorite(image.id, e)}
+                    onDelete={(e) => {
+                      e.stopPropagation();
+                      setDeleteConfirm(image.id);
+                    }}
+                  />
+                ))}
+              </div>
+              
+              {/* Load More */}
+              {hasMore && filterMode === 'all' && (
+                <div className="flex justify-center mt-6">
+                  <Button
+                    variant="outline"
+                    onClick={() => fetchImages(false)}
+                    disabled={isLoading}
+                  >
+                    {isLoading ? (
+                      <>
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        Laden...
+                      </>
+                    ) : (
+                      `Mehr laden (${images.length} von ${total})`
+                    )}
+                  </Button>
+                </div>
+              )}
+              
+              {/* Loading skeleton */}
+              {isLoading && images.length === 0 && (
+                <ImageGridSkeleton count={24} />
+              )}
+            </>
+          )}
+        </div>
+      </ScrollArea>
+      
+      {/* Delete Confirmation Dialog */}
+      <AnimatePresence>
+        {deleteConfirm && (
+          <DeleteConfirmDialog
+            isDeleting={isDeleting}
+            onConfirm={() => {
+              const imageToDelete = images.find(img => img.id === deleteConfirm);
+              if (imageToDelete) handleDelete(imageToDelete);
+            }}
+            onCancel={() => setDeleteConfirm(null)}
+          />
+        )}
+      </AnimatePresence>
+      
+      {/* Lightbox */}
+      <AnimatePresence>
+        {selectedImage && (
+          <Lightbox
+            image={selectedImage}
+            imageUrl={getImageUrl(selectedImage)}
+            isFavorite={isFavorite(selectedImage.id)}
+            metadata={metadata}
+            isLoadingMetadata={isLoadingMetadata}
+            showMetadata={showMetadata}
+            isCopying={isCopying}
+            canAnalyze={!!onAnalyzeImage}
+            onClose={() => setSelectedImage(null)}
+            onPrev={() => navigateLightbox('prev')}
+            onNext={() => navigateLightbox('next')}
+            onToggleFavorite={() => toggleFavorite(selectedImage.id)}
+            onToggleMetadata={() => setShowMetadata(!showMetadata)}
+            onAnalyze={() => handleAnalyze(selectedImage)}
+            onCopyToInput={() => handleCopyToInput(selectedImage)}
+            onDownload={() => downloadImage(selectedImage)}
+            onDelete={() => setDeleteConfirm(selectedImage.id)}
+          />
+        )}
+      </AnimatePresence>
+    </>
+  );
+
+  // Standalone mode - no modal wrapper
+  if (standalone) {
+    return <div className="h-full flex flex-col">{galleryContent}</div>;
+  }
+
+  // Modal mode
   return (
     <AnimatePresence>
       <motion.div
@@ -197,119 +330,7 @@ export function ImageGallery({
         exit={{ opacity: 0 }}
         className="fixed inset-0 z-50 bg-background/95 backdrop-blur-sm"
       >
-        {/* Header */}
-        <GalleryHeader
-          total={total}
-          filterMode={filterMode}
-          gridSize={gridSize}
-          favoriteCount={favoriteCount}
-          isLoading={isLoading}
-          displayCount={displayImages.length}
-          onFilterChange={setFilterMode}
-          onGridSizeChange={setGridSize}
-          onRefresh={() => fetchImages(true)}
-          onClose={onClose}
-        />
-        
-        {/* Gallery Content */}
-        <ScrollArea className="h-[calc(100vh-73px)]">
-          <div className="p-4">
-            {error ? (
-              <EmptyState 
-                type="error" 
-                errorMessage={error} 
-                onRetry={() => fetchImages(true)} 
-              />
-            ) : displayImages.length === 0 && !isLoading ? (
-              <EmptyState type="empty" filterMode={filterMode} />
-            ) : (
-              <>
-                {/* Image Grid */}
-                <div className={`grid ${GRID_CLASSES[gridSize]}`}>
-                  {displayImages.map((image) => (
-                    <ImageCard
-                      key={image.id}
-                      image={image}
-                      imageUrl={getImageUrl(image)}
-                      gridSize={gridSize}
-                      isFavorite={isFavorite(image.id)}
-                      onSelect={() => setSelectedImage(image)}
-                      onToggleFavorite={(e) => toggleFavorite(image.id, e)}
-                      onDelete={(e) => {
-                        e.stopPropagation();
-                        setDeleteConfirm(image.id);
-                      }}
-                    />
-                  ))}
-                </div>
-                
-                {/* Load More */}
-                {hasMore && filterMode === 'all' && (
-                  <div className="flex justify-center mt-6">
-                    <Button
-                      variant="outline"
-                      onClick={() => fetchImages(false)}
-                      disabled={isLoading}
-                    >
-                      {isLoading ? (
-                        <>
-                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                          Laden...
-                        </>
-                      ) : (
-                        `Mehr laden (${images.length} von ${total})`
-                      )}
-                    </Button>
-                  </div>
-                )}
-                
-                {/* Loading skeleton */}
-                {isLoading && images.length === 0 && (
-                  <ImageGridSkeleton count={24} />
-                )}
-              </>
-            )}
-          </div>
-        </ScrollArea>
-        
-        {/* Delete Confirmation Dialog */}
-        <AnimatePresence>
-          {deleteConfirm && (
-            <DeleteConfirmDialog
-              isDeleting={isDeleting}
-              onConfirm={() => {
-                const imageToDelete = images.find(img => img.id === deleteConfirm);
-                if (imageToDelete) handleDelete(imageToDelete);
-              }}
-              onCancel={() => setDeleteConfirm(null)}
-            />
-          )}
-        </AnimatePresence>
-        
-        {/* Lightbox */}
-        <AnimatePresence>
-          {selectedImage && (
-            <Lightbox
-              image={selectedImage}
-              imageUrl={getImageUrl(selectedImage)}
-              isFavorite={isFavorite(selectedImage.id)}
-              metadata={metadata}
-              isLoadingMetadata={isLoadingMetadata}
-              showMetadata={showMetadata}
-              isCopying={isCopying}
-              canAnalyze={!!onAnalyzeImage}
-              onClose={() => setSelectedImage(null)}
-              onPrev={() => navigateLightbox('prev')}
-              onNext={() => navigateLightbox('next')}
-              onToggleFavorite={() => toggleFavorite(selectedImage.id)}
-              onToggleMetadata={() => setShowMetadata(!showMetadata)}
-              onAnalyze={() => handleAnalyze(selectedImage)}
-              onCopyToInput={() => handleCopyToInput(selectedImage)}
-              onDownload={() => downloadImage(selectedImage)}
-              onDelete={() => setDeleteConfirm(selectedImage.id)}
-            />
-          )}
-        </AnimatePresence>
+        {galleryContent}
       </motion.div>
     </AnimatePresence>
   );
