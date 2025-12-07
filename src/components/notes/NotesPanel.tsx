@@ -808,9 +808,9 @@ export function NotesPanel({ basePath, defaultModel, host, installedModels = [],
   }, [notes, semanticLinks, graphViewMode]);
 
   return (
-    <div className={`flex flex-col h-full ${className}`}>
+    <div className={`flex flex-col h-full overflow-hidden ${className}`}>
       {/* Search Bar */}
-      <div className="relative mb-4 flex-shrink-0">
+      <div className="relative mb-4 flex-shrink-0 px-1">
         <div className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
@@ -917,9 +917,9 @@ export function NotesPanel({ basePath, defaultModel, host, installedModels = [],
       </div>
       
       {/* Split View: Notes List (left) + Editor (right) */}
-      <div className="flex-1 flex gap-4 min-h-0 mb-4">
+      <div className="flex-1 flex gap-4 min-h-0 overflow-hidden">
         {/* Left Panel: Notes List */}
-        <div className="w-1/3 min-w-[200px] max-w-[350px] flex flex-col rounded-lg border border-border overflow-hidden">
+        <div className="w-1/3 min-w-[200px] max-w-[350px] flex flex-col rounded-lg border border-border overflow-hidden flex-shrink-0">
           <div className="flex items-center justify-between p-3 border-b border-border bg-muted/30">
             <h2 className="text-sm font-medium">Notizen</h2>
             <Button size="sm" variant="ghost" onClick={fetchNotes} disabled={loading} className="h-7 px-2">
@@ -971,8 +971,8 @@ export function NotesPanel({ basePath, defaultModel, host, installedModels = [],
         </div>
         
         {/* Right Panel: Editor */}
-        <div className="flex-1 flex flex-col rounded-lg border border-border overflow-hidden">
-          <div className="flex items-center justify-between p-3 border-b border-border bg-muted/30">
+        <div className="flex-1 flex flex-col rounded-lg border border-border overflow-hidden min-h-0">
+          <div className="flex items-center justify-between p-3 border-b border-border bg-muted/30 flex-shrink-0">
             <h2 className="text-sm font-medium">
               {selectedId ? 'Notiz bearbeiten' : 'Neue Notiz'}
             </h2>
@@ -994,7 +994,8 @@ export function NotesPanel({ basePath, defaultModel, host, installedModels = [],
           </div>
           
           {/* Editor Content */}
-          <div className="flex-1 flex flex-col p-3 overflow-auto">
+          <ScrollArea className="flex-1">
+            <div className="p-3 space-y-3">
             {/* Highlight indicator */}
         {highlightTerm && (
           <div className="flex items-center justify-between gap-2 px-3 py-2 bg-yellow-500/10 border border-yellow-500/30 rounded-md">
@@ -1241,12 +1242,14 @@ export function NotesPanel({ basePath, defaultModel, host, installedModels = [],
                 Bitte Notizen-Pfad in den Einstellungen setzen.
               </p>
             )}
-          </div>
+            </div>
+          </ScrollArea>
         </div>
       </div>
       
-      {/* Graph Section */}
-      <div className="flex-shrink-0 rounded-lg border border-border p-4 space-y-3">
+      {/* Graph Section - scrollable container */}
+      <ScrollArea className="flex-shrink-0 max-h-[40vh] mt-4">
+      <div className="rounded-lg border border-border p-4 space-y-3">
         <div className="flex items-center justify-between flex-wrap gap-2">
           <div>
             <h2 className="text-sm font-medium">Verknüpfungen</h2>
@@ -2266,6 +2269,7 @@ export function NotesPanel({ basePath, defaultModel, host, installedModels = [],
           </div>
         )}
       </div>
+      </ScrollArea>
     </div>
   );
 }

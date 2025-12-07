@@ -8,6 +8,8 @@ interface UseGalleryImagesReturn {
   isLoading: boolean;
   error: string | null;
   total: number;
+  imageCount: number;
+  videoCount: number;
   hasMore: boolean;
   fetchImages: (reset?: boolean) => Promise<void>;
   removeImage: (imageId: string) => void;
@@ -18,6 +20,8 @@ export function useGalleryImages(config: GalleryConfig): UseGalleryImagesReturn 
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [total, setTotal] = useState(0);
+  const [imageCount, setImageCount] = useState(0);
+  const [videoCount, setVideoCount] = useState(0);
   const [hasMore, setHasMore] = useState(false);
   const offsetRef = useRef(0);
   
@@ -64,6 +68,8 @@ export function useGalleryImages(config: GalleryConfig): UseGalleryImagesReturn 
           offsetRef.current = currentOffset + limit;
         }
         setTotal(data.total);
+        setImageCount(data.imageCount || 0);
+        setVideoCount(data.videoCount || 0);
         setHasMore(data.hasMore);
       } else {
         setError(data.error || 'Fehler beim Laden der Bilder');
@@ -85,6 +91,8 @@ export function useGalleryImages(config: GalleryConfig): UseGalleryImagesReturn 
     isLoading,
     error,
     total,
+    imageCount,
+    videoCount,
     hasMore,
     fetchImages,
     removeImage,

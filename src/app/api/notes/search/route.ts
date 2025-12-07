@@ -16,6 +16,102 @@ function getBasePath(req: NextRequest, bodyBasePath?: string | null): string | n
   );
 }
 
+// GET method for unified search
+export async function GET(req: NextRequest) {
+  const basePath = getBasePath(req);
+  const query = req.nextUrl.searchParams.get('query');
+  
+  if (!basePath) {
+    return NextResponse.json({ success: false, error: 'basePath is required' }, { status: 400 });
+  }
+  
+  if (!query || query.length < 2) {
+    return NextResponse.json({ success: true, results: [] });
+  }
+  
+  try {
+    const storage = new FileNoteStorage(basePath);
+    const summaries = await storage.listNotes();
+    const resolved = await Promise.all(summaries.map((s) => storage.getNote(s.id)));
+    const notes = resolved.filter((note): note is Note => Boolean(note));
+    
+    const lowerQuery = query.toLowerCase();
+    const results: Array<{
+      noteId: string;
+      title: string;
+      snippet: string;
+      matchType: 'title' | 'content' | 'tag';
+      tags?: string[];
+      score: number;
+    }> = [];
+    
+    for (const note of notes) {
+      let matchType: 'title' | 'content' | 'tag' | null = null;
+      let snippet = '';
+      let score = 0;
+      
+      // Check title
+      if (note.title.toLowerCase().includes(lowerQuery)) {
+        matchType = 'title';
+        score = 100;
+        // Create snippet from content
+        if (note.content) {
+          const contentStart = note.content.slice(0, 200);
+          snippet = contentStart + (note.content.length > 200 ? '...' : '');
+        }
+      }
+      
+      // Check content
+      if (!matchType && note.content) {
+        const lowerContent = note.content.toLowerCase();
+        const index = lowerContent.indexOf(lowerQuery);
+        if (index !== -1) {
+          matchType = 'content';
+          score = 50;
+          // Create snippet around match
+          const start = Math.max(0, index - 80);
+          const end = Math.min(note.content.length, index + query.length + 80);
+          snippet = (start > 0 ? '...' : '') + 
+            note.content.slice(start, end) + 
+            (end < note.content.length ? '...' : '');
+        }
+      }
+      
+      // Check tags
+      if (!matchType && note.tags) {
+        if (note.tags.some(tag => tag.toLowerCase().includes(lowerQuery))) {
+          matchType = 'tag';
+          score = 30;
+          snippet = `Tags: ${note.tags.join(', ')}`;
+        }
+      }
+      
+      if (matchType) {
+        results.push({
+          noteId: note.id,
+          title: note.title || 'Unbenannte Notiz',
+          snippet,
+          matchType,
+          tags: note.tags,
+          score,
+        });
+      }
+    }
+    
+    // Sort by score
+    results.sort((a, b) => b.score - a.score);
+    
+    return NextResponse.json({ success: true, results });
+  } catch (error) {
+    console.error('Search error:', error);
+    return NextResponse.json({ 
+      success: false, 
+      error: error instanceof Error ? error.message : 'Search failed',
+      results: []
+    });
+  }
+}
+
 export async function POST(req: NextRequest) {
   const body = await req.json();
   const query: string | undefined = body.query;

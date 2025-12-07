@@ -8,7 +8,8 @@ import {
   LayoutGrid, 
   Maximize2,
   Star,
-  ImageIcon
+  ImageIcon,
+  Film
 } from 'lucide-react';
 import { Button } from '../ui/button';
 import { GridSize, FilterMode } from './types';
@@ -20,6 +21,8 @@ interface GalleryHeaderProps {
   favoriteCount: number;
   isLoading: boolean;
   displayCount: number;
+  imageCount?: number;
+  videoCount?: number;
   onFilterChange: (mode: FilterMode) => void;
   onGridSizeChange: (size: GridSize) => void;
   onRefresh: () => void;
@@ -33,6 +36,8 @@ export function GalleryHeader({
   favoriteCount,
   isLoading,
   displayCount,
+  imageCount = 0,
+  videoCount = 0,
   onFilterChange,
   onGridSizeChange,
   onRefresh,
@@ -46,10 +51,26 @@ export function GalleryHeader({
           <h2 className="text-lg font-semibold">ComfyUI Gallery</h2>
         </div>
         
-        <div className="text-sm text-muted-foreground">
+        <div className="text-sm text-muted-foreground flex items-center gap-3">
           {filterMode === 'favorites' 
             ? `${displayCount} Favoriten`
-            : `${total} Bilder`
+            : (
+              <>
+                <span>{total} Medien</span>
+                {imageCount > 0 && (
+                  <span className="flex items-center gap-1">
+                    <ImageIcon className="h-3.5 w-3.5" />
+                    {imageCount}
+                  </span>
+                )}
+                {videoCount > 0 && (
+                  <span className="flex items-center gap-1">
+                    <Film className="h-3.5 w-3.5" />
+                    {videoCount}
+                  </span>
+                )}
+              </>
+            )
           }
         </div>
       </div>

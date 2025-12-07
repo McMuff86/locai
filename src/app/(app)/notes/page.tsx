@@ -4,13 +4,22 @@ import React from 'react';
 import { NotesPanel } from '@/components/notes/NotesPanel';
 import { useSettings } from '@/hooks/useSettings';
 import { useModels } from '@/hooks/useModels';
-import { FolderOpen, FileText, Settings } from 'lucide-react';
+import { FolderOpen, FileText, Settings, Loader2 } from 'lucide-react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 
 export default function NotesPage() {
-  const { settings } = useSettings();
+  const { settings, isLoaded } = useSettings();
   const { models, selectedModel } = useModels();
+
+  // Show loading while settings are being loaded
+  if (!isLoaded) {
+    return (
+      <div className="flex items-center justify-center h-full">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+  }
 
   // If no notes path is configured, show setup message
   if (!settings?.notesPath) {
@@ -38,11 +47,12 @@ export default function NotesPage() {
   }
 
   return (
-    <div className="h-full overflow-auto p-4">
+    <div className="h-full overflow-hidden p-4">
       <NotesPanel
         basePath={settings.notesPath}
         defaultModel={selectedModel}
         installedModels={models.map(m => m.name)}
+        className="h-full"
       />
     </div>
   );

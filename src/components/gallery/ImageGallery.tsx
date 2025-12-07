@@ -55,7 +55,9 @@ export function ImageGallery({
     images, 
     isLoading, 
     error, 
-    total, 
+    total,
+    imageCount,
+    videoCount,
     hasMore, 
     fetchImages, 
     removeImage 
@@ -208,6 +210,8 @@ export function ImageGallery({
         favoriteCount={favoriteCount}
         isLoading={isLoading}
         displayCount={displayImages.length}
+        imageCount={imageCount}
+        videoCount={videoCount}
         onFilterChange={setFilterMode}
         onGridSizeChange={setGridSize}
         onRefresh={() => fetchImages(true)}

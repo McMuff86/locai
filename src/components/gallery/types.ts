@@ -9,6 +9,7 @@ export interface ImageInfo {
   size: number;
   createdAt: string;
   modifiedAt: string;
+  type?: 'image' | 'video';
 }
 
 export interface ImageMetadata {

@@ -12,7 +12,8 @@ import {
   Sun,
   Menu,
   X,
-  Settings
+  Settings,
+  Search
 } from 'lucide-react';
 import Link from 'next/link';
 import NextImage from 'next/image';
@@ -35,6 +36,7 @@ export default function AppLayout({
   // Navigation items
   const navItems = [
     { href: '/chat', label: 'Chat', icon: MessageSquare },
+    { href: '/search', label: 'Suche', icon: Search },
     { href: '/gallery', label: 'Galerie', icon: Image },
     { href: '/notes', label: 'Notizen', icon: FileText },
     { href: '/settings', label: 'Einstellungen', icon: Settings },

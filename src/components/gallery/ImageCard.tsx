@@ -1,8 +1,8 @@
 "use client";
 
-import React from 'react';
+import React, { useRef } from 'react';
 import { motion } from 'framer-motion';
-import { Star, Trash2 } from 'lucide-react';
+import { Star, Trash2, Play, Film } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { de } from 'date-fns/locale';
 import { ImageInfo, GridSize } from './types';
@@ -27,6 +27,22 @@ export function ImageCard({
   onDelete,
 }: ImageCardProps) {
   const isTiny = gridSize === 'tiny';
+  const isVideo = image.type === 'video';
+  const videoRef = useRef<HTMLVideoElement>(null);
+  
+  // Handle hover preview for videos
+  const handleMouseEnter = () => {
+    if (isVideo && videoRef.current) {
+      videoRef.current.play().catch(() => {});
+    }
+  };
+  
+  const handleMouseLeave = () => {
+    if (isVideo && videoRef.current) {
+      videoRef.current.pause();
+      videoRef.current.currentTime = 0;
+    }
+  };
 
   return (
     <motion.div
@@ -34,13 +50,40 @@ export function ImageCard({
       animate={{ opacity: 1, scale: 1 }}
       className="group relative aspect-square bg-muted rounded-lg overflow-hidden cursor-pointer"
       onClick={onSelect}
+      onMouseEnter={handleMouseEnter}
+      onMouseLeave={handleMouseLeave}
     >
-      <img
-        src={imageUrl}
-        alt={image.filename}
-        className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
-        loading="lazy"
-      />
+      {isVideo ? (
+        <>
+          <video
+            ref={videoRef}
+            src={imageUrl}
+            className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
+            muted
+            loop
+            playsInline
+            preload="metadata"
+          />
+          {/* Video indicator */}
+          <div className="absolute top-1 right-1 z-10 bg-black/70 rounded px-1.5 py-0.5 flex items-center gap-1">
+            <Film className="h-3 w-3 text-white" />
+            {!isTiny && <span className="text-white text-xs">Video</span>}
+          </div>
+          {/* Play icon overlay */}
+          <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+            <div className="w-12 h-12 rounded-full bg-black/50 flex items-center justify-center opacity-70 group-hover:opacity-0 transition-opacity">
+              <Play className="h-6 w-6 text-white fill-white ml-1" />
+            </div>
+          </div>
+        </>
+      ) : (
+        <img
+          src={imageUrl}
+          alt={image.filename}
+          className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
+          loading="lazy"
+        />
+      )}
       
       {/* Favorite indicator */}
       {isFavorite && (

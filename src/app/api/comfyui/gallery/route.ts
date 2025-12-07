@@ -4,17 +4,20 @@ import path from 'path';
 
 export const dynamic = 'force-dynamic';
 
-interface ImageInfo {
+interface MediaInfo {
   id: string;
   filename: string;
   path: string;
   size: number;
   createdAt: string;
   modifiedAt: string;
+  type: 'image' | 'video';
   dimensions?: { width: number; height: number };
 }
 
-const SUPPORTED_EXTENSIONS = ['.png', '.jpg', '.jpeg', '.webp', '.gif'];
+const IMAGE_EXTENSIONS = ['.png', '.jpg', '.jpeg', '.webp', '.gif'];
+const VIDEO_EXTENSIONS = ['.mp4', '.webm', '.mov', '.avi', '.mkv'];
+const SUPPORTED_EXTENSIONS = [...IMAGE_EXTENSIONS, ...VIDEO_EXTENSIONS];
 
 export async function GET(request: Request) {
   try {
@@ -53,7 +56,7 @@ export async function GET(request: Request) {
     }
     
     // Read directory recursively (include subfolders)
-    const images: ImageInfo[] = [];
+    const media: MediaInfo[] = [];
     
     function scanDirectory(dirPath: string, relativePath: string = '') {
       const entries = fs.readdirSync(dirPath, { withFileTypes: true });
@@ -71,14 +74,16 @@ export async function GET(request: Request) {
           if (SUPPORTED_EXTENSIONS.includes(ext)) {
             try {
               const stats = fs.statSync(fullPath);
+              const isVideo = VIDEO_EXTENSIONS.includes(ext);
               
-              images.push({
+              media.push({
                 id: Buffer.from(relPath).toString('base64url'),
                 filename: entry.name,
                 path: relPath,
                 size: stats.size,
                 createdAt: stats.birthtime.toISOString(),
                 modifiedAt: stats.mtime.toISOString(),
+                type: isVideo ? 'video' : 'image',
               });
             } catch (err) {
               // Skip files we can't read
@@ -91,8 +96,8 @@ export async function GET(request: Request) {
     
     scanDirectory(finalOutputPath);
     
-    // Sort images
-    images.sort((a, b) => {
+    // Sort media
+    media.sort((a, b) => {
       let comparison = 0;
       
       switch (sortBy) {
@@ -112,13 +117,19 @@ export async function GET(request: Request) {
     });
     
     // Apply pagination
-    const total = images.length;
-    const paginatedImages = images.slice(offset, offset + limit);
+    const total = media.length;
+    const paginatedMedia = media.slice(offset, offset + limit);
+    
+    // Count images and videos
+    const imageCount = media.filter(m => m.type === 'image').length;
+    const videoCount = media.filter(m => m.type === 'video').length;
     
     return NextResponse.json({
       success: true,
-      images: paginatedImages,
+      images: paginatedMedia, // Keep as 'images' for backwards compatibility
       total,
+      imageCount,
+      videoCount,
       limit,
       offset,
       hasMore: offset + limit < total,

@@ -1,6 +1,6 @@
 "use client";
 
-import React from 'react';
+import React, { useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   X, 
@@ -14,7 +14,10 @@ import {
   ArrowUpFromLine,
   Loader2,
   Calendar,
-  HardDrive
+  HardDrive,
+  Film,
+  Volume2,
+  VolumeX
 } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { de } from 'date-fns/locale';
@@ -68,6 +71,18 @@ export function Lightbox({
   onDownload,
   onDelete,
 }: LightboxProps) {
+  const isVideo = image.type === 'video';
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const [isMuted, setIsMuted] = useState(true);
+  
+  const toggleMute = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (videoRef.current) {
+      videoRef.current.muted = !videoRef.current.muted;
+      setIsMuted(!isMuted);
+    }
+  };
+  
   return (
     <motion.div
       initial={{ opacity: 0 }}
@@ -101,17 +116,53 @@ export function Lightbox({
         <ChevronRight className="h-8 w-8" />
       </Button>
       
-      {/* Image */}
-      <motion.img
-        key={image.id}
-        initial={{ opacity: 0, scale: 0.9 }}
-        animate={{ opacity: 1, scale: 1 }}
-        exit={{ opacity: 0, scale: 0.9 }}
-        src={imageUrl}
-        alt={image.filename}
-        className="max-h-[85vh] max-w-[90vw] object-contain rounded-lg"
-        onClick={(e) => e.stopPropagation()}
-      />
+      {/* Media (Image or Video) */}
+      {isVideo ? (
+        <motion.div
+          key={image.id}
+          initial={{ opacity: 0, scale: 0.9 }}
+          animate={{ opacity: 1, scale: 1 }}
+          exit={{ opacity: 0, scale: 0.9 }}
+          className="relative"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <video
+            ref={videoRef}
+            src={imageUrl}
+            className="max-h-[85vh] max-w-[90vw] object-contain rounded-lg"
+            controls
+            autoPlay
+            loop
+            muted={isMuted}
+            playsInline
+          />
+          {/* Video Badge */}
+          <div className="absolute top-4 left-4 bg-black/70 rounded px-2 py-1 flex items-center gap-1.5">
+            <Film className="h-4 w-4 text-white" />
+            <span className="text-white text-sm">Video</span>
+          </div>
+          {/* Mute Toggle */}
+          <Button
+            variant="ghost"
+            size="sm"
+            className="absolute top-4 right-4 text-white bg-black/50 hover:bg-black/70"
+            onClick={toggleMute}
+          >
+            {isMuted ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
+          </Button>
+        </motion.div>
+      ) : (
+        <motion.img
+          key={image.id}
+          initial={{ opacity: 0, scale: 0.9 }}
+          animate={{ opacity: 1, scale: 1 }}
+          exit={{ opacity: 0, scale: 0.9 }}
+          src={imageUrl}
+          alt={image.filename}
+          className="max-h-[85vh] max-w-[90vw] object-contain rounded-lg"
+          onClick={(e) => e.stopPropagation()}
+        />
+      )}
       
       {/* Metadata Panel */}
       <AnimatePresence>
