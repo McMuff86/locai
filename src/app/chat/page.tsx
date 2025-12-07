@@ -15,6 +15,7 @@ import { GpuMonitorDialog } from "../../components/GpuMonitorDialog";
 import { RightSidebar } from "../../components/RightSidebar";
 import { ImageGallery } from "../../components/ImageGallery";
 import { ModelPullDialog } from "../../components/ModelPullDialog";
+import { NotesPanel } from "../../components/notes/NotesPanel";
 import { Button } from "../../components/ui/button";
 import { X, GripVertical } from "lucide-react";
 
@@ -81,6 +82,7 @@ export default function ChatPage() {
   const [showGallery, setShowGallery] = useState(false);
   const [showModelPull, setShowModelPull] = useState(false);
   const [showRightSidebar, setShowRightSidebar] = useState(false);
+  const [showNotes, setShowNotes] = useState(false);
   const chatInputRef = useRef<HTMLTextAreaElement>(null);
   const sidebarRef = useRef<HTMLDivElement>(null);
 
@@ -542,6 +544,7 @@ Image filename: ${filename}`;
           settings={settings}
           onUpdateSettings={updateSettings}
           onOpenGallery={() => setShowGallery(true)}
+          onOpenNotes={() => setShowNotes(true)}
           onPullModel={() => setShowModelPull(true)}
           className="h-full md:h-screen"
         />
@@ -591,18 +594,32 @@ Image filename: ${filename}`;
         />
 
         {/* System Monitor - Click to open right sidebar with GPU Monitor */}
-        <div className="hidden md:block px-4 py-2 border-b">
+        <div className="hidden md:flex px-4 py-2 border-b items-center gap-2">
           <button 
             onClick={() => setShowRightSidebar(true)}
-            className="w-full text-left hover:bg-accent/50 rounded-lg transition-colors cursor-pointer"
+            className="flex-1 text-left hover:bg-accent/50 rounded-lg transition-colors cursor-pointer"
             title="Click to open GPU Monitor panel"
           >
             <SystemMonitor isGenerating={isChatLoading} compact />
           </button>
+          <Button variant="outline" size="sm" onClick={() => setShowNotes((prev) => !prev)}>
+            {showNotes ? 'Notizen schließen' : 'Notizen öffnen'}
+          </Button>
         </div>
       
         <main className="flex-1 flex flex-col overflow-hidden">
-          {!hasConversationStarted ? (
+          {showNotes ? (
+            /* Notes Panel - Full screen when active */
+            <div className="flex-1 overflow-auto p-4">
+              <NotesPanel
+                basePath={settings.notesPath}
+                defaultModel={settings.notesEmbeddingModel}
+                host={settings.ollamaHost}
+                installedModels={models.map(m => m.name)}
+                className="space-y-4 max-w-5xl mx-auto"
+              />
+            </div>
+          ) : !hasConversationStarted ? (
             <SetupCard
               models={models}
               selectedModel={selectedModel}
@@ -623,8 +640,7 @@ Image filename: ${filename}`;
           ) : (
             <>
               <ChatContainer conversation={conversation} isLoading={isChatLoading} />
-              
-              {/* Token Counter */}
+
               {/* Token Counter with Context Info */}
               {tokenStats && (
                 <div className="px-4 py-2 border-t">

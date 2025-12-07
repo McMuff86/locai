@@ -22,7 +22,8 @@ import {
   AlertTriangle,
   FolderOpen,
   Paintbrush,
-  Loader2
+  Loader2,
+  FileText
 } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { de } from 'date-fns/locale';
@@ -45,6 +46,7 @@ interface ConversationSidebarProps {
   settings?: AppSettings;
   onUpdateSettings?: (updates: Partial<AppSettings>) => void;
   onOpenGallery?: () => void;
+  onOpenNotes?: () => void;
   onPullModel?: () => void;
   className?: string;
 }
@@ -61,6 +63,7 @@ export function ConversationSidebar({
   settings,
   onUpdateSettings,
   onOpenGallery,
+  onOpenNotes,
   onPullModel,
   className = ''
 }: ConversationSidebarProps) {
@@ -68,11 +71,12 @@ export function ConversationSidebar({
   const [showSettings, setShowSettings] = useState(false);
   const [showDangerZone, setShowDangerZone] = useState(false);
   const [showComfySettings, setShowComfySettings] = useState(false);
-  const [isPickingFolder, setIsPickingFolder] = useState<'comfyPath' | 'outputPath' | null>(null);
+  const [showNotesSettings, setShowNotesSettings] = useState(false);
+  const [isPickingFolder, setIsPickingFolder] = useState<'comfyPath' | 'outputPath' | 'notesPath' | null>(null);
   const { theme, setTheme } = useTheme();
   
   // Open native folder picker
-  const pickFolder = async (type: 'comfyPath' | 'outputPath') => {
+  const pickFolder = async (type: 'comfyPath' | 'outputPath' | 'notesPath') => {
     if (!onUpdateSettings) return;
     
     setIsPickingFolder(type);
@@ -82,10 +86,12 @@ export function ConversationSidebar({
       let initialPath = '';
       if (type === 'comfyPath') {
         initialPath = settings?.comfyUIPath || '';
-      } else {
+      } else if (type === 'outputPath') {
         // For output, use existing outputPath or construct default
         initialPath = settings?.comfyUIOutputPath || 
           (settings?.comfyUIPath ? `${settings.comfyUIPath}\\ComfyUI\\output` : '');
+      } else {
+        initialPath = settings?.notesPath || '';
       }
       
       const response = await fetch('/api/folder-picker', {
@@ -93,7 +99,11 @@ export function ConversationSidebar({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
           initialPath,
-          title: type === 'comfyPath' ? 'ComfyUI Ordner auswählen' : 'Output Ordner auswählen'
+          title: type === 'comfyPath' 
+            ? 'ComfyUI Ordner auswählen' 
+            : type === 'outputPath'
+              ? 'Output Ordner auswählen'
+              : 'Notizen Ordner auswählen'
         }),
       });
       
@@ -102,9 +112,11 @@ export function ConversationSidebar({
       if (data.success && data.path) {
         if (type === 'comfyPath') {
           onUpdateSettings({ comfyUIPath: data.path });
-        } else {
+        } else if (type === 'outputPath') {
           // Store absolute path for output folder
           onUpdateSettings({ comfyUIOutputPath: data.path });
+        } else {
+          onUpdateSettings({ notesPath: data.path });
         }
       }
     } catch (err) {
@@ -113,6 +125,7 @@ export function ConversationSidebar({
       setIsPickingFolder(null);
     }
   };
+
   
   // Get the current conversation for stats
   const currentConversation = conversations.find(c => c.id === showStats);
@@ -247,6 +260,18 @@ export function ConversationSidebar({
               Bildergalerie öffnen
             </Button>
           )}
+
+          {/* Notes Button */}
+          <Button
+            variant="outline"
+            size="sm"
+            className="w-full justify-start gap-2"
+            onClick={onOpenNotes}
+            disabled={!onOpenNotes}
+          >
+            <FileText className="h-4 w-4" />
+            Notizen öffnen
+          </Button>
         </div>
       )}
       
@@ -465,6 +490,60 @@ export function ConversationSidebar({
                         onChange={(e) => onUpdateSettings({ comfyUIPort: parseInt(e.target.value) || 8188 })}
                         className="text-sm h-8 w-24"
                       />
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Notes Settings */}
+            {settings && onUpdateSettings && (
+              <div className="pt-2 border-t border-border">
+                <button
+                  onClick={() => setShowNotesSettings(!showNotesSettings)}
+                  className="w-full flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-muted/50 transition-colors text-sm"
+                >
+                  <FileText className="h-4 w-4 text-muted-foreground" />
+                  <span>Notizen</span>
+                  {showNotesSettings ? (
+                    <ChevronDown className="h-4 w-4 ml-auto text-muted-foreground" />
+                  ) : (
+                    <ChevronRight className="h-4 w-4 ml-auto text-muted-foreground" />
+                  )}
+                </button>
+
+                {showNotesSettings && (
+                  <div className="mt-2 p-3 bg-muted/30 rounded-lg space-y-3">
+                    <div>
+                      <label className="text-xs text-muted-foreground mb-1 block">
+                        Notizen Pfad
+                      </label>
+                      <div className="flex gap-2">
+                        <Input
+                          type="text"
+                          placeholder="Pfad zum Notizen-Ordner"
+                          value={settings.notesPath || ''}
+                          onChange={(e) => onUpdateSettings({ notesPath: e.target.value })}
+                          className="text-sm h-8"
+                        />
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="h-8 px-2 flex-shrink-0"
+                          title="Notizen Ordner auswählen"
+                          onClick={() => pickFolder('notesPath')}
+                          disabled={isPickingFolder === 'notesPath'}
+                        >
+                          {isPickingFolder === 'notesPath' ? (
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                          ) : (
+                            <FolderOpen className="h-4 w-4" />
+                          )}
+                        </Button>
+                      </div>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Basis-Pfad für lokale Notizen (Markdown-Dateien + Index).
+                      </p>
                     </div>
                   </div>
                 )}

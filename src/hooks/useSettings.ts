@@ -19,6 +19,11 @@ export interface AppSettings {
   // Chat Settings
   autoSave: boolean;
   streamingEnabled: boolean;
+
+  // Notes Settings
+  notesPath: string;
+  notesEmbeddingModel: string;
+  notesAllowAI: boolean;
 }
 
 const DEFAULT_SETTINGS: AppSettings = {
@@ -31,6 +36,9 @@ const DEFAULT_SETTINGS: AppSettings = {
   theme: 'dark',
   autoSave: true,
   streamingEnabled: true,
+  notesPath: '',
+  notesEmbeddingModel: 'nomic-embed-text',
+  notesAllowAI: true,
 };
 
 const STORAGE_KEY = 'locai-settings';

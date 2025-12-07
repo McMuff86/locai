@@ -145,3 +145,23 @@
     @apply bg-background text-foreground;
   }
 }
+
+/* AI Streaming Cursor Animation */
+@keyframes cursor-blink {
+  0%, 50% {
+    opacity: 1;
+  }
+  51%, 100% {
+    opacity: 0;
+  }
+}
+
+.ai-cursor {
+  display: inline-block;
+  width: 2px;
+  height: 1em;
+  margin-left: 1px;
+  background-color: hsl(var(--primary));
+  animation: cursor-blink 0.8s ease-in-out infinite;
+  vertical-align: text-bottom;
+}

@@ -61,9 +61,15 @@ src/
 │   │   ├── ollama/
 │   │   │   └── pull/route.ts           # Pull models (streaming, 60+ models)
 │   │   ├── folder-picker/route.ts      # Native folder dialog
+│   │   ├── notes/                      # Notes CRUD/search/embed
+│   │   │   ├── route.ts                # CRUD list/create/delete
+│   │   │   ├── search/route.ts         # Lexical + semantic search
+│   │   │   └── embed/route.ts          # Build embeddings for notes
 │   │   └── system-stats/route.ts       # CPU/RAM/VRAM monitoring
 │   ├── chat/              
 │   │   └── page.tsx                    # Chat page (~680 lines)
+│   ├── notes/                          # Notes UI
+│   │   └── page.tsx                    # Notes list + editor + 3D graph
 │   ├── layout.tsx         
 │   └── globals.css                     # Grok/Ollama-style dark theme
 ├── components/
@@ -115,6 +121,15 @@ src/
 ├── lib/
 │   ├── ollama.ts                       # 550 lines
 │   ├── storage.ts                      # 389 lines
+│   ├── notes/                          # Notes domain (storage, parsing, embeddings)
+│   │   ├── types.ts
+│   │   ├── noteStorage.ts
+│   │   ├── fileNoteStorage.ts
+│   │   ├── parser.ts
+│   │   ├── graph.ts
+│   │   ├── embeddings.ts
+│   │   ├── search.ts
+│   │   └── index.ts
 │   ├── templates/                      # Model prompts
 │   │   ├── index.ts
 │   │   ├── deepseek.ts                 # <think> reasoning support
@@ -325,6 +340,8 @@ src/
 - ✅ **GPU Monitor** (nvidia-smi: VRAM, Temp, Utilization, Processes)
 - ✅ **Right Sidebar** (Tools Panel with GPU Monitor widget)
 - ✅ **Process Kill** (Kill GPU processes with safety confirmation)
+- ✅ **Notes scaffold** (filesystem storage, parsing, graph, embeddings helpers, API stubs)
+- ✅ **Notes UI** (Separate page, list, create, 3D graph, open via sidebar)
 
 ### 2025-03-08
 - Initial project structure
