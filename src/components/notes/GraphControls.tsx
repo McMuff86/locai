@@ -3,9 +3,9 @@
 import { Button } from '@/components/ui/button';
 import { 
   Hash, Settings, Palette, Zap, ZapOff, Sparkles,
-  Loader2, X, ChevronDown, ChevronUp, Eye, LayoutList
+  Loader2, X, ChevronDown, ChevronUp, Eye, LayoutList, Link2, Brain, Layers
 } from 'lucide-react';
-import { GraphSettings, labelColorPresets, SemanticLink } from './types';
+import { GraphSettings, labelColorPresets, SemanticLink, LinkFilter } from './types';
 import { getThemeColors } from './graphUtils';
 
 interface GraphControlsProps {
@@ -58,6 +58,46 @@ export function GraphControls({
           </p>
         </div>
         <div className="flex items-center gap-2">
+          {/* Link Filter Toggle */}
+          <div className="flex items-center border border-border rounded-md overflow-hidden">
+            <button
+              onClick={() => onSettingsChange({ linkFilter: 'all' })}
+              className={`px-2 py-1 text-xs flex items-center gap-1 transition-colors ${
+                settings.linkFilter === 'all' 
+                  ? 'bg-primary text-primary-foreground' 
+                  : 'bg-muted/50 text-muted-foreground hover:bg-muted'
+              }`}
+              title="Alle Links anzeigen"
+            >
+              <Layers className="h-3 w-3" />
+              Alle
+            </button>
+            <button
+              onClick={() => onSettingsChange({ linkFilter: 'wiki' })}
+              className={`px-2 py-1 text-xs flex items-center gap-1 transition-colors ${
+                settings.linkFilter === 'wiki' 
+                  ? 'bg-blue-500 text-white' 
+                  : 'bg-muted/50 text-muted-foreground hover:bg-muted'
+              }`}
+              title="Nur Wiki-Links [[...]]"
+            >
+              <Link2 className="h-3 w-3" />
+              Wiki
+            </button>
+            <button
+              onClick={() => onSettingsChange({ linkFilter: 'semantic' })}
+              className={`px-2 py-1 text-xs flex items-center gap-1 transition-colors ${
+                settings.linkFilter === 'semantic' 
+                  ? 'bg-emerald-500 text-white' 
+                  : 'bg-muted/50 text-muted-foreground hover:bg-muted'
+              }`}
+              title="Nur Semantische Links (Embeddings)"
+            >
+              <Brain className="h-3 w-3" />
+              AI
+            </button>
+          </div>
+
           {/* View Mode Toggle */}
           <div className="flex items-center border border-border rounded-md overflow-hidden">
             <button

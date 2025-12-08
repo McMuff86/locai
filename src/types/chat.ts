@@ -66,6 +66,12 @@ export interface ChatInputProps {
   onSend: (message: string, images?: File[]) => void;
   disabled?: boolean;
   inputRef?: React.RefObject<HTMLTextAreaElement | null>;
+  // Web Search
+  searxngUrl?: string;
+  searxngEnabled?: boolean;
+  ollamaHost?: string;
+  selectedModel?: string;
+  onWebSearchResults?: (formattedResults: string, query: string) => void;
 }
 
 export interface ChatMessageProps {

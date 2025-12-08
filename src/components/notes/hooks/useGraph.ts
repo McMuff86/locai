@@ -164,12 +164,26 @@ export function useGraph({ basePath, notes }: UseGraphOptions): UseGraphReturn {
     }));
 
     // Wikilinks (explicit links) - type: 'wiki'
+    // Match by: exact id, exact title, or case-insensitive title
     const wikiEdges: { source: string; target: string; type: 'wiki' | 'semantic'; similarity?: number }[] = [];
     for (const note of notes) {
       for (const link of note.links || []) {
-        const target = notes.find((n) => n.id === link || n.title === link);
-        if (target) {
-          wikiEdges.push({ source: note.id, target: target.id, type: 'wiki' });
+        const linkLower = link.toLowerCase().trim();
+        const target = notes.find((n) => 
+          n.id === link || 
+          n.title === link || 
+          n.title.toLowerCase() === linkLower ||
+          n.id.toLowerCase() === linkLower
+        );
+        if (target && target.id !== note.id) {
+          // Avoid duplicate edges
+          const exists = wikiEdges.some(
+            e => (e.source === note.id && e.target === target.id) ||
+                 (e.source === target.id && e.target === note.id)
+          );
+          if (!exists) {
+            wikiEdges.push({ source: note.id, target: target.id, type: 'wiki' });
+          }
         }
       }
     }
@@ -187,20 +201,29 @@ export function useGraph({ basePath, notes }: UseGraphOptions): UseGraphReturn {
       similarity: link.similarity
     }));
 
-    // Combine edges, avoiding duplicates
-    const allEdges = [...wikiEdges];
-    for (const semEdge of semanticEdges) {
-      const isDuplicate = wikiEdges.some(
-        w => (w.source === semEdge.source && w.target === semEdge.target) ||
-             (w.source === semEdge.target && w.target === semEdge.source)
-      );
-      if (!isDuplicate) {
-        allEdges.push(semEdge);
+    // Combine edges based on filter
+    let filteredEdges: typeof wikiEdges = [];
+    
+    if (graphSettings.linkFilter === 'wiki') {
+      filteredEdges = wikiEdges;
+    } else if (graphSettings.linkFilter === 'semantic') {
+      filteredEdges = semanticEdges;
+    } else {
+      // 'all' - combine edges, avoiding duplicates
+      filteredEdges = [...wikiEdges];
+      for (const semEdge of semanticEdges) {
+        const isDuplicate = wikiEdges.some(
+          w => (w.source === semEdge.source && w.target === semEdge.target) ||
+               (w.source === semEdge.target && w.target === semEdge.source)
+        );
+        if (!isDuplicate) {
+          filteredEdges.push(semEdge);
+        }
       }
     }
 
-    return { nodes, links: allEdges };
-  }, [notes, semanticLinks]);
+    return { nodes, links: filteredEdges };
+  }, [notes, semanticLinks, graphSettings.linkFilter]);
 
   return {
     semanticLinks,

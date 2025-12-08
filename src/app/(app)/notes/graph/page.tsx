@@ -104,6 +104,7 @@ export default function GraphPage() {
               graphTheme={graphSettings.graphTheme}
               expanded={graphExpanded}
               onNoteClick={handleNodeClick}
+              linkFilter={graphSettings.linkFilter}
             />
           )}
           

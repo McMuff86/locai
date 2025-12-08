@@ -4,8 +4,18 @@ import { Textarea } from "../ui/textarea";
 import { ChatInputProps } from "../../types/chat";
 import { motion } from "framer-motion";
 import { Send, Image, X } from "lucide-react";
+import { WebSearchButton } from "./WebSearchButton";
 
-export function ChatInput({ onSend, disabled = false, inputRef }: ChatInputProps) {
+export function ChatInput({ 
+  onSend, 
+  disabled = false, 
+  inputRef,
+  searxngUrl,
+  searxngEnabled = false,
+  ollamaHost = 'http://localhost:11434',
+  selectedModel = 'llama3',
+  onWebSearchResults
+}: ChatInputProps) {
   const [message, setMessage] = useState("");
   const [selectedImages, setSelectedImages] = useState<File[]>([]);
   const [imagePreviews, setImagePreviews] = useState<string[]>([]);
@@ -119,6 +129,20 @@ export function ChatInput({ onSend, disabled = false, inputRef }: ChatInputProps
           accept="image/*"
           className="hidden"
           multiple
+        />
+        <WebSearchButton
+          searxngUrl={searxngUrl}
+          ollamaHost={ollamaHost}
+          model={selectedModel}
+          enabled={searxngEnabled}
+          onInsertResults={(results, query) => {
+            if (onWebSearchResults) {
+              onWebSearchResults(results, query);
+            } else {
+              // Fallback: Insert directly into message
+              setMessage(prev => prev ? `${prev}\n\n${results}` : results);
+            }
+          }}
         />
         <Button 
           type="button" 

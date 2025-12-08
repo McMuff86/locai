@@ -42,6 +42,7 @@ export interface GraphData {
 
 export type GraphTheme = 'cyber' | 'obsidian' | 'neon' | 'minimal';
 export type NodeGeometry = 'sphere' | 'box' | 'octahedron' | 'tetrahedron' | 'icon';
+export type LinkFilter = 'all' | 'wiki' | 'semantic';
 
 export interface GraphSettings {
   showLabels: boolean;
@@ -63,6 +64,7 @@ export interface GraphSettings {
   bloomStrength: number;
   curvedLinks: boolean;
   labelColor: string;
+  linkFilter: LinkFilter;
 }
 
 export const defaultGraphSettings: GraphSettings = {
@@ -85,6 +87,7 @@ export const defaultGraphSettings: GraphSettings = {
   bloomStrength: 0.8,
   curvedLinks: true,
   labelColor: '#ffffff',
+  linkFilter: 'all',     // 'all' | 'wiki' | 'semantic'
 };
 
 export const labelColorPresets = [

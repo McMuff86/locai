@@ -25,6 +25,10 @@ export interface AppSettings {
   notesEmbeddingModel: string;
   notesAllowAI: boolean;
   
+  // Web Search Settings (SearXNG)
+  searxngUrl: string; // URL to SearXNG instance (e.g., https://searx.example.com or http://localhost:8080)
+  searxngEnabled: boolean;
+  
   // Data Storage
   dataPath: string; // Local path for storing chats, settings file, etc.
 }
@@ -42,6 +46,8 @@ const DEFAULT_SETTINGS: AppSettings = {
   notesPath: '',
   notesEmbeddingModel: 'nomic-embed-text',
   notesAllowAI: true,
+  searxngUrl: 'http://localhost:8888', // Local SearXNG Docker instance
+  searxngEnabled: true,
   dataPath: '',
 };
 

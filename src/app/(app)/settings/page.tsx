@@ -19,7 +19,9 @@ import {
   HardDrive,
   Upload,
   Download,
-  CheckCircle2
+  CheckCircle2,
+  Globe,
+  ExternalLink
 } from 'lucide-react';
 
 export default function SettingsPage() {
@@ -251,6 +253,61 @@ export default function SettingsPage() {
                 onChange={(e) => handleInputChange('notesEmbeddingModel', e.target.value)}
                 placeholder="nomic-embed-text"
               />
+            </div>
+          </div>
+        </section>
+
+        {/* Web Search (SearXNG) */}
+        <section className="space-y-4">
+          <div className="flex items-center gap-2 text-lg font-semibold">
+            <Globe className="h-5 w-5 text-primary" />
+            Web-Suche (SearXNG)
+          </div>
+          <div className="bg-card border border-border rounded-lg p-4 space-y-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <div className="font-medium">Web-Suche aktivieren</div>
+                <div className="text-sm text-muted-foreground">
+                  Zeigt einen 🌐 Button im Chat für Web-Suche an
+                </div>
+              </div>
+              <Button
+                variant={settings?.searxngEnabled ? 'default' : 'outline'}
+                size="sm"
+                onClick={() => {
+                  updateSettings({ searxngEnabled: !settings?.searxngEnabled });
+                  showSaved();
+                }}
+              >
+                {settings?.searxngEnabled ? 'Aktiviert' : 'Deaktiviert'}
+              </Button>
+            </div>
+
+            <div>
+              <label className="block font-medium mb-1">Bevorzugte SearXNG-Instanz (optional)</label>
+              <p className="text-sm text-muted-foreground mb-2">
+                Falls leer, werden automatisch öffentliche Instanzen mit Fallback verwendet.
+                <a 
+                  href="https://searx.space/" 
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1 text-primary hover:underline ml-1"
+                >
+                  Instanzen-Liste
+                  <ExternalLink className="h-3 w-3" />
+                </a>
+              </p>
+              <Input
+                value={settings?.searxngUrl || ''}
+                onChange={(e) => handleInputChange('searxngUrl', e.target.value)}
+                placeholder="Optional - z.B. http://localhost:8080"
+              />
+            </div>
+
+            <div className="text-xs text-muted-foreground bg-muted/50 p-2 rounded space-y-1">
+              <p>✨ <strong>Auto-Fallback:</strong> Falls eine Instanz fehlschlägt, werden automatisch andere versucht.</p>
+              <p>🔒 <strong>Privatsphäre:</strong> SearXNG ist eine Meta-Suchmaschine ohne Tracking.</p>
+              <p>🐳 <strong>Eigene Instanz:</strong> <code className="bg-background px-1 rounded">docker run -p 8080:8080 searxng/searxng</code></p>
             </div>
           </div>
         </section>
