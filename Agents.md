@@ -1,6 +1,6 @@
 # LocAI - AI Agent Documentation
 
-> Last Updated: 2025-12-07
+> Last Updated: 2025-12-08
 > Status: Active Development
 
 ---
@@ -28,6 +28,8 @@
 - 🔮 **3D Knowledge Graph** - Interactive visualization of note connections
 - 🧠 **Semantic Embeddings** - Local embeddings with nomic-embed-text via Ollama
 - 🎨 **Graph Themes** - Cyber, Neon, Obsidian, Minimal with full customization
+- 🌐 **Web Search** - SearXNG integration with AI-optimized queries
+- 🔄 **Context Optimizer** - LLM-powered multi-source synthesis (5 presets + custom)
 
 ---
 
@@ -257,7 +259,7 @@ src/
 | Graph Controls | ✅ | Zoom, Pan, Rotate, Export PNG |
 | Graph Customization | ✅ | Node size, label color, glow, etc. |
 
-### ✅ Recently Completed (2025-12-07)
+### ✅ Recently Completed (2025-12-08)
 
 | # | Feature | Status |
 |---|---------|--------|
@@ -273,6 +275,9 @@ src/
 | 10 | **Notes Refactoring** | ✅ 2278 lines → 12 files with separate routes |
 | 11 | **Notes Tab Navigation** | ✅ /notes (Editor) + /notes/graph (3D Graph) |
 | 12 | **Notes Context Provider** | ✅ Shared state between notes pages |
+| 13 | **Web Search Multi-Select** | ✅ Select up to 5 results for context synthesis |
+| 14 | **Context Optimizer** | ✅ LLM-powered multi-source synthesis with streaming |
+| 15 | **5 Optimization Presets** | ✅ Bullets, Detailed, Steps, Risks, Compare + Custom |
 
 ### 🟡 TODO: Medium Priority
 
@@ -336,6 +341,9 @@ src/
 | `/api/comfyui/gallery/metadata` | GET | Extract PNG metadata |
 | `/api/comfyui/gallery/delete` | DELETE | Delete image |
 | `/api/comfyui/gallery/copy-to-input` | POST | Copy to input folder |
+| `/api/search` | GET/POST/PUT | Web search via SearXNG (simple/AI-optimized) |
+| `/api/search/optimize` | POST | **NEW:** LLM-based multi-source context optimization (streaming) |
+| `/api/notes/ai` | POST | Notes AI completion/summarization with optional web search |
 
 ---
 
@@ -357,7 +365,16 @@ src/
 
 ## Changelog
 
-### 2025-12-07 (Current Session)
+### 2025-12-08 (Current Session)
+- ✅ **Web Search Multi-Select** - Select up to 5 search results for context
+- ✅ **Context Optimizer API** - `/api/search/optimize` with LLM-powered synthesis
+- ✅ **5 Optimization Presets** - Bullets, Detailed, Steps, Risks, Compare + Custom
+- ✅ **Streaming Optimization** - Real-time token streaming during context synthesis
+- ✅ **Notes + Web Search** - Integrated web search context in Notes AI actions
+- ✅ **Custom Prompts** - Editable AI prompts in Notes and Web Search
+- ✅ **Context Window Slider** - Adjustable num_ctx with model-aware defaults
+
+### 2025-12-07
 - ✅ **Real Routing** - Separate routes for Chat, Gallery, Notes
 - ✅ **App Layout** - Shared vertical navigation bar (icons)
 - ✅ **Conversation Tags** - Tag-based organization and filtering

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useCallback, useRef, useMemo } from "react";
+import React, { useState, useEffect, useCallback, useRef, useMemo, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import { v4 as uuidv4 } from "uuid";
 
@@ -30,7 +30,7 @@ import { getModelSystemContent, deleteOllamaModel } from "@/lib/ollama";
 import { useToast } from "@/components/ui/use-toast";
 import { IMAGE_ANALYSIS_PROMPT } from "@/lib/prompt-templates";
 
-export default function ChatPage() {
+function ChatPageContent() {
   const { toast } = useToast();
   const searchParams = useSearchParams();
   
@@ -632,6 +632,14 @@ export default function ChatPage() {
         isGenerating={isChatLoading}
       />
     </div>
+  );
+}
+
+export default function ChatPage() {
+  return (
+    <Suspense fallback={<div className="flex items-center justify-center h-full"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div></div>}>
+      <ChatPageContent />
+    </Suspense>
   );
 }
 

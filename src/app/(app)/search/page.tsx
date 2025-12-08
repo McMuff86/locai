@@ -124,10 +124,11 @@ export default function SearchPage() {
         
         // Search ALL messages and collect matches
         conv.messages.forEach((msg, idx) => {
-          if (msg.content && msg.content.toLowerCase().includes(lowerQuery)) {
+          const textContent = typeof msg.content === 'string' ? msg.content : '';
+          if (textContent && textContent.toLowerCase().includes(lowerQuery)) {
             matchedMessages.push({
               role: msg.role as 'user' | 'assistant',
-              content: msg.content,
+              content: textContent,
               matchIndex: idx
             });
           }
@@ -142,8 +143,9 @@ export default function SearchPage() {
             matchType = 'title';
             // Show first user message as snippet
             const firstUserMsg = conv.messages.find(m => m.role === 'user');
-            snippet = firstUserMsg?.content 
-              ? createSnippet(firstUserMsg.content, searchQuery, 100)
+            const firstMsgText = typeof firstUserMsg?.content === 'string' ? firstUserMsg.content : '';
+            snippet = firstMsgText 
+              ? createSnippet(firstMsgText, searchQuery, 100)
               : 'Leerer Chat';
           } else if (matchedMessages.length > 0) {
             matchType = 'content';
@@ -160,7 +162,7 @@ export default function SearchPage() {
             snippet,
             matchType,
             tags: conv.tags,
-            date: conv.updatedAt,
+            date: conv.updatedAt instanceof Date ? conv.updatedAt.toISOString() : String(conv.updatedAt),
             messageMatches: matchedMessages.slice(0, 5), // Limit to 5 matches
             totalMatches: matchedMessages.length,
           });

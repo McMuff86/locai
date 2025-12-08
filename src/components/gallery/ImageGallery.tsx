@@ -129,7 +129,7 @@ export function ImageGallery({
           setShowMetadata(false);
         } else if (selectedImage) {
           setSelectedImage(null);
-        } else {
+        } else if (onClose) {
           onClose();
         }
       }
@@ -193,7 +193,7 @@ export function ImageGallery({
   const handleAnalyze = (image: ImageInfo) => {
     if (onAnalyzeImage) {
       onAnalyzeImage(getImageUrl(image), image.filename);
-      onClose();
+      onClose?.();
     }
   };
 

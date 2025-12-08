@@ -19,10 +19,14 @@ interface AiBody {
   useWebSearch?: boolean;
   searchQuery?: string;
   searxngUrl?: string;
+  externalContext?: string;
 }
 
 const DEFAULT_MODEL = 'llama3';
 const DEFAULT_HOST = 'http://localhost:11434';
+const MAX_WEB_CONTEXT = 4000;
+const MAX_WEB_SNIPPET = 600;
+const MAX_WEB_RESULTS = 3;
 
 function resolveBasePath(req: NextRequest, body: AiBody): string | null {
   return (
@@ -95,7 +99,35 @@ export async function POST(req: NextRequest) {
           optimizeQuery: true,
         });
         if (webResult?.success) {
-          webContext = formatForChat(webResult);
+          // Trim to avoid oversize prompts
+          if (webResult.content?.content) {
+            const trimmed = webResult.content.content.slice(0, MAX_WEB_CONTEXT);
+            const source = webResult.selection?.title || 'Quelle';
+            const url = webResult.selection?.url || '';
+            webContext = [
+              `🔍 Web-Suche: ${webResult.originalQuestion}`,
+              `📄 Quelle: ${source}`,
+              url ? `🔗 ${url}` : '',
+              '',
+              trimmed,
+            ]
+              .filter(Boolean)
+              .join('\n');
+          } else if (webResult.search?.results?.length) {
+            const snippets = webResult.search.results
+              .slice(0, MAX_WEB_RESULTS)
+              .map((r, idx) => {
+                const snip = (r.content || '').slice(0, MAX_WEB_SNIPPET);
+                return [`[${idx + 1}] ${r.title}`, r.url, snip].filter(Boolean).join('\n');
+              })
+              .join('\n\n');
+            webContext = [
+              `🔍 Web-Suche: ${webResult.originalQuestion}`,
+              '',
+              'Top Snippets:',
+              snippets,
+            ].join('\n');
+          }
         }
       } catch (err) {
         console.error('notes/ai websearch error', err);
@@ -103,9 +135,21 @@ export async function POST(req: NextRequest) {
     }
 
     const prompt = buildPrompt(action, note, body.prompt);
-    const userContent = webContext
-      ? `Nutze folgende Web-Suche als Kontext:\n${webContext}\n\n---\n\n${prompt}`
-      : prompt;
+    const userContent = (() => {
+      const parts: string[] = [];
+      if (body.externalContext) {
+        parts.push('Nutze den folgenden externen Web-Kontext (vom Nutzer ausgewählt):');
+        parts.push(body.externalContext);
+        parts.push('---');
+      }
+      if (webContext) {
+        parts.push('Nutze folgende Web-Suche als Kontext:');
+        parts.push(webContext);
+        parts.push('---');
+      }
+      parts.push(prompt);
+      return parts.join('\n\n');
+    })();
 
     // Streaming response from Ollama
     const response = await fetch(`${host}/api/chat`, {

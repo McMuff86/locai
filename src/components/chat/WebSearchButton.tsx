@@ -13,7 +13,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { useWebSearch, getStepLabel } from '@/hooks/useWebSearch';
+import { useWebSearch, getStepLabel, SearchResult } from '@/hooks/useWebSearch';
 
 interface WebSearchButtonProps {
   searxngUrl?: string;
@@ -37,6 +37,11 @@ export function WebSearchButton({
   const [editedContent, setEditedContent] = useState('');
   const [isExpanded, setIsExpanded] = useState(false);
   const [viewMode, setViewMode] = useState<'results' | 'content'>('results');
+  const [selectedIndices, setSelectedIndices] = useState<number[]>([]);
+  const [optPreset, setOptPreset] = useState('bullets');
+  const [optCustom, setOptCustom] = useState('');
+  const [isOptimizing, setIsOptimizing] = useState(false);
+  const [optError, setOptError] = useState<string | null>(null);
 
   const { 
     search,
@@ -64,6 +69,13 @@ export function WebSearchButton({
       setEditedContent(lastResult.content.content);
       setIsEditing(false);
       setViewMode('content');
+      // Nur initial vorwählen, wenn noch nichts ausgewählt wurde
+      if (
+        !selectedIndices.length &&
+        typeof lastResult.selection?.selectedIndex === 'number'
+      ) {
+        setSelectedIndices([lastResult.selection.selectedIndex]);
+      }
       return;
     }
 
@@ -76,6 +88,9 @@ export function WebSearchButton({
       setEditedContent(selected.content || '');
       setIsEditing(true);
       setViewMode('content');
+      if (!selectedIndices.length) {
+        setSelectedIndices([lastResult.selection.selectedIndex]);
+      }
       return;
     }
 
@@ -83,13 +98,14 @@ export function WebSearchButton({
     if (lastResult?.search?.results?.length) {
       setViewMode('results');
     }
-  }, [lastResult]);
+  }, [lastResult, selectedIndices.length]);
 
   const handleSearch = useCallback(async () => {
     if (!query.trim()) return;
     setEditedContent('');
     setIsEditing(false);
     setViewMode('results');
+    setSelectedIndices([]);
     
     if (useAI) {
       await search(query);
@@ -103,9 +119,101 @@ export function WebSearchButton({
       await selectResult(index);
       setIsEditing(false);
       setViewMode('content');
+      setSelectedIndices([index]);
     },
     [selectResult],
   );
+
+  const toggleSelected = (idx: number) => {
+    setSelectedIndices((prev) => {
+      if (prev.includes(idx)) {
+        return prev.filter((i) => i !== idx);
+      }
+      if (prev.length >= 5) return prev; // Limit auf 5
+      return [...prev, idx];
+    });
+  };
+
+  const handleMergeSelected = async () => {
+    if (!lastResult?.search) return;
+    const indices =
+      selectedIndices.length > 0
+        ? selectedIndices
+        : typeof lastResult.selection?.selectedIndex === 'number'
+          ? [lastResult.selection.selectedIndex]
+          : [];
+    if (!indices.length) return;
+
+    const snippets = indices
+      .slice(0, 5)
+      .map((i) => lastResult.search.results[i])
+      .filter(Boolean)
+      .map((r) => ({
+        title: r.title,
+        url: r.url,
+        content: r.content || '',
+      }));
+
+    setIsOptimizing(true);
+    setOptError(null);
+    setEditedContent('');
+    setViewMode('content');
+    setIsEditing(false);
+
+    try {
+      const res = await fetch('/api/search/optimize', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model,
+          host: ollamaHost,
+          snippets,
+          preset: optPreset,
+          customPrompt: optPreset === 'custom' ? optCustom : undefined,
+        }),
+      });
+
+      if (!res.ok) {
+        const errorData = await res.json();
+        throw new Error(errorData.error || 'Optimierung fehlgeschlagen');
+      }
+
+      // Handle streaming response
+      const reader = res.body?.getReader();
+      if (!reader) {
+        throw new Error('Stream nicht verfügbar');
+      }
+
+      const decoder = new TextDecoder();
+      let accumulated = '';
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        const text = decoder.decode(value, { stream: true });
+        const lines = text.split('\n').filter((line) => line.startsWith('data: '));
+
+        for (const line of lines) {
+          try {
+            const jsonStr = line.replace('data: ', '');
+            const data = JSON.parse(jsonStr);
+            
+            if (data.token) {
+              accumulated += data.token;
+              setEditedContent(accumulated);
+            }
+          } catch {
+            // Skip invalid JSON
+          }
+        }
+      }
+    } catch (err) {
+      setOptError(err instanceof Error ? err.message : 'Optimierung fehlgeschlagen');
+    } finally {
+      setIsOptimizing(false);
+    }
+  };
 
   const handleReloadContent = useCallback(
     async (index?: number) => {
@@ -165,6 +273,15 @@ export function WebSearchButton({
   const contentMaxHeight = useMemo(() => (isExpanded ? '60vh' : '34vh'), [isExpanded]);
   const selectedIndex = lastResult?.selection?.selectedIndex ?? 0;
   const hasSelection = lastResult?.selection?.selectedIndex !== undefined;
+
+  const OPTIMIZE_PRESETS = [
+    { id: 'bullets', label: 'Kurz & präzise (Bullets)' },
+    { id: 'detailed', label: 'Detailliert mit Quellen' },
+    { id: 'steps', label: 'Schritte / Anleitung' },
+    { id: 'risks', label: 'Risiken & Caveats' },
+    { id: 'compare', label: 'Vergleich' },
+    { id: 'custom', label: 'Custom' },
+  ];
 
   if (!enabled) {
     return (
@@ -290,29 +407,74 @@ export function WebSearchButton({
                 </div>
               </div>
 
-              {/* View Toggle: Results vs Content */}
+              {/* View Toggle: Results vs Content + Optimization prompt presets */}
               {lastResult.search?.results?.length > 0 && (
-                <div className="flex items-center gap-2 flex-shrink-0">
-                  <Button
-                    variant={viewMode === 'content' ? 'default' : 'outline'}
-                    size="sm"
-                    onClick={() => setViewMode('content')}
-                    disabled={!hasSelection}
-                    className="h-8"
-                  >
-                    Inhalt
-                  </Button>
-                  <Button
-                    variant={viewMode === 'results' ? 'default' : 'outline'}
-                    size="sm"
-                    onClick={() => setViewMode('results')}
-                    className="h-8"
-                  >
-                    Suchergebnisse
-                  </Button>
-                  <span className="text-xs text-muted-foreground">
-                    Tipp: Klick auf ein Ergebnis öffnet es im Vorschau/Bearbeiten-Modus.
-                  </span>
+                <div className="space-y-2 flex-shrink-0">
+                  <div className="flex items-center gap-2">
+                    <Button
+                      variant={viewMode === 'content' ? 'default' : 'outline'}
+                      size="sm"
+                      onClick={() => setViewMode('content')}
+                      disabled={!hasSelection && !selectedIndices.length}
+                      className="h-8"
+                    >
+                      Inhalt
+                    </Button>
+                    <Button
+                      variant={viewMode === 'results' ? 'default' : 'outline'}
+                      size="sm"
+                      onClick={() => setViewMode('results')}
+                      className="h-8"
+                    >
+                      Suchergebnisse
+                    </Button>
+                    <span className="text-xs text-muted-foreground">
+                      Tipp: Klick wählt; „Kontext optimieren" fasst bis zu 5 Snippets zusammen.
+                    </span>
+                    <div className="ml-auto flex items-center gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={handleMergeSelected}
+                        disabled={(!selectedIndices.length && typeof lastResult.selection?.selectedIndex !== 'number') || isSearching || isOptimizing}
+                        className="h-8"
+                      >
+                        {isOptimizing ? (
+                          <span className="flex items-center gap-1">
+                            <Loader2 className="h-3 w-3 animate-spin" />
+                            Optimieren...
+                          </span>
+                        ) : (
+                          <>Kontext optimieren ({selectedIndices.length || (typeof lastResult.selection?.selectedIndex === 'number' ? 1 : 0)}/5)</>
+                        )}
+                      </Button>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <select
+                      className="h-8 rounded-md border border-input bg-background px-2 text-sm"
+                      value={optPreset}
+                      onChange={(e) => setOptPreset(e.target.value)}
+                    >
+                      {OPTIMIZE_PRESETS.map((p) => (
+                        <option key={p.id} value={p.id}>
+                          {p.label}
+                        </option>
+                      ))}
+                    </select>
+                    <Input
+                      value={optPreset === 'custom' ? optCustom : ''}
+                      onChange={(e) => setOptCustom(e.target.value)}
+                      placeholder="Zusätzliche Anweisung (optional)"
+                      disabled={optPreset !== 'custom'}
+                      className="text-sm"
+                    />
+                  </div>
+                  {optError && (
+                    <div className="text-xs text-destructive">
+                      {optError}
+                    </div>
+                  )}
                 </div>
               )}
 
@@ -393,9 +555,9 @@ export function WebSearchButton({
                             <div className="text-xs text-muted-foreground">
                               URL Source: {lastResult.content.url}
                             </div>
-                            {lastResult.content.publishedTime && (
+                            {(lastResult.content as { publishedTime?: string }).publishedTime && (
                               <div className="text-xs text-muted-foreground">
-                                Published Time: {lastResult.content.publishedTime}
+                                Published Time: {(lastResult.content as { publishedTime?: string }).publishedTime}
                               </div>
                             )}
                             <div className="border-t pt-3">
@@ -407,6 +569,52 @@ export function WebSearchButton({
                                 )}
                               </div>
                             </div>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ) : editedContent ? (
+                  <div className="flex flex-col gap-2 flex-1 min-h-0">
+                    <div className="flex items-center justify-between flex-shrink-0">
+                      <div className="text-xs text-muted-foreground">
+                        {editedContent.length} Zeichen (zusammengefasster Kontext)
+                      </div>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setIsEditing(!isEditing)}
+                        className="gap-2 h-7"
+                      >
+                        {isEditing ? (
+                          <>
+                            <Eye className="h-3 w-3" />
+                            Vorschau
+                          </>
+                        ) : (
+                          <>
+                            <Pencil className="h-3 w-3" />
+                            Bearbeiten
+                          </>
+                        )}
+                      </Button>
+                    </div>
+                    {isEditing ? (
+                      <Textarea
+                        value={editedContent}
+                        onChange={(e) => setEditedContent(e.target.value)}
+                        className="flex-1 min-h-[200px] text-sm font-mono resize-none"
+                        style={{ maxHeight: contentMaxHeight }}
+                        placeholder="Inhalt bearbeiten..."
+                      />
+                    ) : (
+                      <div
+                        className="border rounded-lg overflow-y-auto bg-background/50"
+                        style={{ maxHeight: contentMaxHeight }}
+                      >
+                        <div className="p-4">
+                          <div className="space-y-3 text-sm whitespace-pre-wrap break-words">
+                            {editedContent}
                           </div>
                         </div>
                       </div>
@@ -441,6 +649,9 @@ export function WebSearchButton({
                         )}
                       </div>
                     </div>
+                    <div className="text-xs text-muted-foreground">
+                      Snippet-Fallback wird angezeigt. Nutze „Kontext optimieren" oben, um deine Auswahl (max 5) zusammenzufassen.
+                    </div>
                     {error && (
                       <div className="text-xs text-destructive">
                         {error}
@@ -469,37 +680,53 @@ export function WebSearchButton({
                 >
                   <div className="p-4">
                     <div className="space-y-3">
-                      {lastResult.search.results.slice(0, 5).map((result, index) => (
+                      {lastResult.search.results.slice(0, 5).map((result: SearchResult, index: number) => (
                         <div 
                           key={index}
                           role="button"
                           tabIndex={0}
-                          onClick={() => handleSelectResult(index)}
+                          onClick={() => toggleSelected(index)}
+                          onDoubleClick={() => handleSelectResult(index)}
                           onKeyDown={(e) => {
                             if (e.key === 'Enter' || e.key === ' ') {
                               e.preventDefault();
-                              handleSelectResult(index);
+                              toggleSelected(index);
                             }
                           }}
                           className={`p-3 rounded-lg border transition cursor-pointer ${
-                            lastResult.selection?.selectedIndex === index
-                              ? 'border-primary bg-primary/5'
+                            selectedIndices.includes(index)
+                              ? 'border-primary bg-primary/10'
                               : 'border-border hover:border-primary/60'
                           }`}
                         >
-                          <h4 className="text-sm font-medium">{result.title}</h4>
-                          <a
-                            href={result.url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-xs text-primary hover:underline flex items-center gap-1"
-                          >
-                            {result.url}
-                            <ExternalLink className="h-3 w-3" />
-                          </a>
-                          <p className="text-xs text-muted-foreground mt-1 whitespace-pre-wrap break-words">
-                            {result.content}
-                          </p>
+                          <div className="flex items-start gap-2">
+                            <input
+                              type="checkbox"
+                              checked={selectedIndices.includes(index)}
+                              onChange={(e) => {
+                                e.stopPropagation();
+                                toggleSelected(index);
+                              }}
+                              onClick={(e) => e.stopPropagation()}
+                              className="mt-1"
+                              aria-label={`Ergebnis ${index + 1} auswählen`}
+                            />
+                            <div className="flex-1 min-w-0">
+                              <h4 className="text-sm font-medium">{result.title}</h4>
+                              <a
+                                href={result.url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-xs text-primary hover:underline flex items-center gap-1"
+                              >
+                                {result.url}
+                                <ExternalLink className="h-3 w-3" />
+                              </a>
+                              <p className="text-xs text-muted-foreground mt-1 whitespace-pre-wrap break-words">
+                                {result.content}
+                              </p>
+                            </div>
+                          </div>
                         </div>
                       ))}
                     </div>

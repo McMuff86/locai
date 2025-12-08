@@ -1,10 +1,12 @@
 "use client";
 
 import { useState, useCallback } from 'react';
-import type { WebSearchResult, SearchResponse, SearchResult } from '@/lib/webSearch/types';
+import type { SearchResponse, SearchResult } from '@/lib/webSearch/types';
+import type { WebSearchResult } from '@/lib/webSearch';
 
 // Re-export types for convenience
-export type { WebSearchResult, SearchResponse, SearchResult } from '@/lib/webSearch/types';
+export type { SearchResponse, SearchResult } from '@/lib/webSearch/types';
+export type { WebSearchResult } from '@/lib/webSearch';
 
 // ============================================================================
 // Hook Options & Return Types
@@ -26,6 +28,42 @@ interface UseWebSearchOptions {
   optimizeQuery?: boolean;
   selectBestResult?: boolean;
   fetchContent?: boolean;
+}
+
+/**
+ * Build a merged context from selected search results (snippets only).
+ * Callers can optionally post-process with their own summarization prompt.
+ */
+export function buildMergedContext(
+  search: SearchResponse,
+  selectedIndices: number[],
+  maxItems = 3,
+  maxSnippetLength = 600,
+): string | null {
+  if (!search?.results?.length) return null;
+  const picks = selectedIndices
+    .slice(0, maxItems)
+    .map((i) => search.results[i])
+    .filter(Boolean);
+  if (!picks.length) return null;
+
+  const lines: string[] = [];
+  lines.push('🔍 Zusammengefasster Web-Kontext (Top Snippets)');
+  lines.push('');
+
+  picks.forEach((r, idx) => {
+    const snippet = (r.content || '').slice(0, maxSnippetLength);
+    lines.push(`**[${idx + 1}] ${r.title}**`);
+    lines.push(r.url);
+    if (snippet) {
+      lines.push(snippet);
+    }
+    lines.push('');
+  });
+
+  lines.push('---');
+  lines.push('Kombiniere die obigen Snippets präzise, dedupliziere und nenne Quellen.');
+  return lines.join('\n');
 }
 
 interface UseWebSearchReturn {

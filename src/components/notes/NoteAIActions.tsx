@@ -4,6 +4,7 @@ import { useState, useCallback, useRef, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { getModelInfo } from '@/lib/ollama';
+import WebSearchButton from '@/components/chat/WebSearchButton';
 
 interface NoteAIActionsProps {
   basePath?: string;
@@ -38,6 +39,8 @@ export function NoteAIActions({
   const [loadingCtx, setLoadingCtx] = useState(false);
   const [useWebSearch, setUseWebSearch] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [externalWebContext, setExternalWebContext] = useState<string | null>(null);
+  const [externalQuery, setExternalQuery] = useState<string | null>(null);
   const aiAbortControllerRef = useRef<AbortController | null>(null);
 
   // Load context window info for selected model
@@ -55,7 +58,9 @@ export function NoteAIActions({
         if (cancelled) return;
         if (info?.contextLength) {
           setContextMax(info.contextLength);
-          setNumCtx(info.contextLength);
+          // Clamp default to avoid huge OOM for very large context windows
+          const safeDefault = Math.min(info.contextLength, 32768);
+          setNumCtx(safeDefault);
         } else {
           setContextMax(null);
           setNumCtx(null);
@@ -128,6 +133,8 @@ export function NoteAIActions({
         useWebSearch: withWebSearch || useWebSearch,
         searchQuery: searchQuery || instruction || undefined,
         searxngUrl,
+        // External web context from the dedicated picker (merged/selected)
+        externalContext: externalWebContext || undefined,
         }),
         signal: abortController.signal,
       });
@@ -326,6 +333,36 @@ export function NoteAIActions({
               className="min-h-[60px]"
               disabled={aiLoading}
             />
+          </div>
+        )}
+      </div>
+
+      {/* Websearch Picker (mit Mehrfachauswahl & Kontextoptimierung aus Chat-Komponente) */}
+      <div className="space-y-2">
+        <div className="flex items-center justify-between">
+          <span className="text-xs text-muted-foreground">Websuche (Kontext auswählen & optimieren)</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <WebSearchButton
+            enabled
+            searxngUrl={searxngUrl}
+            ollamaHost={host}
+            model={model}
+            onInsertResults={(results, query) => {
+              setExternalWebContext(results);
+              setExternalQuery(query);
+            }}
+          />
+          {externalWebContext && (
+            <span className="text-xs text-muted-foreground">
+              Kontext aus Websuche gespeichert ({externalQuery || 'ohne Query'})
+            </span>
+          )}
+        </div>
+        {externalWebContext && (
+          <div className="border rounded-md p-2 bg-background/50 text-xs text-muted-foreground max-h-32 overflow-y-auto whitespace-pre-wrap">
+            {externalWebContext.slice(0, 600)}
+            {externalWebContext.length > 600 && ' ...'}
           </div>
         )}
       </div>
