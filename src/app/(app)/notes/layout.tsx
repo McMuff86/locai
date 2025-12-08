@@ -19,6 +19,7 @@ interface NotesContextValue {
   selectedModel: string;
   installedModels: string[];
   host?: string;
+  searxngUrl?: string;
   // Graph data
   semanticLinks: { source: string; target: string; similarity: number }[];
   semanticThreshold: number;
@@ -118,6 +119,7 @@ export default function NotesLayout({
     selectedModel,
     installedModels: models.map(m => m.name),
     host: settings?.ollamaHost,
+    searxngUrl: settings?.searxngUrl,
     semanticLinks,
     semanticThreshold,
     setSemanticThreshold,

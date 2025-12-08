@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { FileNoteStorage } from '@/lib/notes/fileNoteStorage';
 import { Note } from '@/lib/notes/types';
+import { performWebSearch, formatForChat } from '@/lib/webSearch';
 
 export const runtime = 'nodejs';
 
@@ -13,6 +14,11 @@ interface AiBody {
   action?: AiAction;
   model?: string;
   host?: string;
+  prompt?: string;
+  numCtx?: number;
+  useWebSearch?: boolean;
+  searchQuery?: string;
+  searxngUrl?: string;
 }
 
 const DEFAULT_MODEL = 'llama3';
@@ -46,12 +52,22 @@ async function loadContent(basePath: string, noteId?: string, rawContent?: strin
   };
 }
 
-function buildPrompt(action: AiAction, note: Note) {
-  if (action === 'summarize') {
-    return `Fasse die folgende Notiz prägnant zusammen und schlage 2-4 Tags vor.\n\nTitel: ${note.title}\n\nInhalt:\n${note.content}`;
-  }
-  // complete
-  return `Setze die folgende Notiz sinnvoll fort oder ergänze sie mit einem nächsten Abschnitt. Bleibe im Stil der Notiz.\n\nTitel: ${note.title}\n\nInhalt bis jetzt:\n${note.content}`;
+function buildPrompt(action: AiAction, note: Note, userPrompt?: string) {
+  const basePrompt =
+    action === 'summarize'
+      ? `Fasse die folgende Notiz prägnant zusammen und schlage 2-4 Tags vor.`
+      : `Setze die folgende Notiz sinnvoll fort oder ergänze sie mit einem nächsten Abschnitt. Bleibe im Stil der Notiz.`;
+
+  const customInstruction = userPrompt?.trim()
+    ? `\n\nZusätzliche Anweisung des Nutzers:\n${userPrompt.trim()}`
+    : '';
+
+  return [
+    basePrompt,
+    customInstruction,
+    `\n\nTitel: ${note.title}`,
+    `\n\nInhalt:\n${note.content}`,
+  ].join('');
 }
 
 export async function POST(req: NextRequest) {
@@ -65,7 +81,31 @@ export async function POST(req: NextRequest) {
 
     const model = body.model || DEFAULT_MODEL;
     const host = (body.host || DEFAULT_HOST).replace(/\/$/, '');
-    const prompt = buildPrompt(action, note);
+    // Optional: Web search enrichment
+    let webContext = '';
+    if (body.useWebSearch) {
+      try {
+        const webResult = await performWebSearch(body.searchQuery || note.title, {
+          searxngUrl: body.searxngUrl,
+          ollamaHost: body.host || DEFAULT_HOST,
+          model: body.model || DEFAULT_MODEL,
+          maxResults: 5,
+          fetchContent: true,
+          selectBestResult: true,
+          optimizeQuery: true,
+        });
+        if (webResult?.success) {
+          webContext = formatForChat(webResult);
+        }
+      } catch (err) {
+        console.error('notes/ai websearch error', err);
+      }
+    }
+
+    const prompt = buildPrompt(action, note, body.prompt);
+    const userContent = webContext
+      ? `Nutze folgende Web-Suche als Kontext:\n${webContext}\n\n---\n\n${prompt}`
+      : prompt;
 
     // Streaming response from Ollama
     const response = await fetch(`${host}/api/chat`, {
@@ -76,8 +116,9 @@ export async function POST(req: NextRequest) {
         stream: true,
         messages: [
           { role: 'system', content: 'You assist with editing and summarizing notes. Respond in the same language as the note.' },
-          { role: 'user', content: prompt },
+          { role: 'user', content: userContent },
         ],
+        options: body.numCtx ? { num_ctx: body.numCtx } : undefined,
       }),
     });
 

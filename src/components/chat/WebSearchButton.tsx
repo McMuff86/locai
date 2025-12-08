@@ -1,7 +1,7 @@
 "use client";
 
-import React, { useState, useCallback, useEffect } from 'react';
-import { Search, Globe, Loader2, ExternalLink, Sparkles, FileText, CheckCircle2, Pencil, Eye } from 'lucide-react';
+import React, { useState, useCallback, useEffect, useMemo } from 'react';
+import { Search, Globe, Loader2, ExternalLink, Sparkles, FileText, CheckCircle2, Pencil, Eye, Maximize2, Minimize2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -35,16 +35,20 @@ export function WebSearchButton({
   const [useAI, setUseAI] = useState(true);
   const [isEditing, setIsEditing] = useState(false);
   const [editedContent, setEditedContent] = useState('');
+  const [isExpanded, setIsExpanded] = useState(false);
+  const [viewMode, setViewMode] = useState<'results' | 'content'>('results');
 
   const { 
     search,
     simpleSearch,
     isSearching, 
+    isFetchingContent,
     currentStep,
     error, 
     lastResult, 
     clearResults,
-    getFormattedResults 
+    getFormattedResults,
+    selectResult,
   } = useWebSearch({ 
     searxngUrl, 
     ollamaHost,
@@ -59,6 +63,25 @@ export function WebSearchButton({
     if (lastResult?.content?.content) {
       setEditedContent(lastResult.content.content);
       setIsEditing(false);
+      setViewMode('content');
+      return;
+    }
+
+    if (
+      lastResult?.selection &&
+      typeof lastResult.selection.selectedIndex === 'number' &&
+      lastResult.search?.results?.[lastResult.selection.selectedIndex]
+    ) {
+      const selected = lastResult.search.results[lastResult.selection.selectedIndex];
+      setEditedContent(selected.content || '');
+      setIsEditing(true);
+      setViewMode('content');
+      return;
+    }
+
+    // Fallback: show results list
+    if (lastResult?.search?.results?.length) {
+      setViewMode('results');
     }
   }, [lastResult]);
 
@@ -66,6 +89,7 @@ export function WebSearchButton({
     if (!query.trim()) return;
     setEditedContent('');
     setIsEditing(false);
+    setViewMode('results');
     
     if (useAI) {
       await search(query);
@@ -73,6 +97,29 @@ export function WebSearchButton({
       await simpleSearch(query);
     }
   }, [query, useAI, search, simpleSearch]);
+
+  const handleSelectResult = useCallback(
+    async (index: number) => {
+      await selectResult(index);
+      setIsEditing(false);
+      setViewMode('content');
+    },
+    [selectResult],
+  );
+
+  const handleReloadContent = useCallback(
+    async (index?: number) => {
+      const targetIndex =
+        typeof index === 'number'
+          ? index
+          : lastResult?.selection?.selectedIndex ?? undefined;
+      if (targetIndex === undefined) return;
+      await selectResult(targetIndex);
+      setIsEditing(false);
+      setViewMode('content');
+    },
+    [lastResult?.selection?.selectedIndex, selectResult],
+  );
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -86,7 +133,9 @@ export function WebSearchButton({
     if (lastResult) {
       const title = lastResult.selection?.title || 'Web-Suche';
       const url = lastResult.selection?.url || lastResult.content?.url || '';
-      const content = editedContent || lastResult.content?.content || '';
+      const selectedIndex = lastResult.selection?.selectedIndex ?? 0;
+      const fallbackSnippet = lastResult.search?.results?.[selectedIndex]?.content || '';
+      const content = editedContent || lastResult.content?.content || fallbackSnippet;
       
       const formatted = [
         `🔍 **Web-Suche: "${query}"**`,
@@ -109,8 +158,13 @@ export function WebSearchButton({
     setQuery('');
     setEditedContent('');
     setIsEditing(false);
+    setIsExpanded(false);
     clearResults();
   };
+
+  const contentMaxHeight = useMemo(() => (isExpanded ? '60vh' : '34vh'), [isExpanded]);
+  const selectedIndex = lastResult?.selection?.selectedIndex ?? 0;
+  const hasSelection = lastResult?.selection?.selectedIndex !== undefined;
 
   if (!enabled) {
     return (
@@ -223,7 +277,44 @@ export function WebSearchButton({
                     via {lastResult.search.instanceUsed === 'duckduckgo' ? 'DuckDuckGo' : 'localhost'}
                   </span>
                 )}
+                <div className="ml-auto flex items-center gap-1">
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-7 w-7"
+                    onClick={() => setIsExpanded((prev) => !prev)}
+                    title={isExpanded ? 'Ansicht verkleinern' : 'Ansicht vergrößern'}
+                  >
+                    {isExpanded ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
+                  </Button>
+                </div>
               </div>
+
+              {/* View Toggle: Results vs Content */}
+              {lastResult.search?.results?.length > 0 && (
+                <div className="flex items-center gap-2 flex-shrink-0">
+                  <Button
+                    variant={viewMode === 'content' ? 'default' : 'outline'}
+                    size="sm"
+                    onClick={() => setViewMode('content')}
+                    disabled={!hasSelection}
+                    className="h-8"
+                  >
+                    Inhalt
+                  </Button>
+                  <Button
+                    variant={viewMode === 'results' ? 'default' : 'outline'}
+                    size="sm"
+                    onClick={() => setViewMode('results')}
+                    className="h-8"
+                  >
+                    Suchergebnisse
+                  </Button>
+                  <span className="text-xs text-muted-foreground">
+                    Tipp: Klick auf ein Ergebnis öffnet es im Vorschau/Bearbeiten-Modus.
+                  </span>
+                </div>
+              )}
 
               {/* Selected Result Card - Fixed */}
               {lastResult.selection && (
@@ -252,88 +343,148 @@ export function WebSearchButton({
               )}
 
               {/* Content Area - with Edit Toggle */}
-              {lastResult.content?.content ? (
-                <div className="flex flex-col gap-2 flex-1 min-h-0">
-                  {/* Edit Toggle */}
-                  <div className="flex items-center justify-between flex-shrink-0">
-                    <div className="text-xs text-muted-foreground">
-                      {editedContent.length} Zeichen
-                      {editedContent !== lastResult.content.content && (
-                        <span className="text-primary ml-2">(bearbeitet)</span>
-                      )}
+              {viewMode === 'content' ? (
+                lastResult.content?.content ? (
+                  <div className="flex flex-col gap-2 flex-1 min-h-0">
+                    {/* Edit Toggle */}
+                    <div className="flex items-center justify-between flex-shrink-0">
+                      <div className="text-xs text-muted-foreground">
+                        {editedContent.length} Zeichen
+                        {editedContent !== lastResult.content.content && (
+                          <span className="text-primary ml-2">(bearbeitet)</span>
+                        )}
+                      </div>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setIsEditing(!isEditing)}
+                        className="gap-2 h-7"
+                      >
+                        {isEditing ? (
+                          <>
+                            <Eye className="h-3 w-3" />
+                            Vorschau
+                          </>
+                        ) : (
+                          <>
+                            <Pencil className="h-3 w-3" />
+                            Bearbeiten
+                          </>
+                        )}
+                      </Button>
                     </div>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setIsEditing(!isEditing)}
-                      className="gap-2 h-7"
-                    >
-                      {isEditing ? (
-                        <>
-                          <Eye className="h-3 w-3" />
-                          Vorschau
-                        </>
-                      ) : (
-                        <>
-                          <Pencil className="h-3 w-3" />
-                          Bearbeiten
-                        </>
-                      )}
-                    </Button>
-                  </div>
 
-                  {/* Content - Edit or Preview */}
-                  {isEditing ? (
-                    <Textarea
-                      value={editedContent}
-                      onChange={(e) => setEditedContent(e.target.value)}
-                      className="flex-1 min-h-[200px] max-h-[280px] text-sm font-mono resize-none"
-                      placeholder="Inhalt bearbeiten..."
-                    />
-                  ) : (
-                    <div 
-                      className="border rounded-lg overflow-y-auto bg-background/50"
-                      style={{ maxHeight: '280px' }}
-                    >
-                      <div className="p-4">
-                        <div className="space-y-3">
-                          <div className="text-xs text-muted-foreground">
-                            URL Source: {lastResult.content.url}
-                          </div>
-                          {lastResult.content.publishedTime && (
+                    {/* Content - Edit or Preview */}
+                    {isEditing ? (
+                      <Textarea
+                        value={editedContent}
+                        onChange={(e) => setEditedContent(e.target.value)}
+                        className="flex-1 min-h-[200px] text-sm font-mono resize-none"
+                        style={{ maxHeight: contentMaxHeight }}
+                        placeholder="Inhalt bearbeiten..."
+                      />
+                    ) : (
+                      <div 
+                        className="border rounded-lg overflow-y-auto bg-background/50"
+                        style={{ maxHeight: contentMaxHeight }}
+                      >
+                        <div className="p-4">
+                          <div className="space-y-3">
                             <div className="text-xs text-muted-foreground">
-                              Published Time: {lastResult.content.publishedTime}
+                              URL Source: {lastResult.content.url}
                             </div>
-                          )}
-                          <div className="border-t pt-3">
-                            <div className="text-xs font-medium text-muted-foreground mb-2">Markdown Content:</div>
-                            <div className="text-sm whitespace-pre-wrap break-words">
-                              {editedContent.substring(0, 5000)}
-                              {editedContent.length > 5000 && (
-                                <span className="text-muted-foreground">... (gekürzt in Vorschau)</span>
-                              )}
+                            {lastResult.content.publishedTime && (
+                              <div className="text-xs text-muted-foreground">
+                                Published Time: {lastResult.content.publishedTime}
+                              </div>
+                            )}
+                            <div className="border-t pt-3">
+                              <div className="text-xs font-medium text-muted-foreground mb-2">Markdown Content:</div>
+                              <div className="text-sm whitespace-pre-wrap break-words">
+                                {editedContent.substring(0, 5000)}
+                                {editedContent.length > 5000 && (
+                                  <span className="text-muted-foreground">... (gekürzt in Vorschau)</span>
+                                )}
+                              </div>
                             </div>
                           </div>
                         </div>
                       </div>
+                    )}
+                  </div>
+                ) : (
+                  <div
+                    className="border rounded-lg bg-background/50 p-4 flex flex-col gap-3"
+                    style={{ maxHeight: contentMaxHeight, overflowY: 'auto' }}
+                  >
+                    <div className="flex items-center justify-between gap-2 flex-wrap">
+                      <div className="text-sm font-medium">Kein Volltext geladen</div>
+                      <div className="flex items-center gap-2">
+                        <Button
+                          size="sm"
+                          onClick={() => handleReloadContent()}
+                          disabled={isFetchingContent || isSearching || !hasSelection}
+                          className="h-8"
+                        >
+                          {isFetchingContent ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Erneut laden'}
+                        </Button>
+                        {lastResult.selection?.url && (
+                          <a
+                            href={lastResult.selection.url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-xs text-primary hover:underline flex items-center gap-1"
+                          >
+                            Im Browser öffnen
+                            <ExternalLink className="h-3 w-3" />
+                          </a>
+                        )}
+                      </div>
                     </div>
-                  )}
-                </div>
-              ) : lastResult.search.results.length > 0 ? (
+                    {error && (
+                      <div className="text-xs text-destructive">
+                        {error}
+                      </div>
+                    )}
+                    {lastResult.search?.results?.[selectedIndex]?.content && (
+                      <div className="space-y-2">
+                        <div className="text-xs font-medium text-muted-foreground">Snippet (Fallback):</div>
+                        <div className="text-sm whitespace-pre-wrap break-words">
+                          {lastResult.search.results[selectedIndex].content}
+                        </div>
+                      </div>
+                    )}
+                    {!lastResult.search?.results?.[selectedIndex]?.content && (
+                      <div className="text-xs text-muted-foreground">
+                        Kein Snippet verfügbar. Bitte „Erneut laden“ oder im Browser öffnen.
+                      </div>
+                    )}
+                  </div>
+                )
+              ) : viewMode === 'results' && lastResult.search.results.length > 0 ? (
                 // Search results list (no editing)
                 <div 
                   className="border rounded-lg overflow-y-auto bg-background/50"
-                  style={{ maxHeight: '280px' }}
+                  style={{ maxHeight: contentMaxHeight }}
                 >
                   <div className="p-4">
                     <div className="space-y-3">
                       {lastResult.search.results.slice(0, 5).map((result, index) => (
                         <div 
                           key={index}
-                          className={`p-3 rounded-lg border ${
+                          role="button"
+                          tabIndex={0}
+                          onClick={() => handleSelectResult(index)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter' || e.key === ' ') {
+                              e.preventDefault();
+                              handleSelectResult(index);
+                            }
+                          }}
+                          className={`p-3 rounded-lg border transition cursor-pointer ${
                             lastResult.selection?.selectedIndex === index
                               ? 'border-primary bg-primary/5'
-                              : 'border-border'
+                              : 'border-border hover:border-primary/60'
                           }`}
                         >
                           <h4 className="text-sm font-medium">{result.title}</h4>
@@ -346,7 +497,7 @@ export function WebSearchButton({
                             {result.url}
                             <ExternalLink className="h-3 w-3" />
                           </a>
-                          <p className="text-xs text-muted-foreground mt-1 line-clamp-2">
+                          <p className="text-xs text-muted-foreground mt-1 whitespace-pre-wrap break-words">
                             {result.content}
                           </p>
                         </div>

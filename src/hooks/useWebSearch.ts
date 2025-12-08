@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useCallback } from 'react';
-import type { WebSearchResult, SearchResponse } from '@/lib/webSearch/types';
+import type { WebSearchResult, SearchResponse, SearchResult } from '@/lib/webSearch/types';
 
 // Re-export types for convenience
 export type { WebSearchResult, SearchResponse, SearchResult } from '@/lib/webSearch/types';
@@ -32,9 +32,11 @@ interface UseWebSearchReturn {
   // Actions
   search: (question: string) => Promise<WebSearchResult | null>;
   simpleSearch: (query: string) => Promise<SearchResponse | null>;
+  selectResult: (index: number) => Promise<WebSearchResult | null>;
   
   // State
   isSearching: boolean;
+  isFetchingContent: boolean;
   currentStep: SearchStep | null;
   error: string | null;
   lastResult: WebSearchResult | null;
@@ -75,6 +77,7 @@ export function getStepLabel(step: SearchStep): string {
 
 export function useWebSearch(options: UseWebSearchOptions = {}): UseWebSearchReturn {
   const [isSearching, setIsSearching] = useState(false);
+  const [isFetchingContent, setIsFetchingContent] = useState(false);
   const [currentStep, setCurrentStep] = useState<SearchStep | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [lastResult, setLastResult] = useState<WebSearchResult | null>(null);
@@ -140,6 +143,7 @@ export function useWebSearch(options: UseWebSearchOptions = {}): UseWebSearchRet
       return null;
     }
 
+    const start = Date.now();
     setIsSearching(true);
     setError(null);
     setCurrentStep('searching');
@@ -156,12 +160,28 @@ export function useWebSearch(options: UseWebSearchOptions = {}): UseWebSearchRet
       }
 
       const response = await fetch(`/api/search?${params}`);
-      const data = await response.json();
+      const data: SearchResponse = await response.json();
 
       if (!response.ok) {
         throw new Error(data.error || 'Suche fehlgeschlagen');
       }
 
+      const baseResult: WebSearchResult = {
+        originalQuestion: query,
+        search: data,
+        selection: data.results[0]
+          ? {
+              selectedIndex: 0,
+              title: data.results[0].title,
+              url: data.results[0].url,
+              reason: 'Erstes Ergebnis (AI Auswahl deaktiviert)',
+            }
+          : undefined,
+        success: true,
+        durationMs: Date.now() - start,
+      };
+
+      setLastResult(baseResult);
       setCurrentStep('complete');
       return data;
     } catch (err) {
@@ -175,12 +195,73 @@ export function useWebSearch(options: UseWebSearchOptions = {}): UseWebSearchRet
   }, [options]);
 
   /**
+   * Manually select one of the search results and fetch its full content.
+   */
+  const selectResult = useCallback(
+    async (index: number): Promise<WebSearchResult | null> => {
+      if (!lastResult?.search?.results?.[index]) {
+        return null;
+      }
+
+      const selected: SearchResult = lastResult.search.results[index];
+      const baseResult: WebSearchResult = {
+        ...lastResult,
+        selection: {
+          selectedIndex: index,
+          title: selected.title,
+          url: selected.url,
+          reason: lastResult.selection?.reason || 'Vom Nutzer ausgewählt',
+        },
+        success: true,
+      };
+
+      // Update selection immediately so UI reflects the choice
+      setLastResult(baseResult);
+      setIsFetchingContent(true);
+      setCurrentStep('fetching');
+      setError(null);
+
+      try {
+        const response = await fetch('/api/search', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ url: selected.url, maxLength: 15000 }),
+        });
+
+        const content = await response.json();
+
+        if (!response.ok) {
+          throw new Error(content.error || 'Fehler beim Laden des Inhalts');
+        }
+
+        const updatedResult: WebSearchResult = {
+          ...baseResult,
+          content,
+        };
+
+        setLastResult(updatedResult);
+        setCurrentStep('complete');
+        return updatedResult;
+      } catch (err) {
+        const errorMessage = err instanceof Error ? err.message : 'Unbekannter Fehler';
+        setError(errorMessage);
+        setCurrentStep('error');
+        return null;
+      } finally {
+        setIsFetchingContent(false);
+      }
+    },
+    [lastResult],
+  );
+
+  /**
    * Clear all results and errors
    */
   const clearResults = useCallback(() => {
     setLastResult(null);
     setError(null);
     setCurrentStep(null);
+    setIsFetchingContent(false);
   }, []);
 
   /**
@@ -228,7 +309,9 @@ export function useWebSearch(options: UseWebSearchOptions = {}): UseWebSearchRet
   return {
     search,
     simpleSearch,
+    selectResult,
     isSearching,
+    isFetchingContent,
     currentStep,
     error,
     lastResult,

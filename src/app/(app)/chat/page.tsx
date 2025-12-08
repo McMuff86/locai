@@ -595,21 +595,6 @@ export default function ChatPage() {
                   searxngEnabled={settings?.searxngEnabled}
                   ollamaHost={settings?.ollamaHost}
                   selectedModel={selectedModel}
-                  onWebSearchResults={(results, query) => {
-                    // Insert search results as a system message for context
-                    const contextMessage: Message = {
-                      id: uuidv4(),
-                      role: "system",
-                      content: `[Web-Suche für "${query}"]\n\n${results}\n\nBitte nutze diese Informationen, um die nächste Frage des Benutzers zu beantworten.`,
-                      timestamp: new Date(),
-                      modelName: selectedModel
-                    };
-                    addMessage(contextMessage);
-                    toast({
-                      title: "Web-Suchergebnisse hinzugefügt",
-                      description: `Ergebnisse für "${query}" wurden als Kontext eingefügt.`,
-                    });
-                  }}
                 />
               </div>
             </>

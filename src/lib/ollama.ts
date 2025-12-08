@@ -163,9 +163,13 @@ export interface ModelInfo {
 /**
  * Get detailed info about a specific model including context length
  */
-export async function getModelInfo(modelName: string): Promise<{ contextLength: number; parameterSize: string } | null> {
+export async function getModelInfo(
+  modelName: string,
+  host?: string,
+): Promise<{ contextLength: number; parameterSize: string } | null> {
   try {
-    const response = await fetch(`${OLLAMA_API_URL}/show`, {
+    const base = (host || 'http://localhost:11434').replace(/\/$/, '');
+    const response = await fetch(`${base}/api/show`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ model: modelName })

@@ -21,7 +21,8 @@ import {
   Download,
   CheckCircle2,
   Globe,
-  ExternalLink
+  ExternalLink,
+  AlertCircle
 } from 'lucide-react';
 
 export default function SettingsPage() {
@@ -29,6 +30,7 @@ export default function SettingsPage() {
   const { theme, setTheme } = useTheme();
   const [isPickingFolder, setIsPickingFolder] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
+  const [status, setStatus] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
 
   const pickFolder = async (type: 'comfyPath' | 'outputPath' | 'notesPath' | 'dataPath') => {
     setIsPickingFolder(type);
@@ -66,6 +68,11 @@ export default function SettingsPage() {
   const showSaved = () => {
     setSaved(true);
     setTimeout(() => setSaved(false), 2000);
+  };
+
+  const showStatus = (type: 'success' | 'error', message: string) => {
+    setStatus({ type, message });
+    setTimeout(() => setStatus(null), 2500);
   };
 
   const handleInputChange = (key: string, value: string) => {
@@ -357,7 +364,12 @@ export default function SettingsPage() {
                 size="sm"
                 onClick={async () => {
                   const success = await saveToFile();
-                  if (success) showSaved();
+                  if (success) {
+                    showSaved();
+                    showStatus('success', 'Einstellungen wurden gespeichert.');
+                  } else {
+                    showStatus('error', 'Speichern in Datei fehlgeschlagen.');
+                  }
                 }}
                 disabled={!settings?.dataPath}
                 className="gap-2"
@@ -369,8 +381,25 @@ export default function SettingsPage() {
                 variant="outline"
                 size="sm"
                 onClick={async () => {
-                  const success = await loadFromFile();
-                  if (success) showSaved();
+                  const before = JSON.stringify(settings);
+                  const result = await loadFromFile();
+                  if (result.success) {
+                    showSaved();
+                    const after = JSON.stringify(result.updatedSettings ?? settings);
+                    const changed = before !== after;
+                    const loadedNotesPath = result.updatedSettings?.notesPath;
+                    const noteInfo = loadedNotesPath
+                      ? `notesPath: ${loadedNotesPath}`
+                      : 'notesPath nicht gesetzt';
+                    showStatus(
+                      'success',
+                      changed
+                        ? `Einstellungen aus Datei geladen (${noteInfo}).`
+                        : `Keine Änderungen (Datei entspricht aktuellem Stand, ${noteInfo}).`
+                    );
+                  } else {
+                    showStatus('error', 'Konnte Datei nicht laden (Pfad/JSON prüfen).');
+                  }
                 }}
                 disabled={!settings?.dataPath}
                 className="gap-2"
@@ -379,6 +408,20 @@ export default function SettingsPage() {
                 Aus Datei laden
               </Button>
             </div>
+            {status && (
+              <div
+                className={`flex items-center gap-2 text-sm mt-2 ${
+                  status.type === 'success' ? 'text-emerald-500' : 'text-destructive'
+                }`}
+              >
+                {status.type === 'success' ? (
+                  <CheckCircle2 className="h-4 w-4" />
+                ) : (
+                  <AlertCircle className="h-4 w-4" />
+                )}
+                {status.message}
+              </div>
+            )}
           </div>
         </section>
 

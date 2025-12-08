@@ -59,7 +59,12 @@ export interface UseSettingsReturn {
   resetSettings: () => void;
   isLoaded: boolean;
   saveToFile: () => Promise<boolean>;
-  loadFromFile: (dataPath?: string) => Promise<boolean>;
+  loadFromFile: (dataPath?: string) => Promise<{
+    success: boolean;
+    updatedSettings: AppSettings | null;
+    source?: 'file' | 'default';
+    path?: string | null;
+  }>;
   settingsPath: string | null;
 }
 
@@ -165,7 +170,7 @@ export function useSettings(): UseSettingsReturn {
         // Ignore
       }
     }
-  }, [settings.dataPath]);
+  }, [settings]);
   
   // Manual save to file
   const saveToFile = useCallback(async (): Promise<boolean> => {
@@ -187,10 +192,15 @@ export function useSettings(): UseSettingsReturn {
   }, [settings]);
   
   // Load from specific file
-  const loadFromFile = useCallback(async (dataPath?: string): Promise<boolean> => {
+  const loadFromFile = useCallback(async (dataPath?: string): Promise<{
+    success: boolean;
+    updatedSettings: AppSettings | null;
+    source?: 'file' | 'default';
+    path?: string | null;
+  }> => {
     try {
       const path = dataPath || settings.dataPath;
-      if (!path) return false;
+      if (!path) return { success: false, updatedSettings: null };
       
       const response = await fetch(`/api/settings?dataPath=${encodeURIComponent(path)}`);
       const data = await response.json();
@@ -198,11 +208,16 @@ export function useSettings(): UseSettingsReturn {
       if (data.success) {
         setSettings(prev => ({ ...prev, ...data.settings, dataPath: path }));
         setSettingsPath(data.path);
-        return true;
+        return {
+          success: true,
+          updatedSettings: { ...settings, ...data.settings, dataPath: path },
+          source: data.source,
+          path: data.path,
+        };
       }
-      return false;
+      return { success: false, updatedSettings: null };
     } catch {
-      return false;
+      return { success: false, updatedSettings: null };
     }
   }, [settings.dataPath]);
 

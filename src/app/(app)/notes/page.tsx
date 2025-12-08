@@ -37,6 +37,7 @@ export default function NotesPage() {
     selectedModel,
     installedModels,
     host,
+    searxngUrl,
   } = useNotesContext();
   
   // Local state for note editing
@@ -317,6 +318,7 @@ export default function NotesPage() {
           <NoteAIActions
             basePath={basePath}
             host={host}
+            searxngUrl={searxngUrl}
             content={form.content}
             selectedNoteId={selectedId}
             model={model}

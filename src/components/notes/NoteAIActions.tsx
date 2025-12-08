@@ -1,11 +1,14 @@
 "use client";
 
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
+import { Textarea } from '@/components/ui/textarea';
+import { getModelInfo } from '@/lib/ollama';
 
 interface NoteAIActionsProps {
   basePath?: string;
   host?: string;
+  searxngUrl?: string;
   content: string;
   selectedNoteId: string | null;
   model: string;
@@ -17,6 +20,7 @@ interface NoteAIActionsProps {
 export function NoteAIActions({
   basePath,
   host,
+  searxngUrl,
   content,
   selectedNoteId,
   model,
@@ -28,7 +32,49 @@ export function NoteAIActions({
   const [aiResult, setAiResult] = useState<string | null>(null);
   const [aiAction, setAiAction] = useState<'complete' | 'summarize'>('complete');
   const [error, setError] = useState<string | null>(null);
+  const [instruction, setInstruction] = useState('');
+  const [contextMax, setContextMax] = useState<number | null>(null);
+  const [numCtx, setNumCtx] = useState<number | null>(null);
+  const [loadingCtx, setLoadingCtx] = useState(false);
+  const [useWebSearch, setUseWebSearch] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
   const aiAbortControllerRef = useRef<AbortController | null>(null);
+
+  // Load context window info for selected model
+  useEffect(() => {
+    let cancelled = false;
+    const loadCtx = async () => {
+      if (!model) {
+        setContextMax(null);
+        setNumCtx(null);
+        return;
+      }
+      setLoadingCtx(true);
+      try {
+        const info = await getModelInfo(model, host);
+        if (cancelled) return;
+        if (info?.contextLength) {
+          setContextMax(info.contextLength);
+          setNumCtx(info.contextLength);
+        } else {
+          setContextMax(null);
+          setNumCtx(null);
+        }
+      } catch (err) {
+        if (!cancelled) {
+          console.error('ctx load error', err);
+          setContextMax(null);
+          setNumCtx(null);
+        }
+      } finally {
+        if (!cancelled) setLoadingCtx(false);
+      }
+    };
+    loadCtx();
+    return () => {
+      cancelled = true;
+    };
+  }, [model, host]);
 
   const stopAi = useCallback(() => {
     if (aiAbortControllerRef.current) {
@@ -38,7 +84,7 @@ export function NoteAIActions({
     setAiLoading(false);
   }, []);
 
-  const runAi = async (action: 'complete' | 'summarize') => {
+  const runAi = async (action: 'complete' | 'summarize', withWebSearch = false) => {
     if (!basePath) {
       setError('Bitte zuerst den Notizen-Pfad setzen.');
       return;
@@ -77,6 +123,11 @@ export function NoteAIActions({
           action,
           model,
           host,
+        prompt: instruction || undefined,
+        numCtx: numCtx || undefined,
+        useWebSearch: withWebSearch || useWebSearch,
+        searchQuery: searchQuery || instruction || undefined,
+        searxngUrl,
         }),
         signal: abortController.signal,
       });
@@ -178,6 +229,105 @@ export function NoteAIActions({
         >
           {aiLoading && aiAction === 'summarize' ? 'KI fasst...' : 'KI fasst zusammen'}
         </Button>
+        <Button
+          variant="default"
+          size="sm"
+          onClick={() => runAi('complete', true)}
+          disabled={aiLoading}
+        >
+          {aiLoading && aiAction === 'complete' && useWebSearch ? 'KI + Websuche...' : 'KI ergänzt + Websuche'}
+        </Button>
+      </div>
+
+      {/* Context window control */}
+      <div className="space-y-2">
+        <div className="flex items-center justify-between gap-2">
+          <span className="text-xs text-muted-foreground">
+            Kontext-Fenster (Tokens)
+          </span>
+          <span className="text-xs text-muted-foreground">
+            {loadingCtx
+              ? 'Lade...'
+              : contextMax
+              ? `${numCtx ?? contextMax} / ${contextMax}`
+              : 'Nicht verfügbar'}
+          </span>
+        </div>
+        {contextMax ? (
+          <div className="flex items-center gap-3">
+            <input
+              type="range"
+              min={1024}
+              max={contextMax}
+              step={512}
+              value={numCtx ?? contextMax}
+              onChange={(e) => setNumCtx(parseInt(e.target.value, 10))}
+              className="flex-1"
+              disabled={aiLoading}
+            />
+            <input
+              type="number"
+              min={512}
+              max={contextMax}
+              step={256}
+              value={numCtx ?? contextMax}
+              onChange={(e) => {
+                const val = parseInt(e.target.value, 10);
+                if (Number.isNaN(val)) return;
+                setNumCtx(Math.min(Math.max(val, 512), contextMax));
+              }}
+              className="w-24 h-9 rounded-md border border-input bg-background px-2 text-sm"
+              disabled={aiLoading}
+            />
+          </div>
+        ) : (
+          <p className="text-xs text-muted-foreground">
+            Kontext-Länge für dieses Modell konnte nicht geladen werden.
+          </p>
+        )}
+      </div>
+
+      {/* Optional user instruction */}
+      <div className="space-y-1">
+        <label className="text-xs text-muted-foreground">
+          Optionaler Prompt (spezifiziere, was ergänzt oder wie zusammengefasst werden soll)
+        </label>
+        <Textarea
+          value={instruction}
+          onChange={(e) => setInstruction(e.target.value)}
+          placeholder="Beispiel: Schreibe eine stichpunktartige Fortsetzung mit Fokus auf Schritte zur GPU-Optimierung."
+          className="min-h-[80px]"
+        />
+      </div>
+
+      {/* Websearch controls */}
+      <div className="space-y-2">
+        <div className="flex items-center gap-2">
+          <input
+            type="checkbox"
+            id="use-websearch"
+            checked={useWebSearch}
+            onChange={(e) => setUseWebSearch(e.target.checked)}
+            disabled={aiLoading}
+          />
+          <label htmlFor="use-websearch" className="text-sm">
+            Websuche einbeziehen
+          </label>
+        </div>
+        {useWebSearch && (
+          <div className="space-y-1">
+            <label className="text-xs text-muted-foreground">
+              Suchanfrage (leer lassen = nutzt deinen Prompt oder den Notiz-Titel)
+            </label>
+            <Textarea
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Beispiel: Aktuelle Best Practices für GPU Speicheroptimierung"
+              className="min-h-[60px]"
+              disabled={aiLoading}
+            />
+          </div>
+        )}
       </div>
       
       {/* Error Display */}
@@ -230,15 +380,24 @@ export function NoteAIActions({
           </div>
           
           {/* Streaming text with blinking cursor */}
-          <div className={`text-sm whitespace-pre-wrap border-l-2 pl-3 py-1 ${
-            aiLoading ? 'border-primary/30' : 'border-green-500/30'
-          }`}>
-            {aiResult}
-            {aiLoading && (
-              <span className="inline-block w-2 h-4 ml-0.5 bg-primary animate-pulse" 
-                    style={{ animation: 'cursor-blink 0.8s ease-in-out infinite' }} />
-            )}
-          </div>
+          {aiLoading ? (
+            <div className="text-sm whitespace-pre-wrap border-l-2 pl-3 py-1 border-primary/30">
+              {aiResult}
+              <span
+                className="inline-block w-2 h-4 ml-0.5 bg-primary animate-pulse"
+                style={{ animation: 'cursor-blink 0.8s ease-in-out infinite' }}
+              />
+            </div>
+          ) : (
+            aiResult && (
+              <Textarea
+                value={aiResult}
+                onChange={(e) => setAiResult(e.target.value)}
+                className="text-sm whitespace-pre-wrap border-l-2 pl-3 py-1 border-green-500/30"
+                rows={8}
+              />
+            )
+          )}
           
           {/* Action buttons (only when done) */}
           {!aiLoading && aiResult && (
