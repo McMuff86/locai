@@ -4,6 +4,11 @@ import { exec } from 'child_process';
 import { promisify } from 'util';
 
 const execAsync = promisify(exec);
+const DEFAULT_OLLAMA_HOST = 'http://localhost:11434';
+
+function sanitizeHost(host: string): string {
+  return host.replace(/\/$/, '');
+}
 
 /**
  * System Stats API
@@ -214,9 +219,10 @@ async function getGpuStats(): Promise<GpuStats> {
 }
 
 // Get Ollama running models
-async function getOllamaStats(): Promise<SystemStats['ollama']> {
+async function getOllamaStats(ollamaHost?: string): Promise<SystemStats['ollama']> {
   try {
-    const response = await fetch('http://localhost:11434/api/ps', {
+    const base = sanitizeHost(ollamaHost || DEFAULT_OLLAMA_HOST);
+    const response = await fetch(`${base}/api/ps`, {
       signal: AbortSignal.timeout(2000)
     });
     
@@ -244,12 +250,15 @@ async function getOllamaStats(): Promise<SystemStats['ollama']> {
   }
 }
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
+    const { searchParams } = new URL(request.url);
+    const ollamaHost = searchParams.get('ollamaHost') || undefined;
+
     const [cpuUsage, gpuStats, ollamaStats] = await Promise.all([
       getCpuUsage(),
       getGpuStats(),
-      getOllamaStats()
+      getOllamaStats(ollamaHost ? sanitizeHost(ollamaHost) : undefined)
     ]);
     
     const memoryStats = getMemoryStats();

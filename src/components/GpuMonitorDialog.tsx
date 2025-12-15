@@ -12,6 +12,7 @@ import {
 } from './ui/dialog';
 import { Button } from './ui/button';
 import { cn } from '../lib/utils';
+import { useSettings } from '../hooks/useSettings';
 
 interface GpuProcess {
   pid: number;
@@ -161,6 +162,7 @@ const TempDisplay = ({ temp }: { temp: number }) => {
 };
 
 export function GpuMonitorDialog({ isGenerating = false, children }: GpuMonitorDialogProps) {
+  const { settings } = useSettings();
   const [stats, setStats] = useState<SystemStats | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [open, setOpen] = useState(false);
@@ -168,7 +170,12 @@ export function GpuMonitorDialog({ isGenerating = false, children }: GpuMonitorD
   const fetchStats = useCallback(async () => {
     try {
       setIsLoading(true);
-      const response = await fetch('/api/system-stats');
+      const baseUrl = '/api/system-stats';
+      const url = settings?.ollamaHost
+        ? `${baseUrl}?ollamaHost=${encodeURIComponent(settings.ollamaHost)}`
+        : baseUrl;
+
+      const response = await fetch(url);
       if (!response.ok) throw new Error('Failed to fetch');
       const data = await response.json();
       setStats(data);
@@ -177,7 +184,7 @@ export function GpuMonitorDialog({ isGenerating = false, children }: GpuMonitorD
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [settings?.ollamaHost]);
 
   // Fetch on open
   useEffect(() => {
@@ -376,4 +383,3 @@ export function GpuMonitorDialog({ isGenerating = false, children }: GpuMonitorD
 }
 
 export default GpuMonitorDialog;
-

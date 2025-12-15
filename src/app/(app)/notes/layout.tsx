@@ -57,7 +57,7 @@ export default function NotesLayout({
 }) {
   const pathname = usePathname();
   const { settings, isLoaded } = useSettings();
-  const { models, selectedModel } = useModels();
+  const { models, selectedModel } = useModels(settings?.ollamaHost);
   
   const basePath = settings?.notesPath;
   
@@ -176,4 +176,3 @@ export default function NotesLayout({
     </NotesContext.Provider>
   );
 }
-

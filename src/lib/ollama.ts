@@ -9,8 +9,39 @@ import {
 } from './templates';
 import { MessageContent, MessageImageContent } from '../types/chat';
 
-// Base URL for the Ollama API
-const OLLAMA_API_URL = 'http://localhost:11434/api';
+const DEFAULT_OLLAMA_HOST = 'http://localhost:11434';
+const SETTINGS_STORAGE_KEY = 'locai-settings';
+
+function sanitizeHost(host: string): string {
+  return host.replace(/\/$/, '');
+}
+
+function resolveOllamaHost(explicitHost?: string): string {
+  if (explicitHost) return sanitizeHost(explicitHost);
+
+  if (typeof window !== 'undefined') {
+    try {
+      const stored = window.localStorage.getItem(SETTINGS_STORAGE_KEY);
+      if (stored) {
+        const parsed = JSON.parse(stored) as { ollamaHost?: unknown };
+        if (typeof parsed.ollamaHost === 'string' && parsed.ollamaHost.trim()) {
+          return sanitizeHost(parsed.ollamaHost.trim());
+        }
+      }
+    } catch {
+      // Ignore settings parse errors and fall back
+    }
+  }
+
+  const envHost = process.env.NEXT_PUBLIC_OLLAMA_URL;
+  if (envHost) return sanitizeHost(envHost);
+
+  return DEFAULT_OLLAMA_HOST;
+}
+
+function resolveOllamaApiBase(host?: string): string {
+  return `${resolveOllamaHost(host)}/api`;
+}
 
 // Interface for Ollama models
 export interface OllamaModel {
@@ -110,9 +141,9 @@ export interface StreamChunk {
 /**
  * Fetches all available models from Ollama
  */
-export async function getOllamaModels(): Promise<OllamaModel[]> {
+export async function getOllamaModels(host?: string): Promise<OllamaModel[]> {
   try {
-    const response = await fetch(`${OLLAMA_API_URL}/tags`);
+    const response = await fetch(`${resolveOllamaApiBase(host)}/tags`);
     
     if (!response.ok) {
       throw new Error(`Error fetching models: ${response.statusText}`);
@@ -129,8 +160,8 @@ export async function getOllamaModels(): Promise<OllamaModel[]> {
 /**
  * Delete a model from Ollama
  */
-export async function deleteOllamaModel(modelName: string): Promise<void> {
-  const response = await fetch(`${OLLAMA_API_URL}/delete`, {
+export async function deleteOllamaModel(modelName: string, host?: string): Promise<void> {
+  const response = await fetch(`${resolveOllamaApiBase(host)}/delete`, {
     method: 'DELETE',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ model: modelName })
@@ -168,7 +199,7 @@ export async function getModelInfo(
   host?: string,
 ): Promise<{ contextLength: number; parameterSize: string } | null> {
   try {
-    const base = (host || 'http://localhost:11434').replace(/\/$/, '');
+    const base = resolveOllamaHost(host);
     const response = await fetch(`${base}/api/show`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -300,7 +331,8 @@ export function formatMessageContent(content: MessageContent): string | OllamaCh
 export async function sendChatMessage(
   model: string,
   messages: { role: 'system' | 'user' | 'assistant'; content: MessageContent }[],
-  options = {}
+  options = {},
+  host?: string
 ): Promise<ChatResponse> {
   try {
     // Get model-specific template if available
@@ -386,7 +418,7 @@ export async function sendChatMessage(
     
     console.log('Sending chat request with payload:', JSON.stringify(chatRequest, null, 2));
     
-    const response = await fetch(`${OLLAMA_API_URL}/chat`, {
+    const response = await fetch(`${resolveOllamaApiBase(host)}/chat`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json'
@@ -443,7 +475,8 @@ export async function sendStreamingChatMessage(
   onChunk: (content: string, fullContent: string) => void,
   onComplete: (response: ChatResponse) => void,
   onError?: (error: Error) => void,
-  options = {}
+  options = {},
+  host?: string
 ): Promise<void> {
   try {
     const modelTemplate = getOllamaTemplate(model);
@@ -510,7 +543,7 @@ export async function sendStreamingChatMessage(
       chatRequest.template = modelTemplate;
     }
     
-    const response = await fetch(`${OLLAMA_API_URL}/chat`, {
+    const response = await fetch(`${resolveOllamaApiBase(host)}/chat`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(chatRequest)

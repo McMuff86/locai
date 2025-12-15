@@ -12,19 +12,24 @@ import {
 } from 'lucide-react';
 import { Button } from './ui/button';
 import { useOllamaStatus } from '../hooks/useOllamaStatus';
+import { useSettings } from '../hooks/useSettings';
 
 interface OllamaStatusProps {
   showVersion?: boolean;
   compact?: boolean;
   className?: string;
+  host?: string;
 }
 
 export function OllamaStatus({ 
   showVersion = false, 
   compact = false,
-  className = '' 
+  className = '',
+  host
 }: OllamaStatusProps) {
-  const { isConnected, isChecking, error, version, refresh } = useOllamaStatus();
+  const { settings } = useSettings();
+  const resolvedHost = host ?? settings?.ollamaHost;
+  const { isConnected, isChecking, error, version, refresh } = useOllamaStatus(resolvedHost);
 
   if (compact) {
     return (
@@ -123,8 +128,10 @@ export function OllamaStatus({
 }
 
 // Inline status for header/footer
-export function OllamaStatusInline({ className = '' }: { className?: string }) {
-  const { isConnected, isChecking, refresh } = useOllamaStatus();
+export function OllamaStatusInline({ className = '', host }: { className?: string; host?: string }) {
+  const { settings } = useSettings();
+  const resolvedHost = host ?? settings?.ollamaHost;
+  const { isConnected, isChecking, refresh } = useOllamaStatus(resolvedHost);
   
   return (
     <button
@@ -152,4 +159,3 @@ export function OllamaStatusInline({ className = '' }: { className?: string }) {
 }
 
 export default OllamaStatus;
-

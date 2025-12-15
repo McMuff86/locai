@@ -51,7 +51,7 @@ function ChatPageContent() {
     getSystemPrompt,
     contextInfo,
     refreshModels
-  } = useModels();
+  } = useModels(settings?.ollamaHost);
 
   const {
     conversation,
@@ -636,6 +636,7 @@ function ChatPageContent() {
       <ModelPullDialog
         isOpen={showModelPull}
         onClose={() => setShowModelPull(false)}
+        host={settings?.ollamaHost}
         installedModels={models.map(m => m.name)}
         installedModelsDetails={models}
         onModelPulled={(modelName) => {
@@ -646,7 +647,7 @@ function ChatPageContent() {
           refreshModels();
         }}
         onDeleteModel={async (modelName) => {
-          await deleteOllamaModel(modelName);
+          await deleteOllamaModel(modelName, settings?.ollamaHost);
           toast({
             title: 'Modell gelöscht',
             description: `${modelName} wurde erfolgreich entfernt.`,

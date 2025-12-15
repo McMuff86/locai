@@ -10,10 +10,17 @@ export interface OllamaStatus {
   version?: string;
 }
 
-const OLLAMA_BASE_URL = process.env.NEXT_PUBLIC_OLLAMA_URL || 'http://localhost:11434';
 const CHECK_INTERVAL = 10000; // Check every 10 seconds
 
-export function useOllamaStatus() {
+function sanitizeHost(host: string): string {
+  return host.replace(/\/$/, '');
+}
+
+export function useOllamaStatus(host?: string) {
+  const baseUrl = sanitizeHost(
+    host || process.env.NEXT_PUBLIC_OLLAMA_URL || 'http://localhost:11434'
+  );
+
   const [status, setStatus] = useState<OllamaStatus>({
     isConnected: false,
     isChecking: true,
@@ -28,7 +35,7 @@ export function useOllamaStatus() {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 5000);
       
-      const response = await fetch(`${OLLAMA_BASE_URL}/api/version`, {
+      const response = await fetch(`${baseUrl}/api/version`, {
         signal: controller.signal,
       });
       
@@ -65,7 +72,7 @@ export function useOllamaStatus() {
         error: errorMessage,
       });
     }
-  }, []);
+  }, [baseUrl]);
 
   // Initial check
   useEffect(() => {
@@ -95,4 +102,3 @@ export function useOllamaStatus() {
 }
 
 export default useOllamaStatus;
-

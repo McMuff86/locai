@@ -4,6 +4,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { Cpu, MemoryStick, Zap, Activity, Server, Thermometer, Monitor, ChevronDown, ChevronUp } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { cn } from '../lib/utils';
+import { useSettings } from '../hooks/useSettings';
 
 interface GpuProcess {
   pid: number;
@@ -200,6 +201,7 @@ export function SystemMonitor({
   refreshInterval = 2000,
   compact = false 
 }: SystemMonitorProps) {
+  const { settings } = useSettings();
   const [stats, setStats] = useState<SystemStats | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isVisible, setIsVisible] = useState(true);
@@ -207,7 +209,12 @@ export function SystemMonitor({
 
   const fetchStats = useCallback(async () => {
     try {
-      const response = await fetch('/api/system-stats');
+      const baseUrl = '/api/system-stats';
+      const url = settings?.ollamaHost
+        ? `${baseUrl}?ollamaHost=${encodeURIComponent(settings.ollamaHost)}`
+        : baseUrl;
+
+      const response = await fetch(url);
       if (!response.ok) throw new Error('Failed to fetch stats');
       const data = await response.json();
       setStats(data);
@@ -216,7 +223,7 @@ export function SystemMonitor({
       setError('Could not fetch system stats');
       console.error('Error fetching system stats:', err);
     }
-  }, []);
+  }, [settings?.ollamaHost]);
 
   useEffect(() => {
     fetchStats();

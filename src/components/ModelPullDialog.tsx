@@ -49,6 +49,7 @@ interface ModelPullDialogProps {
   installedModels?: string[];
   installedModelsDetails?: OllamaModel[];
   onDeleteModel?: (modelName: string) => Promise<void>;
+  host?: string;
 }
 
 // Category config
@@ -70,7 +71,8 @@ export function ModelPullDialog({
   onModelPulled,
   installedModels = [],
   installedModelsDetails = [],
-  onDeleteModel
+  onDeleteModel,
+  host
 }: ModelPullDialogProps) {
   const [models, setModels] = useState<ModelInfo[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
@@ -151,7 +153,7 @@ export function ModelPullDialog({
       const response = await fetch('/api/ollama/pull', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ model: modelName }),
+        body: JSON.stringify({ model: modelName, host }),
       });
 
       if (!response.ok) {
@@ -190,7 +192,7 @@ export function ModelPullDialog({
       setIsPulling(false);
       setPullingModel(null);
     }
-  }, [onModelPulled]);
+  }, [onModelPulled, host]);
 
   // Filter models
   const filteredModels = models.filter(model => {

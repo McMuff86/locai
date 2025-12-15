@@ -4,6 +4,10 @@ export const dynamic = 'force-dynamic';
 
 const OLLAMA_BASE_URL = process.env.NEXT_PUBLIC_OLLAMA_URL || 'http://localhost:11434';
 
+function sanitizeHost(host: string): string {
+  return host.replace(/\/$/, '');
+}
+
 // Comprehensive model list organized by category
 const POPULAR_MODELS = [
   // === GENERAL PURPOSE ===
@@ -85,7 +89,7 @@ export async function GET() {
 // POST - Start pulling a model (returns streaming response)
 export async function POST(request: Request) {
   try {
-    const { model } = await request.json();
+    const { model, host } = await request.json();
     
     if (!model) {
       return NextResponse.json(
@@ -93,9 +97,11 @@ export async function POST(request: Request) {
         { status: 400 }
       );
     }
+
+    const baseUrl = sanitizeHost((typeof host === 'string' && host.trim()) ? host.trim() : OLLAMA_BASE_URL);
     
     // Start pull request to Ollama
-    const response = await fetch(`${OLLAMA_BASE_URL}/api/pull`, {
+    const response = await fetch(`${baseUrl}/api/pull`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name: model, stream: true }),
@@ -161,4 +167,3 @@ export async function POST(request: Request) {
     );
   }
 }
-

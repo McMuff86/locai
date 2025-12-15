@@ -23,7 +23,7 @@ export interface UseModelsReturn {
   isLoadingContextInfo: boolean;
 }
 
-export function useModels(): UseModelsReturn {
+export function useModels(host?: string): UseModelsReturn {
   const [models, setModels] = useState<OllamaModel[]>([]);
   const [selectedModel, setSelectedModel] = useState<string>('');
   const [isLoading, setIsLoading] = useState(true);
@@ -35,20 +35,23 @@ export function useModels(): UseModelsReturn {
     try {
       setIsLoading(true);
       setError(null);
-      const ollamaModels = await getOllamaModels();
+      const ollamaModels = await getOllamaModels(host);
       setModels(ollamaModels);
       
-      // Auto-select first model if none selected
-      if (ollamaModels.length > 0 && !selectedModel) {
-        setSelectedModel(ollamaModels[0].name);
-      }
+      // Keep current selection if still available; otherwise pick the first model
+      setSelectedModel(prevSelected => {
+        const first = ollamaModels[0]?.name || '';
+        if (!prevSelected) return first;
+        const stillExists = ollamaModels.some(m => m.name === prevSelected);
+        return stillExists ? prevSelected : first;
+      });
     } catch (err) {
       console.error('Error loading models:', err);
       setError('Connection to Ollama could not be established. Please check if Ollama is running.');
     } finally {
       setIsLoading(false);
     }
-  }, [selectedModel]);
+  }, [host]);
 
   // Fetch context info when model changes
   useEffect(() => {
@@ -60,7 +63,7 @@ export function useModels(): UseModelsReturn {
     const fetchContextInfo = async () => {
       setIsLoadingContextInfo(true);
       try {
-        const info = await getModelInfo(selectedModel);
+        const info = await getModelInfo(selectedModel, host);
         setContextInfo(info);
       } catch (err) {
         console.error('Error fetching context info:', err);
@@ -71,11 +74,11 @@ export function useModels(): UseModelsReturn {
     };
     
     fetchContextInfo();
-  }, [selectedModel]);
+  }, [selectedModel, host]);
 
   useEffect(() => {
     fetchModels();
-  }, []);
+  }, [fetchModels]);
 
   // Filter vision models
   const visionModels = models.filter(m => 
@@ -104,4 +107,3 @@ export function useModels(): UseModelsReturn {
 }
 
 export default useModels;
-

@@ -18,6 +18,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Button } from './ui/button';
 import { useToast } from './ui/use-toast';
 import { cn } from '../lib/utils';
+import { useSettings } from '../hooks/useSettings';
 
 interface GpuProcess {
   pid: number;
@@ -194,6 +195,7 @@ const ProcessItem = ({
 
 export function GpuMonitorWidget({ isGenerating = false }: GpuMonitorWidgetProps) {
   const { toast } = useToast();
+  const { settings } = useSettings();
   const [stats, setStats] = useState<SystemStats | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [killingPid, setKillingPid] = useState<number | null>(null);
@@ -203,14 +205,19 @@ export function GpuMonitorWidget({ isGenerating = false }: GpuMonitorWidgetProps
 
   const fetchStats = useCallback(async () => {
     try {
-      const response = await fetch('/api/system-stats');
+      const baseUrl = '/api/system-stats';
+      const url = settings?.ollamaHost
+        ? `${baseUrl}?ollamaHost=${encodeURIComponent(settings.ollamaHost)}`
+        : baseUrl;
+
+      const response = await fetch(url);
       if (!response.ok) throw new Error('Failed to fetch');
       const data = await response.json();
       setStats(data);
     } catch (err) {
       console.error('Error fetching stats:', err);
     }
-  }, []);
+  }, [settings?.ollamaHost]);
 
   // Auto-refresh
   useEffect(() => {
@@ -448,4 +455,3 @@ export function GpuMonitorWidget({ isGenerating = false }: GpuMonitorWidgetProps
 }
 
 export default GpuMonitorWidget;
-
