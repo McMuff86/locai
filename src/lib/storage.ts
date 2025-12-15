@@ -1,4 +1,4 @@
-import { Conversation, Message, MessageContent, MessageImageContent } from "../types/chat";
+import { Conversation, MessageContent, MessageImageContent } from "../types/chat";
 
 // Key for storing conversations in localStorage
 const STORAGE_KEY = "locai-conversations";
@@ -8,9 +8,130 @@ const MAX_IMAGE_SIZE = 200 * 1024; // 200KB
 
 /**
  * Process message content to ensure it can be safely stored
- * - Compresses large images
+ * - Replaces large inline images with placeholders
  * - Handles arrays and objects properly
  */
+function isQuotaExceededError(error: unknown): boolean {
+  const anyError = error as { name?: unknown; code?: unknown };
+
+  const name = typeof anyError?.name === 'string' ? anyError.name : '';
+  const code = typeof anyError?.code === "number" ? anyError.code : null;
+
+  return (
+    name === 'QuotaExceededError' ||
+    name === 'NS_ERROR_DOM_QUOTA_REACHED' ||
+    code === 22 ||
+    code === 1014
+  );
+}
+
+function isDataImageUrl(url: string): boolean {
+  return url.startsWith('data:image/');
+}
+
+function estimateDataUrlPayloadBytes(dataUrl: string): number | null {
+  const commaIndex = dataUrl.indexOf(',');
+  if (commaIndex < 0) return null;
+
+  const meta = dataUrl.slice(0, commaIndex);
+  const data = dataUrl.slice(commaIndex + 1);
+
+  if (!meta.includes(';base64')) {
+    return null;
+  }
+
+  const padding = data.endsWith('==') ? 2 : data.endsWith('=') ? 1 : 0;
+  const bytes = Math.floor((data.length * 3) / 4) - padding;
+  return Number.isFinite(bytes) && bytes >= 0 ? bytes : null;
+}
+
+function formatBytes(bytes: number): string {
+  const kb = Math.ceil(bytes / 1024);
+  return `${kb}KB`;
+}
+
+function buildImagePlaceholder(params: {
+  reason: string;
+  alt?: string;
+  sizeBytes?: number | null;
+}): string {
+  const parts: string[] = [params.reason];
+  if (typeof params.sizeBytes === "number" && params.sizeBytes > 0) {
+    parts.push(formatBytes(params.sizeBytes));
+  }
+  if (params.alt) {
+    parts.push(`alt: "${params.alt}"`);
+  }
+  return `[Bild nicht gespeichert: ${parts.join(", ")}]`;
+}
+
+function processImageContentForStorage(
+  imageContent: MessageImageContent
+): string | MessageImageContent {
+  if (!isDataImageUrl(imageContent.url)) {
+    return imageContent;
+  }
+
+  const payloadBytes = estimateDataUrlPayloadBytes(imageContent.url);
+  const isTooLarge =
+    (typeof payloadBytes === "number" && payloadBytes > MAX_IMAGE_SIZE) ||
+    (payloadBytes === null && imageContent.url.length > MAX_IMAGE_SIZE);
+
+  if (isTooLarge) {
+    return buildImagePlaceholder({
+      reason: 'zu groß für localStorage',
+      alt: imageContent.alt,
+      sizeBytes: payloadBytes,
+    });
+  }
+
+  return imageContent;
+}
+
+function stripInlineImagesForQuota(content: MessageContent): MessageContent {
+  if (typeof content === "string") return content;
+
+  if (typeof content === "object" && "type" in content && content.type === "image") {
+    const imageContent = content as MessageImageContent;
+
+    if (!isDataImageUrl(imageContent.url)) {
+      return imageContent;
+    }
+
+    const payloadBytes = estimateDataUrlPayloadBytes(imageContent.url);
+    return buildImagePlaceholder({
+      reason: 'localStorage-Quota erreicht',
+      alt: imageContent.alt,
+      sizeBytes: payloadBytes,
+    });
+  }
+
+  if (Array.isArray(content)) {
+    return content.map((item) => {
+      if (typeof item === "string") return item;
+
+      if (typeof item === "object" && "type" in item && item.type === "image") {
+        const imageItem = item as MessageImageContent;
+
+        if (!isDataImageUrl(imageItem.url)) {
+          return imageItem;
+        }
+
+        const payloadBytes = estimateDataUrlPayloadBytes(imageItem.url);
+        return buildImagePlaceholder({
+          reason: 'localStorage-Quota erreicht',
+          alt: imageItem.alt,
+          sizeBytes: payloadBytes,
+        });
+      }
+
+      return item;
+    });
+  }
+
+  return content;
+}
+
 function processMessageContentForStorage(content: MessageContent): MessageContent {
   // If content is a string, no processing needed
   if (typeof content === 'string') {
@@ -21,15 +142,7 @@ function processMessageContentForStorage(content: MessageContent): MessageConten
   if (typeof content === 'object' && 'type' in content && content.type === 'image') {
     const imageContent = content as MessageImageContent;
     
-    // Check if image is a data URL and needs compression
-    if (imageContent.url.startsWith('data:image/') && imageContent.url.length > MAX_IMAGE_SIZE) {
-      return {
-        ...imageContent,
-        url: compressImage(imageContent.url)
-      };
-    }
-    
-    return imageContent;
+    return processImageContentForStorage(imageContent);
   }
   
   // If content is an array, process each item
@@ -42,15 +155,7 @@ function processMessageContentForStorage(content: MessageContent): MessageConten
       if (typeof item === 'object' && 'type' in item && item.type === 'image') {
         const imageItem = item as MessageImageContent;
         
-        // Check if image is a data URL and needs compression
-        if (imageItem.url.startsWith('data:image/') && imageItem.url.length > MAX_IMAGE_SIZE) {
-          return {
-            ...imageItem,
-            url: compressImage(imageItem.url)
-          };
-        }
-        
-        return imageItem;
+        return processImageContentForStorage(imageItem);
       }
       
       return item;
@@ -59,26 +164,6 @@ function processMessageContentForStorage(content: MessageContent): MessageConten
   
   // Fallback for other types
   return content;
-}
-
-/**
- * Compress an image data URL to reduce its size
- */
-function compressImage(dataUrl: string): string {
-  try {
-    // For now, just return a warning message - we'd implement real compression in production
-    console.warn("Image compression would happen here in production");
-    return dataUrl; // Return original for now
-    
-    // A real implementation would:
-    // 1. Create an Image object from the data URL
-    // 2. Draw it to a canvas at reduced dimensions
-    // 3. Export from canvas at lower quality
-    // 4. Return the new data URL
-  } catch (error) {
-    console.error("Error compressing image:", error);
-    return dataUrl; // Return original on error
-  }
 }
 
 /**
@@ -94,6 +179,37 @@ function processConversationForStorage(conversation: Conversation): Conversation
       content: processMessageContentForStorage(msg.content)
     }))
   };
+}
+
+function stripInlineImagesFromConversationForQuota(conversation: Conversation): Conversation {
+  return {
+    ...conversation,
+    title: typeof conversation.title === 'string' ? conversation.title : 'Bildkonversation',
+    messages: conversation.messages.map((msg) => ({
+      ...msg,
+      content: stripInlineImagesForQuota(msg.content),
+    })),
+  };
+}
+
+function setConversationsWithQuotaFallback(conversations: Conversation[]): boolean {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(conversations));
+    return true;
+  } catch (error) {
+    if (!isQuotaExceededError(error)) {
+      throw error;
+    }
+
+    try {
+      const stripped = conversations.map(stripInlineImagesFromConversationForQuota);
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(stripped));
+      return true;
+    } catch (retryError) {
+      console.error('Error saving conversations after quota fallback:', retryError);
+      return false;
+    }
+  }
 }
 
 /**
@@ -148,8 +264,8 @@ export function saveConversation(conversation: Conversation): boolean {
     // Sort by most recently updated
     conversations.sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime());
     
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(conversations));
-    return true;
+    const conversationsForStorage = conversations.map(processConversationForStorage);
+    return setConversationsWithQuotaFallback(conversationsForStorage);
   } catch (error) {
     console.error("Error saving conversation:", error);
     return false;
@@ -166,8 +282,8 @@ export function deleteConversation(conversationId: string): boolean {
     const conversations = getSavedConversations();
     const filteredConversations = conversations.filter(c => c.id !== conversationId);
     
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(filteredConversations));
-    return true;
+    const conversationsForStorage = filteredConversations.map(processConversationForStorage);
+    return setConversationsWithQuotaFallback(conversationsForStorage);
   } catch (error) {
     console.error("Error deleting conversation:", error);
     return false;
@@ -330,7 +446,10 @@ export async function importConversationsFromFile(): Promise<{ success: boolean,
           }
         }
         
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(merged));
+        const conversationsForStorage = merged.map(processConversationForStorage);
+        if (!setConversationsWithQuotaFallback(conversationsForStorage)) {
+          return { success: false, count: 0 };
+        }
         
         return { success: true, count: importCount };
       } catch (err) {
@@ -383,7 +502,11 @@ export async function importConversationsFromFile(): Promise<{ success: boolean,
             }
           }
           
-          localStorage.setItem(STORAGE_KEY, JSON.stringify(merged));
+          const conversationsForStorage = merged.map(processConversationForStorage);
+          if (!setConversationsWithQuotaFallback(conversationsForStorage)) {
+            resolve({ success: false, count: 0 });
+            return;
+          }
           
           resolve({ success: true, count: importCount });
         } catch (error) {
