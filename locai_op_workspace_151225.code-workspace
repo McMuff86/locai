@@ -1,0 +1,14 @@
+{
+	"folders": [
+		{
+			"path": "."
+		},
+		{
+			"path": "../notes"
+		},
+		{
+			"path": "../ollama-web-search"
+		}
+	],
+	"settings": {}
+}

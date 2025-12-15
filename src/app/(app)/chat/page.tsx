@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useCallback, useRef, useMemo, Suspense } from "react";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { v4 as uuidv4 } from "uuid";
 
 // Components
@@ -27,11 +27,13 @@ import { useSettings } from "@/hooks/useSettings";
 // Types & Utils
 import { Message } from "@/types/chat";
 import { getModelSystemContent, deleteOllamaModel } from "@/lib/ollama";
+import { getSavedConversations } from "@/lib/storage";
 import { useToast } from "@/components/ui/use-toast";
 import { IMAGE_ANALYSIS_PROMPT } from "@/lib/prompt-templates";
 
 function ChatPageContent() {
   const { toast } = useToast();
+  const router = useRouter();
   const searchParams = useSearchParams();
   
   // Settings hook
@@ -355,6 +357,34 @@ function ChatPageContent() {
     );
   }, [sendMessage, conversation, selectedModel, addMessage, setSelectedModel, visionModels, toast]);
 
+  // Handle load conversation from search deep-link (?load=<conversationId>)
+  const loadedConversationFromUrlRef = useRef<string | null>(null);
+  useEffect(() => {
+    const loadId = searchParams.get('load');
+    if (!loadId) return;
+    if (loadedConversationFromUrlRef.current === loadId) return;
+
+    const all = getSavedConversations();
+    const match = all.find((c) => c.id === loadId);
+    if (!match) {
+      toast({
+        title: "Chat nicht gefunden",
+        description: "Die gespeicherte Konversation konnte nicht geladen werden.",
+        variant: "destructive",
+      });
+      loadedConversationFromUrlRef.current = loadId;
+      return;
+    }
+
+    loadedConversationFromUrlRef.current = loadId;
+    handleSelectConversation(match);
+
+    const nextParams = new URLSearchParams(searchParams.toString());
+    nextParams.delete('load');
+    const qs = nextParams.toString();
+    router.replace(qs ? `/chat?${qs}` : '/chat', { scroll: false });
+  }, [searchParams, router, toast, handleSelectConversation]);
+
   // Handle image analysis from gallery
   useEffect(() => {
     const shouldAnalyze = searchParams.get('analyzeImage');
@@ -642,4 +672,3 @@ export default function ChatPage() {
     </Suspense>
   );
 }
-
