@@ -1,10 +1,14 @@
 import { NextResponse } from 'next/server';
 import fs from 'fs';
 import path from 'path';
+import { assertLocalRequest } from '../../../_utils/security';
 
 export const dynamic = 'force-dynamic';
 
 export async function DELETE(request: Request) {
+  const forbidden = assertLocalRequest(request);
+  if (forbidden) return forbidden;
+
   try {
     const { searchParams } = new URL(request.url);
     const imageId = searchParams.get('id');
@@ -80,4 +84,3 @@ export async function DELETE(request: Request) {
     );
   }
 }
-

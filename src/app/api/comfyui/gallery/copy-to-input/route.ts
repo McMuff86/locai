@@ -1,10 +1,14 @@
 import { NextResponse } from 'next/server';
 import fs from 'fs';
 import path from 'path';
+import { assertLocalRequest } from '../../../_utils/security';
 
 export const dynamic = 'force-dynamic';
 
 export async function POST(request: Request) {
+  const forbidden = assertLocalRequest(request);
+  if (forbidden) return forbidden;
+
   try {
     const body = await request.json();
     const { imageId, outputPath, comfyUIPath } = body;
@@ -103,4 +107,3 @@ export async function POST(request: Request) {
     );
   }
 }
-

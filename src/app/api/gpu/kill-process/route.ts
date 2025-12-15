@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { exec } from 'child_process';
 import { promisify } from 'util';
+import { assertLocalRequest } from '../../_utils/security';
 
 const execAsync = promisify(exec);
 
@@ -25,6 +26,9 @@ const PROTECTED_PROCESSES = [
 ];
 
 export async function POST(request: Request) {
+  const forbidden = assertLocalRequest(request);
+  if (forbidden) return forbidden;
+
   try {
     const body = await request.json();
     const { pid, processName } = body;
@@ -97,11 +101,13 @@ export async function POST(request: Request) {
 }
 
 // GET method to check if kill is supported
-export async function GET() {
+export async function GET(request: Request) {
+  const forbidden = assertLocalRequest(request);
+  if (forbidden) return forbidden;
+
   return NextResponse.json({
     supported: true,
     platform: process.platform,
     warning: 'Killing GPU processes can cause data loss or system instability. Use with caution.'
   });
 }
-

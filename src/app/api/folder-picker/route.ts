@@ -3,12 +3,16 @@ import { exec } from 'child_process';
 import { promisify } from 'util';
 import path from 'path';
 import fs from 'fs';
+import { assertLocalRequest } from '../_utils/security';
 
 const execAsync = promisify(exec);
 
 export const dynamic = 'force-dynamic';
 
 export async function POST(request: Request) {
+  const forbidden = assertLocalRequest(request);
+  if (forbidden) return forbidden;
+
   try {
     const body = await request.json();
     const { initialPath, title = 'Ordner auswählen' } = body;
@@ -115,4 +119,3 @@ export async function POST(request: Request) {
     );
   }
 }
-
