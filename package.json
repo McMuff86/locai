@@ -41,7 +41,21 @@
     "three": "^0.164.1",
     "uuid": "^11.1.0"
   },
+  "eslintConfig": {
+    "extends": [
+      "next/core-web-vitals",
+      "next/typescript"
+    ],
+    "rules": {
+      "@typescript-eslint/no-explicit-any": "warn",
+      "@typescript-eslint/ban-ts-comment": "warn",
+      "prefer-const": "warn",
+      "react/no-unescaped-entities": "warn"
+    }
+  },
   "devDependencies": {
+    "eslint": "^9.17.0",
+    "eslint-config-next": "^15.5.7",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
     "@types/react": "^19",
@@ -49,6 +63,7 @@
     "@types/three": "^0.181.0",
     "supabase": "^2.15.8",
     "tailwindcss": "^4",
-    "typescript": "^5"
+    "typescript": "^5",
+    "vitest": "^2.1.9"
   }
 }

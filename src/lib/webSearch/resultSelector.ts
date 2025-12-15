@@ -29,7 +29,7 @@ function formatResults(results: SearchResult[]): string {
 /**
  * Parse AI response to extract selection
  */
-function parseSelection(response: string, results: SearchResult[]): ResultSelectionResult | null {
+export function parseSelection(response: string, results: SearchResult[]): ResultSelectionResult | null {
   try {
     // Try to parse "NUMBER|REASON" format
     const match = response.match(/^(\d+)\|(.+)$/m);
@@ -156,4 +156,3 @@ export async function selectBestResult(
 }
 
 export default selectBestResult;
-
