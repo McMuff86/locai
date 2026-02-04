@@ -40,7 +40,7 @@
 
 1. Repository klonen
    ```bash
-   git clone https://github.com/yourusername/locai.git
+   git clone https://github.com/McMuff86/locai.git
    cd locai
    ```
 

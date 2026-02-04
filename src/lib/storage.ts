@@ -348,7 +348,7 @@ export async function exportConversationsToFile(): Promise<boolean> {
           }],
         };
         
-        // @ts-ignore - TypeScript might not know about this API yet
+        // @ts-expect-error - File System Access API not yet in TypeScript lib
         const handle = await window.showSaveFilePicker(opts);
         const writable = await handle.createWritable();
         await writable.write(blob);
@@ -411,7 +411,7 @@ export async function importConversationsFromFile(): Promise<{ success: boolean,
           multiple: false
         };
         
-        // @ts-ignore - TypeScript might not know about this API yet
+        // @ts-expect-error - File System Access API not yet in TypeScript lib
         const [handle] = await window.showOpenFilePicker(opts);
         const file = await handle.getFile();
         const text = await file.text();

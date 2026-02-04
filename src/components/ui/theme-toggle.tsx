@@ -7,7 +7,7 @@ import { useTheme } from "next-themes";
 import { Button } from "./button";
 
 export function ThemeToggle() {
-  const { theme, setTheme, resolvedTheme } = useTheme();
+  const { setTheme, resolvedTheme } = useTheme();
   const [mounted, setMounted] = React.useState(false);
 
   // Only show theme toggle after hydration to avoid mismatch

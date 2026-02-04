@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useEffect, useMemo, useRef } from 'react';
+import { useState, useCallback, useEffect, useMemo } from 'react';
 import { NoteSummary, SemanticLink, GraphData, GraphSettings, defaultGraphSettings } from '../types';
 
 interface UseGraphOptions {

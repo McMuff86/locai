@@ -140,8 +140,8 @@ export function formatAssistantMessage(modelName: string, content: string) {
  * @returns The Ollama template or undefined if not available
  */
 export function getOllamaTemplate(modelName: string): string | undefined {
-  const template = getTemplateForModel(modelName);
-  return (template as any).ollamaTemplate;
+  const template = getTemplateForModel(modelName) as Record<string, unknown>;
+  return typeof template.ollamaTemplate === 'string' ? template.ollamaTemplate : undefined;
 }
 
 /**
@@ -150,7 +150,7 @@ export function getOllamaTemplate(modelName: string): string | undefined {
  * @param modelName - The name of the model
  * @returns The default options or an empty object if not available
  */
-export function getDefaultOptions(modelName: string): Record<string, any> {
-  const template = getTemplateForModel(modelName);
-  return (template as any).defaultOptions || {};
+export function getDefaultOptions(modelName: string): Record<string, unknown> {
+  const template = getTemplateForModel(modelName) as Record<string, unknown>;
+  return (template.defaultOptions as Record<string, unknown>) || {};
 } 
