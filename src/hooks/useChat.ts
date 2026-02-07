@@ -4,6 +4,7 @@ import { useState, useCallback, useRef } from 'react';
 import { v4 as uuidv4 } from 'uuid';
 import { Message, MessageContent, MessageImageContent, Conversation } from '../types/chat';
 import { sendChatMessage, sendStreamingChatMessage } from '../lib/ollama';
+import type { DocumentSearchResult, RAGContext } from '@/lib/documents/types';
 
 export interface TokenStats {
   promptTokens: number;
@@ -13,11 +14,17 @@ export interface TokenStats {
   tokensPerSecond: number;
 }
 
+export interface SendMessageOptions {
+  ragEnabled?: boolean;
+}
+
 export interface UseChatReturn {
   isLoading: boolean;
   isStreaming: boolean;
   streamingContent: string;
   tokenStats: TokenStats | null;
+  /** RAG source citations from the last message (if RAG was active) */
+  lastRAGSources: DocumentSearchResult[] | null;
   sendMessage: (
     content: string,
     images: File[] | undefined,
@@ -27,7 +34,8 @@ export interface UseChatReturn {
     onBotMessage: (msg: Message) => void,
     onModelSwitch?: (newModel: string) => void,
     visionModels?: string[],
-    useStreaming?: boolean
+    useStreaming?: boolean,
+    options?: SendMessageOptions
   ) => Promise<void>;
   clearTokenStats: () => void;
   stopStreaming: () => void;
@@ -38,6 +46,7 @@ export function useChat(): UseChatReturn {
   const [isStreaming, setIsStreaming] = useState(false);
   const [streamingContent, setStreamingContent] = useState('');
   const [tokenStats, setTokenStats] = useState<TokenStats | null>(null);
+  const [lastRAGSources, setLastRAGSources] = useState<DocumentSearchResult[] | null>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
 
   const processImages = async (files: File[]): Promise<MessageImageContent[]> => {
@@ -241,6 +250,7 @@ export function useChat(): UseChatReturn {
     isStreaming,
     streamingContent,
     tokenStats,
+    lastRAGSources,
     sendMessage,
     clearTokenStats,
     stopStreaming

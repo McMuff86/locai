@@ -5,6 +5,15 @@ import { ChatInputProps } from "../../types/chat";
 import { motion } from "framer-motion";
 import { Send, Image, X } from "lucide-react";
 import { WebSearchButton } from "./WebSearchButton";
+import { AgentModeToggle } from "./AgentModeToggle";
+import { cn } from "../../lib/utils";
+
+interface ChatInputExtendedProps extends ChatInputProps {
+  agentMode?: boolean;
+  onToggleAgentMode?: () => void;
+  enabledTools?: string[];
+  onToggleTool?: (toolName: string) => void;
+}
 
 export function ChatInput({ 
   onSend, 
@@ -14,8 +23,12 @@ export function ChatInput({
   searxngEnabled = false,
   ollamaHost = 'http://localhost:11434',
   selectedModel = 'llama3',
-  onWebSearchResults
-}: ChatInputProps) {
+  onWebSearchResults,
+  agentMode = false,
+  onToggleAgentMode,
+  enabledTools = [],
+  onToggleTool,
+}: ChatInputExtendedProps) {
   const [message, setMessage] = useState("");
   const [selectedImages, setSelectedImages] = useState<File[]>([]);
   const [imagePreviews, setImagePreviews] = useState<string[]>([]);
@@ -84,7 +97,10 @@ export function ChatInput({
 
   return (
     <motion.div
-      className="sticky bottom-0 w-full p-4 bg-background border-t"
+      className={cn(
+        "sticky bottom-0 w-full p-4 bg-background border-t transition-colors duration-300",
+        agentMode && "border-t-primary/40"
+      )}
       initial={{ y: 50, opacity: 0 }}
       animate={{ y: 0, opacity: 1 }}
       transition={{ duration: 0.3 }}
@@ -117,9 +133,12 @@ export function ChatInput({
           value={message}
           onChange={(e) => setMessage(e.target.value)}
           onKeyDown={handleKeyDown}
-          placeholder="Enter message... (Ctrl+Enter or Enter to send)"
+          placeholder={agentMode ? "Agent Modus — KI kann Werkzeuge nutzen..." : "Enter message... (Ctrl+Enter or Enter to send)"}
           disabled={disabled}
-          className="flex-grow min-h-[44px] max-h-[200px] resize-none"
+          className={cn(
+            "flex-grow min-h-[44px] max-h-[200px] resize-none transition-colors duration-300",
+            agentMode && "border-primary/40 focus-visible:ring-primary/30"
+          )}
           rows={1}
         />
         <input
@@ -153,6 +172,15 @@ export function ChatInput({
         >
           <Image className="h-4 w-4" />
         </Button>
+        {onToggleAgentMode && onToggleTool && (
+          <AgentModeToggle
+            isActive={agentMode}
+            onToggle={onToggleAgentMode}
+            enabledTools={enabledTools}
+            onToggleTool={onToggleTool}
+            disabled={disabled}
+          />
+        )}
         <Button 
           type="submit" 
           disabled={disabled || (!message.trim() && selectedImages.length === 0)}
