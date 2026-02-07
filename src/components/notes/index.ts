@@ -4,6 +4,7 @@ export { NoteEditor } from './NoteEditor';
 export { NoteSearch } from './NoteSearch';
 export { NoteAIActions } from './NoteAIActions';
 export { KnowledgeGraph } from './KnowledgeGraph';
+export { KnowledgeGraph2D } from './KnowledgeGraph2D';
 export { GraphControls } from './GraphControls';
 export { GraphTextView } from './GraphTextView';
 export { GraphSearch } from './GraphSearch';
