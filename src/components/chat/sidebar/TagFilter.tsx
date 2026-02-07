@@ -28,27 +28,30 @@ export function TagFilter({
     return Array.from(tagSet).sort();
   }, [conversations]);
 
-  if (allTags.length === 0) return null;
+  const hasTags = allTags.length > 0;
 
   return (
     <div className="px-4 py-2 space-y-2">
+      {/* Section label + optional filter button */}
       <div className="flex items-center justify-between">
         <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
           Chat-Verlauf
         </span>
-        <Button
-          variant="ghost"
-          size="sm"
-          className={`h-6 px-2 text-xs gap-1 ${selectedTag ? 'text-primary' : ''}`}
-          onClick={() => setShowDropdown(!showDropdown)}
-        >
-          <Filter className="h-3 w-3" />
-          {selectedTag || 'Filter'}
-        </Button>
+        {hasTags && (
+          <Button
+            variant="ghost"
+            size="sm"
+            className={`h-6 px-2 text-xs gap-1 ${selectedTag ? 'text-primary' : ''}`}
+            onClick={() => setShowDropdown(!showDropdown)}
+          >
+            <Filter className="h-3 w-3" />
+            {selectedTag || 'Filter'}
+          </Button>
+        )}
       </div>
 
       {/* Tag Filter Dropdown */}
-      {showDropdown && (
+      {showDropdown && hasTags && (
         <div className="flex flex-wrap gap-1 p-2 bg-muted/30 rounded-md border border-border/50">
           <button
             onClick={() => {
