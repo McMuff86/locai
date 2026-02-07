@@ -8,6 +8,18 @@
 
 ## 🌟 Hauptfunktionen
 
+### 📚 Document Chat (RAG)
+- **Chatten mit eigenen Dokumenten**: Lade PDF, TXT, Markdown oder Code-Dateien hoch und stelle Fragen dazu
+- **Unterstützte Formate**: PDF, TXT, MD/MDX, Code (JS/TS/Python/Rust/Go/Java/C/C++ und 20+ weitere), DOCX (geplant)
+- **Lokale Vektorsuche**: Semantic Search über alle indexierten Dokumente via Ollama Embeddings
+- **Source Citations**: Antworten zeigen, welche Dokumente als Quelle dienten
+- **So geht's:**
+  1. Öffne den Document Manager in der Seitenleiste
+  2. Lade ein oder mehrere Dokumente hoch (max. 20 MB pro Datei)
+  3. Warte, bis das Indexing abgeschlossen ist (Status: "Ready")
+  4. Stelle im Chat Fragen zu deinen Dokumenten — die KI nutzt relevante Passagen als Kontext
+- **Technische Details:** Siehe [RAG Architecture](docs/rag-architecture.md) und [RAG API](docs/rag-api.md)
+
 ### 💬 Lokaler Chat mit verschiedenen Modellen
 - **Modellauswahl**: Verwende verschiedene Modelle wie Llama3, Gemma, Mistral oder DeepSeek
 - **Anpassbare Prompts**: Passe die Systemanweisungen individuell an deine Bedürfnisse an

@@ -1,7 +1,7 @@
 "use client";
 
-import React, { useState, useMemo } from 'react';
-import { FileEdit, Wand2, Image as ImageIcon, Sparkles, Check, ChevronRight } from 'lucide-react';
+import React, { useState, useMemo, useRef, useEffect } from 'react';
+import { FileEdit, Wand2, Image as ImageIcon, Sparkles, Check, ChevronRight, ChevronDown, Cpu, HardDrive, Eye, Box, Layers } from 'lucide-react';
 import { Button } from '../ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardFooter, CardDescription } from '../ui/card';
 import { Textarea } from '../ui/textarea';
@@ -83,6 +83,232 @@ function TemplateCard({
   );
 }
 
+// Helper: detect if model is a vision model
+function isVisionModel(model: OllamaModel): boolean {
+  const name = model.name.toLowerCase();
+  return name.includes('vision') || name.includes('llava') || model.details?.families?.includes('clip') || false;
+}
+
+// Helper: detect model capability tags
+function getModelTags(model: OllamaModel): string[] {
+  const tags: string[] = [];
+  const name = model.name.toLowerCase();
+  
+  if (isVisionModel(model)) tags.push('Vision');
+  if (name.includes('code') || name.includes('coder') || name.includes('starcoder') || name.includes('codellama')) tags.push('Code');
+  if (name.includes('embed')) tags.push('Embedding');
+  if (name.includes('dolphin') || name.includes('uncensored')) tags.push('Uncensored');
+  if (name.includes('deepseek')) tags.push('Reasoning');
+  
+  return tags;
+}
+
+// Helper: format date
+function formatDate(dateStr: string): string {
+  try {
+    const d = new Date(dateStr);
+    return d.toLocaleDateString('de-CH', { day: '2-digit', month: '2-digit', year: 'numeric' });
+  } catch {
+    return dateStr;
+  }
+}
+
+// Model Selector Component with Dropdown + Info Panel
+function ModelSelector({
+  models,
+  selectedModel,
+  onSelectModel,
+}: {
+  models: OllamaModel[];
+  selectedModel: string;
+  onSelectModel: (model: string) => void;
+}) {
+  const [isOpen, setIsOpen] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  // Close dropdown on outside click
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+        setIsOpen(false);
+      }
+    }
+    if (isOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [isOpen]);
+
+  const selectedModelData = models.find(m => m.name === selectedModel);
+  const selectedSizeGB = selectedModelData?.size ? (selectedModelData.size / 1024 / 1024 / 1024).toFixed(1) : null;
+  const selectedParamSize = selectedModelData?.details?.parameter_size || null;
+  const selectedTags = selectedModelData ? getModelTags(selectedModelData) : [];
+
+  return (
+    <div className="flex gap-4">
+      {/* Dropdown */}
+      <div className="relative w-full max-w-sm" ref={dropdownRef}>
+        <button
+          type="button"
+          onClick={() => setIsOpen(!isOpen)}
+          className={cn(
+            "w-full flex items-center justify-between gap-2 rounded-lg border px-4 py-3 text-left transition-colors",
+            "hover:border-primary/50 hover:bg-accent/30",
+            isOpen ? "border-primary ring-1 ring-primary/30" : "border-border",
+            selectedModel ? "text-foreground" : "text-muted-foreground"
+          )}
+        >
+          <div className="flex-1 min-w-0">
+            {selectedModel ? (
+              <div>
+                <span className="font-medium text-sm">{selectedModel}</span>
+                {selectedParamSize && (
+                  <span className="text-xs text-muted-foreground ml-2">{selectedParamSize}</span>
+                )}
+              </div>
+            ) : (
+              <span className="text-sm">Select a model...</span>
+            )}
+          </div>
+          <ChevronDown className={cn("h-4 w-4 text-muted-foreground transition-transform", isOpen && "rotate-180")} />
+        </button>
+
+        {isOpen && (
+          <div className="absolute z-50 mt-1 w-full rounded-lg border border-border bg-popover shadow-lg">
+            <ScrollArea className="max-h-[300px]">
+              <div className="p-1">
+                {models.map((model) => {
+                  const sizeGB = model.size ? (model.size / 1024 / 1024 / 1024).toFixed(1) : null;
+                  const paramSize = model.details?.parameter_size || null;
+                  const tags = getModelTags(model);
+                  const isSelected = selectedModel === model.name;
+
+                  return (
+                    <button
+                      key={model.name}
+                      type="button"
+                      onClick={() => {
+                        onSelectModel(model.name);
+                        setIsOpen(false);
+                      }}
+                      className={cn(
+                        "w-full flex items-center gap-3 rounded-md px-3 py-2.5 text-left transition-colors",
+                        "hover:bg-accent/50",
+                        isSelected && "bg-primary/10 text-primary"
+                      )}
+                    >
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <span className={cn("text-sm font-medium truncate", isSelected && "text-primary")}>
+                            {model.name}
+                          </span>
+                          {tags.map(tag => (
+                            <span key={tag} className="text-[10px] px-1.5 py-0.5 rounded-full bg-primary/10 text-primary font-medium">
+                              {tag}
+                            </span>
+                          ))}
+                        </div>
+                        <div className="flex items-center gap-2 mt-0.5">
+                          {paramSize && <span className="text-xs text-muted-foreground">{paramSize}</span>}
+                          {paramSize && sizeGB && <span className="text-xs text-muted-foreground">•</span>}
+                          {sizeGB && <span className="text-xs text-muted-foreground">{sizeGB} GB</span>}
+                        </div>
+                      </div>
+                      {isSelected && <Check className="h-4 w-4 text-primary flex-shrink-0" />}
+                    </button>
+                  );
+                })}
+              </div>
+            </ScrollArea>
+          </div>
+        )}
+      </div>
+
+      {/* Info Panel */}
+      <div className={cn(
+        "flex-1 rounded-lg border border-border bg-card/50 p-4 transition-all",
+        !selectedModelData && "flex items-center justify-center"
+      )}>
+        {selectedModelData ? (
+          <div className="space-y-3">
+            <div className="flex items-center gap-2">
+              <Cpu className="h-4 w-4 text-primary" />
+              <h4 className="font-semibold text-sm">{selectedModelData.name}</h4>
+              {selectedTags.map(tag => (
+                <span key={tag} className="text-[10px] px-1.5 py-0.5 rounded-full bg-primary/15 text-primary font-medium">
+                  {tag}
+                </span>
+              ))}
+            </div>
+            
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+              {selectedParamSize && (
+                <div className="space-y-1">
+                  <div className="flex items-center gap-1.5 text-muted-foreground">
+                    <Layers className="h-3.5 w-3.5" />
+                    <span className="text-xs font-medium">Parameters</span>
+                  </div>
+                  <p className="text-sm font-semibold">{selectedParamSize}</p>
+                </div>
+              )}
+              
+              {selectedSizeGB && (
+                <div className="space-y-1">
+                  <div className="flex items-center gap-1.5 text-muted-foreground">
+                    <HardDrive className="h-3.5 w-3.5" />
+                    <span className="text-xs font-medium">Size</span>
+                  </div>
+                  <p className="text-sm font-semibold">{selectedSizeGB} GB</p>
+                </div>
+              )}
+              
+              {selectedModelData.details?.quantization_level && (
+                <div className="space-y-1">
+                  <div className="flex items-center gap-1.5 text-muted-foreground">
+                    <Box className="h-3.5 w-3.5" />
+                    <span className="text-xs font-medium">Quantization</span>
+                  </div>
+                  <p className="text-sm font-semibold">{selectedModelData.details.quantization_level}</p>
+                </div>
+              )}
+              
+              {selectedModelData.details?.family && (
+                <div className="space-y-1">
+                  <div className="flex items-center gap-1.5 text-muted-foreground">
+                    <Cpu className="h-3.5 w-3.5" />
+                    <span className="text-xs font-medium">Family</span>
+                  </div>
+                  <p className="text-sm font-semibold">{selectedModelData.details.family}</p>
+                </div>
+              )}
+            </div>
+            
+            <div className="flex items-center gap-4 pt-1 border-t border-border/50">
+              {selectedModelData.details?.format && (
+                <span className="text-xs text-muted-foreground">
+                  Format: <span className="text-foreground font-medium">{selectedModelData.details.format}</span>
+                </span>
+              )}
+              {isVisionModel(selectedModelData) && (
+                <span className="text-xs text-muted-foreground flex items-center gap-1">
+                  <Eye className="h-3 w-3" /> Vision-fähig
+                </span>
+              )}
+              {selectedModelData.modified_at && (
+                <span className="text-xs text-muted-foreground">
+                  Modified: {formatDate(selectedModelData.modified_at)}
+                </span>
+              )}
+            </div>
+          </div>
+        ) : (
+          <p className="text-sm text-muted-foreground">Select a model to see details</p>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export function SetupCard({
   models,
   selectedModel,
@@ -146,8 +372,8 @@ export function SetupCard({
      (activeTab === "image" && imagePrompt.trim()));
 
   return (
-    <div className="flex-1 flex items-center justify-center p-4">
-      <Card className="w-full max-w-6xl">
+    <div className="flex-1 flex flex-col p-6 overflow-y-auto">
+      <Card className="w-full">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Sparkles className="h-5 w-5 text-primary" />
@@ -177,38 +403,16 @@ export function SetupCard({
             </div>
           ) : (
             <div className="space-y-6">
-              {/* Model Selection */}
+              {/* Model Selection - Dropdown + Info Panel */}
               <div>
                 <label className="block text-sm font-medium mb-2">
                   Select Model
                 </label>
-                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
-                  {models.map((model) => {
-                    // Format size to GB
-                    const sizeGB = model.size ? (model.size / 1024 / 1024 / 1024).toFixed(1) : null;
-                    const paramSize = model.details?.parameter_size || null;
-                    
-                    return (
-                      <Button
-                        key={model.name}
-                        variant={selectedModel === model.name ? "default" : "outline"}
-                        className="flex flex-col items-start h-auto py-2 px-3 overflow-hidden"
-                        onClick={() => onSelectModel(model.name)}
-                      >
-                        <span className="text-sm font-medium truncate w-full text-left">
-                          {model.name}
-                        </span>
-                        {(sizeGB || paramSize) && (
-                          <span className="text-xs text-muted-foreground opacity-70 mt-0.5">
-                            {paramSize && <span>{paramSize}</span>}
-                            {paramSize && sizeGB && <span> • </span>}
-                            {sizeGB && <span>{sizeGB} GB</span>}
-                          </span>
-                        )}
-                      </Button>
-                    );
-                  })}
-                </div>
+                <ModelSelector
+                  models={models}
+                  selectedModel={selectedModel}
+                  onSelectModel={onSelectModel}
+                />
               </div>
               
               {/* System Instructions with Templates */}

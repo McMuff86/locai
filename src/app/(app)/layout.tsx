@@ -7,7 +7,8 @@ import { useTheme } from 'next-themes';
 import { 
   MessageSquare, 
   Image, 
-  FileText, 
+  FileText,
+  Files,
   Moon,
   Sun,
   Menu,
@@ -30,6 +31,7 @@ const navSections = [
     label: 'Tools',
     items: [
       { href: '/search', label: 'Suche', icon: Search },
+      { href: '/documents', label: 'Dokumente', icon: Files },
       { href: '/gallery', label: 'Galerie', icon: Image },
       { href: '/notes', label: 'Notizen', icon: FileText },
     ],
