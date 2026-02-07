@@ -146,8 +146,8 @@ export function SetupCard({
      (activeTab === "image" && imagePrompt.trim()));
 
   return (
-    <div className="flex-1 flex items-center justify-center p-4">
-      <Card className="w-full max-w-6xl">
+    <div className="flex-1 flex flex-col p-6 overflow-y-auto">
+      <Card className="w-full">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Sparkles className="h-5 w-5 text-primary" />
@@ -182,7 +182,7 @@ export function SetupCard({
                 <label className="block text-sm font-medium mb-2">
                   Select Model
                 </label>
-                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
+                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-2">
                   {models.map((model) => {
                     // Format size to GB
                     const sizeGB = model.size ? (model.size / 1024 / 1024 / 1024).toFixed(1) : null;
