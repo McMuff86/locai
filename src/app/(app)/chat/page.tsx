@@ -11,11 +11,10 @@ import { ChatHeader } from "@/components/chat/ChatHeader";
 import { SetupCard, IMAGE_PROMPT } from "@/components/chat/SetupCard";
 import { ConversationSidebar } from "@/components/chat/sidebar";
 import { TokenCounter } from "@/components/chat/TokenCounter";
-import { SystemMonitor } from "@/components/SystemMonitor";
-import { RightSidebar } from "@/components/RightSidebar";
+import { GpuFloatWidget } from "@/components/GpuFloatWidget";
 import { ModelPullDialog } from "@/components/ModelPullDialog";
 import { Button } from "@/components/ui/button";
-import { X, GripVertical } from "lucide-react";
+import { GripVertical } from "lucide-react";
 
 // Hooks
 import { useModels } from "@/hooks/useModels";
@@ -78,16 +77,16 @@ function ChatPageContent() {
     stopStreaming
   } = useChat();
 
-  // Local UI state
-  const [showConversationSidebar, setShowConversationSidebar] = useState(true);
+  // ── Local UI state ────────────────────────────────────────────
+  const [showSidebar, setShowSidebar] = useState(true);
   const [sidebarWidth, setSidebarWidth] = useState(320);
   const [isResizing, setIsResizing] = useState(false);
   const [showModelPull, setShowModelPull] = useState(false);
-  const [showRightSidebar, setShowRightSidebar] = useState(false);
+  const [showGpuFloat, setShowGpuFloat] = useState(false);
   const chatInputRef = useRef<HTMLTextAreaElement>(null);
   const sidebarRef = useRef<HTMLDivElement>(null);
 
-  // Sidebar resize handlers
+  // ── Sidebar resize handlers ───────────────────────────────────
   const startResizing = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
     setIsResizing(true);
@@ -117,7 +116,7 @@ function ChatPageContent() {
     };
   }, [isResizing, resize, stopResizing]);
 
-  // Keyboard shortcuts
+  // ── Keyboard shortcuts ────────────────────────────────────────
   const shortcuts: KeyboardShortcut[] = useMemo(() => [
     {
       key: 'n',
@@ -134,16 +133,14 @@ function ChatPageContent() {
     {
       key: 'Escape',
       action: () => {
-        if (isStreaming) {
-          stopStreaming();
-        }
+        if (isStreaming) stopStreaming();
       },
       description: 'Stop generating'
     },
     {
       key: 'b',
       ctrl: true,
-      action: () => setShowConversationSidebar(prev => !prev),
+      action: () => setShowSidebar(prev => !prev),
       description: 'Toggle conversation sidebar'
     },
     {
@@ -155,7 +152,7 @@ function ChatPageContent() {
 
   useKeyboardShortcuts(shortcuts);
   
-  // Prompt state
+  // ── Prompt state ──────────────────────────────────────────────
   const [defaultPrompt, setDefaultPrompt] = useState<string>("");
   const [customPrompt, setCustomPrompt] = useState<string>("");
   const [imagePrompt, setImagePrompt] = useState<string>(IMAGE_PROMPT);
@@ -185,7 +182,8 @@ function ChatPageContent() {
     }
   }, [hasVisionModel, models.length, toast]);
 
-  // Generate title from first user message
+  // ── Helpers ───────────────────────────────────────────────────
+
   const generateTitle = useCallback((conv: typeof conversation) => {
     if (conv.title !== "New Conversation" && !conv.title.startsWith("Chat with")) {
       return conv.title;
@@ -194,7 +192,6 @@ function ChatPageContent() {
     const firstUserMessage = conv.messages.find(msg => msg.role === 'user');
     if (firstUserMessage) {
       const content = firstUserMessage.content;
-      
       if (typeof content === 'string') {
         return content.length > 30 ? `${content.substring(0, 30)}...` : content;
       } else if (Array.isArray(content)) {
@@ -209,56 +206,33 @@ function ChatPageContent() {
     return conv.title;
   }, []);
 
-  // Handle save conversation
+  // ── Conversation handlers ─────────────────────────────────────
+
   const handleSaveConversation = useCallback(() => {
     if (conversation.messages.length <= 1) {
-      toast({
-        title: "Cannot save empty conversation",
-        description: "Add at least one message before saving.",
-        variant: "destructive"
-      });
+      toast({ title: "Cannot save empty conversation", description: "Add at least one message before saving.", variant: "destructive" });
       return;
     }
-    
     if (saveCurrentConversation(generateTitle)) {
-      toast({
-        title: "Conversation saved",
-        description: "Your conversation has been saved successfully.",
-      });
+      toast({ title: "Conversation saved", description: "Your conversation has been saved successfully." });
     } else {
-      toast({
-        title: "Save failed",
-        description: "Failed to save conversation. Please try again.",
-        variant: "destructive"
-      });
+      toast({ title: "Save failed", description: "Failed to save conversation. Please try again.", variant: "destructive" });
     }
   }, [conversation.messages.length, saveCurrentConversation, generateTitle, toast]);
 
-  // Handle delete conversation
   const handleDeleteConversation = useCallback((id: string) => {
     if (deleteConversation(id)) {
-      toast({
-        title: "Conversation deleted",
-        description: "The conversation has been deleted.",
-      });
+      toast({ title: "Conversation deleted", description: "The conversation has been deleted." });
     } else {
-      toast({
-        title: "Delete failed",
-        description: "Failed to delete conversation. Please try again.",
-        variant: "destructive"
-      });
+      toast({ title: "Delete failed", description: "Failed to delete conversation. Please try again.", variant: "destructive" });
     }
   }, [deleteConversation, toast]);
 
-  // Handle load conversation
   const handleSelectConversation = useCallback((conv: typeof conversation) => {
     loadConversation(conv);
-    
-    // Restore model and prompt settings
     const systemMsg = conv.messages.find(m => m.role === 'system');
     if (systemMsg && systemMsg.modelName && models.some(m => m.name === systemMsg.modelName)) {
       setSelectedModel(systemMsg.modelName);
-      
       const defaultSystemContent = getModelSystemContent(systemMsg.modelName);
       if (typeof systemMsg.content === 'string') {
         if (systemMsg.content !== defaultSystemContent) {
@@ -270,20 +244,19 @@ function ChatPageContent() {
         }
       }
     }
-    
     toast({
       title: "Konversation geladen",
       description: `"${typeof conv.title === 'string' ? conv.title : 'Bildkonversation'}" wurde erfolgreich geladen.`,
     });
   }, [loadConversation, models, setSelectedModel, toast]);
 
-  // Handle new conversation
   const handleNewConversation = useCallback(() => {
     createNewConversation();
     clearTokenStats();
   }, [createNewConversation, clearTokenStats]);
 
-  // Start conversation with system message
+  // ── Start conversation ────────────────────────────────────────
+
   const handleStartConversation = useCallback(() => {
     if (!selectedModel) return;
 
@@ -320,10 +293,10 @@ function ChatPageContent() {
     setIsEditingPrompt(false);
   }, [selectedModel, activeTab, imagePrompt, customPrompt, defaultPrompt, setConversation]);
 
-  // Handle model change during conversation
+  // ── Model change during conversation ──────────────────────────
+
   const handleModelChange = useCallback((newModel: string) => {
     if (newModel === selectedModel) return;
-    
     const systemMessage: Message = {
       id: uuidv4(),
       role: "system",
@@ -331,13 +304,13 @@ function ChatPageContent() {
       timestamp: new Date(),
       modelName: newModel
     };
-    
     addMessage(systemMessage);
     updateConversationTitle(`Chat with ${newModel}`);
     setSelectedModel(newModel);
   }, [selectedModel, addMessage, updateConversationTitle, setSelectedModel]);
 
-  // Handle send message
+  // ── Send message ──────────────────────────────────────────────
+
   const handleSendMessage = useCallback(async (content: string, images?: File[]) => {
     await sendMessage(
       content,
@@ -348,16 +321,14 @@ function ChatPageContent() {
       (botMsg) => addMessage(botMsg),
       (newModel) => {
         setSelectedModel(newModel);
-        toast({
-          title: "Verwende Vision-Modell",
-          description: `Bilder werden mit ${newModel} analysiert`,
-        });
+        toast({ title: "Verwende Vision-Modell", description: `Bilder werden mit ${newModel} analysiert` });
       },
       visionModels.map(m => m.name)
     );
   }, [sendMessage, conversation, selectedModel, addMessage, setSelectedModel, visionModels, toast]);
 
-  // Handle load conversation from search deep-link (?load=<conversationId>)
+  // ── Load conversation from URL ────────────────────────────────
+
   const loadedConversationFromUrlRef = useRef<string | null>(null);
   useEffect(() => {
     const loadId = searchParams.get('load');
@@ -367,11 +338,7 @@ function ChatPageContent() {
     const all = getSavedConversations();
     const match = all.find((c) => c.id === loadId);
     if (!match) {
-      toast({
-        title: "Chat nicht gefunden",
-        description: "Die gespeicherte Konversation konnte nicht geladen werden.",
-        variant: "destructive",
-      });
+      toast({ title: "Chat nicht gefunden", description: "Die gespeicherte Konversation konnte nicht geladen werden.", variant: "destructive" });
       loadedConversationFromUrlRef.current = loadId;
       return;
     }
@@ -385,7 +352,8 @@ function ChatPageContent() {
     router.replace(qs ? `/chat?${qs}` : '/chat', { scroll: false });
   }, [searchParams, router, toast, handleSelectConversation]);
 
-  // Handle image analysis from gallery
+  // ── Image analysis from gallery ───────────────────────────────
+
   useEffect(() => {
     const shouldAnalyze = searchParams.get('analyzeImage');
     if (shouldAnalyze && hasVisionModel && visionModels.length > 0) {
@@ -395,12 +363,9 @@ function ChatPageContent() {
           const { imageUrl, filename } = JSON.parse(storedData);
           sessionStorage.removeItem('analyzeImage');
           
-          // Select a vision model
           const visionModel = visionModels[0]?.name;
           if (visionModel) {
             setSelectedModel(visionModel);
-            
-            // Create a new conversation with vision system prompt
             const systemMessage: Message = {
               id: uuidv4(),
               role: "system",
@@ -408,7 +373,6 @@ function ChatPageContent() {
               timestamp: new Date(),
               modelName: visionModel
             };
-            
             setConversation(prev => ({
               ...prev,
               id: uuidv4(),
@@ -418,23 +382,17 @@ function ChatPageContent() {
               updatedAt: new Date()
             }));
             
-            // Fetch the image and send it for analysis
             fetch(imageUrl)
               .then(res => res.blob())
               .then(blob => {
                 const file = new File([blob], filename, { type: blob.type || 'image/png' });
-                // Small delay to ensure conversation is set up
                 setTimeout(() => {
                   handleSendMessage(`Bitte analysiere dieses Bild: ${filename}`, [file]);
                 }, 100);
               })
               .catch(err => {
                 console.error('Failed to fetch image for analysis:', err);
-                toast({
-                  title: "Fehler beim Laden des Bildes",
-                  description: "Das Bild konnte nicht geladen werden.",
-                  variant: "destructive"
-                });
+                toast({ title: "Fehler beim Laden des Bildes", description: "Das Bild konnte nicht geladen werden.", variant: "destructive" });
               });
           }
         } catch (err) {
@@ -444,14 +402,13 @@ function ChatPageContent() {
     }
   }, [searchParams, hasVisionModel, visionModels, setSelectedModel, setConversation, handleSendMessage, toast]);
 
-  // Handle import/export
+  // ── Import/Export handlers ────────────────────────────────────
+
   const handleExportConversations = useCallback(async () => {
     const result = await exportConversations();
     toast({
       title: result ? "Export erfolgreich" : "Export fehlgeschlagen",
-      description: result 
-        ? "Alle Konversationen wurden erfolgreich exportiert."
-        : "Es gab ein Problem beim Exportieren.",
+      description: result ? "Alle Konversationen wurden erfolgreich exportiert." : "Es gab ein Problem beim Exportieren.",
       variant: result ? "default" : "destructive"
     });
   }, [exportConversations, toast]);
@@ -460,9 +417,7 @@ function ChatPageContent() {
     const result = await importConversations();
     toast({
       title: result.success ? "Import erfolgreich" : "Import fehlgeschlagen",
-      description: result.success 
-        ? `${result.count} neue Konversationen wurden importiert.`
-        : "Es gab ein Problem beim Importieren.",
+      description: result.success ? `${result.count} neue Konversationen wurden importiert.` : "Es gab ein Problem beim Importieren.",
       variant: result.success ? "default" : "destructive"
     });
   }, [importConversations, toast]);
@@ -470,15 +425,13 @@ function ChatPageContent() {
   const handleClearAllConversations = useCallback(() => {
     if (window.confirm("Sind Sie sicher, dass Sie ALLE gespeicherten Konversationen löschen möchten?")) {
       if (clearAllConversations()) {
-        toast({
-          title: "Konversationen gelöscht",
-          description: "Alle gespeicherten Konversationen wurden gelöscht.",
-        });
+        toast({ title: "Konversationen gelöscht", description: "Alle gespeicherten Konversationen wurden gelöscht." });
       }
     }
   }, [clearAllConversations, toast]);
 
-  // Prompt handlers
+  // ── Prompt handlers ───────────────────────────────────────────
+
   const handleCustomPromptChange = (value: string) => {
     setCustomPrompt(value);
     setIsEditingPrompt(true);
@@ -498,16 +451,29 @@ function ChatPageContent() {
     setIsEditingPrompt(false);
   };
 
+  // ── Derived state ─────────────────────────────────────────────
+
   const hasConversationStarted = conversation.messages.length > 0;
+
+  // Build compact token stats for header
+  const headerTokenStats = useMemo(() => {
+    if (!tokenStats) return null;
+    return {
+      totalTokens: (tokenStats.promptTokens ?? 0) + (tokenStats.completionTokens ?? 0),
+      tokensPerSecond: tokenStats.tokensPerSecond ?? 0,
+    };
+  }, [tokenStats]);
+
+  // ── Render ────────────────────────────────────────────────────
 
   return (
     <div className="flex h-full overflow-hidden">
-      {/* Conversation Sidebar */}
-      {showConversationSidebar && (
+      {/* ── Conversation Sidebar ─────────────────────────────────── */}
+      {showSidebar && (
         <div 
           ref={sidebarRef}
           style={{ width: `${sidebarWidth}px` }}
-          className={`relative border-r border-border bg-sidebar/50 ${isResizing ? 'select-none' : ''}`}
+          className={`relative border-r border-border/60 bg-sidebar/50 ${isResizing ? 'select-none' : ''}`}
         >
           <ConversationSidebar 
             conversations={savedConversations}
@@ -521,46 +487,39 @@ function ChatPageContent() {
           
           {/* Resize Handle */}
           <div
-            className="absolute top-0 right-0 w-1 h-full cursor-col-resize bg-border hover:bg-primary/50 transition-colors group flex items-center justify-center"
+            className="absolute top-0 right-0 w-1 h-full cursor-col-resize bg-transparent hover:bg-primary/30 transition-colors group flex items-center justify-center"
             onMouseDown={startResizing}
           >
             <div className="absolute right-0 w-4 h-full" />
-            <GripVertical className="h-6 w-6 text-muted-foreground/50 opacity-0 group-hover:opacity-100 transition-opacity" />
+            <GripVertical className="h-5 w-5 text-muted-foreground/30 opacity-0 group-hover:opacity-100 transition-opacity" />
           </div>
         </div>
       )}
       
-      {/* Main chat area */}
+      {/* ── Main chat area ───────────────────────────────────────── */}
       <div className="flex-1 flex flex-col min-w-0">
-        {/* Header with model selector */}
+        {/* Header */}
         <ChatHeader
           models={models}
           selectedModel={selectedModel}
           onModelChange={handleModelChange}
           showModelSelector={hasConversationStarted}
           onPullModel={() => setShowModelPull(true)}
+          conversationTitle={hasConversationStarted ? conversation.title : undefined}
           savedConversations={savedConversations}
           onSaveConversation={handleSaveConversation}
           onSelectConversation={handleSelectConversation}
           onImportConversations={handleImportConversations}
           onExportConversations={handleExportConversations}
           onClearAllConversations={handleClearAllConversations}
-          onToggleSidebar={() => setShowConversationSidebar(prev => !prev)}
+          onToggleSidebar={() => setShowSidebar(prev => !prev)}
           showSidebarToggle={true}
-          isSidebarOpen={showConversationSidebar}
+          isSidebarOpen={showSidebar}
+          tokenStats={headerTokenStats}
+          onToggleGpuFloat={() => setShowGpuFloat(prev => !prev)}
         />
 
-        {/* System Monitor - Click to open right sidebar with GPU Monitor */}
-        <div className="px-4 py-2 border-b flex items-center gap-2">
-          <button 
-            onClick={() => setShowRightSidebar(true)}
-            className="flex-1 text-left hover:bg-accent/50 rounded-lg transition-colors cursor-pointer"
-            title="Click to open GPU Monitor panel"
-          >
-            <SystemMonitor isGenerating={isChatLoading} compact />
-          </button>
-        </div>
-      
+        {/* Main content */}
         <main className="flex-1 flex flex-col overflow-hidden">
           {!hasConversationStarted ? (
             <SetupCard
@@ -584,9 +543,9 @@ function ChatPageContent() {
             <>
               <ChatContainer conversation={conversation} isLoading={isChatLoading} />
 
-              {/* Token Counter with Context Info */}
+              {/* Token Counter */}
               {tokenStats && (
-                <div className="px-4 py-2 border-t">
+                <div className="px-4 py-2 border-t border-border/40">
                   <TokenCounter 
                     stats={tokenStats} 
                     contextLimit={contextInfo?.contextLength || 128000}
@@ -595,9 +554,9 @@ function ChatPageContent() {
                 </div>
               )}
               
-              {/* Stop Button for Streaming */}
+              {/* Stop Button */}
               {isStreaming && (
-                <div className="px-4 py-2 border-t flex justify-center">
+                <div className="px-4 py-2 border-t border-border/40 flex justify-center">
                   <Button 
                     variant="outline" 
                     size="sm"
@@ -609,7 +568,7 @@ function ChatPageContent() {
                 </div>
               )}
               
-              {/* Chat Input with bottom padding */}
+              {/* Chat Input */}
               <div className="px-4 pb-6">
                 <ChatInput 
                   onSend={handleSendMessage} 
@@ -626,7 +585,7 @@ function ChatPageContent() {
         </main>
       </div>
       
-      {/* Model Pull Dialog */}
+      {/* ── Model Pull Dialog ────────────────────────────────────── */}
       <ModelPullDialog
         isOpen={showModelPull}
         onClose={() => setShowModelPull(false)}
@@ -634,26 +593,20 @@ function ChatPageContent() {
         installedModels={models.map(m => m.name)}
         installedModelsDetails={models}
         onModelPulled={(modelName) => {
-          toast({
-            title: 'Modell installiert',
-            description: `${modelName} wurde erfolgreich heruntergeladen.`,
-          });
+          toast({ title: 'Modell installiert', description: `${modelName} wurde erfolgreich heruntergeladen.` });
           refreshModels();
         }}
         onDeleteModel={async (modelName) => {
           await deleteOllamaModel(modelName, settings?.ollamaHost);
-          toast({
-            title: 'Modell gelöscht',
-            description: `${modelName} wurde erfolgreich entfernt.`,
-          });
+          toast({ title: 'Modell gelöscht', description: `${modelName} wurde erfolgreich entfernt.` });
           refreshModels();
         }}
       />
 
-      {/* Right Sidebar - GPU Monitor & Tools */}
-      <RightSidebar
-        isOpen={showRightSidebar}
-        onToggle={() => setShowRightSidebar(!showRightSidebar)}
+      {/* ── GPU Float Widget (replaces RightSidebar) ─────────────── */}
+      <GpuFloatWidget
+        isOpen={showGpuFloat}
+        onToggle={() => setShowGpuFloat(prev => !prev)}
         isGenerating={isChatLoading}
       />
     </div>
@@ -662,7 +615,11 @@ function ChatPageContent() {
 
 export default function ChatPage() {
   return (
-    <Suspense fallback={<div className="flex items-center justify-center h-full"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div></div>}>
+    <Suspense fallback={
+      <div className="flex items-center justify-center h-full">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
+      </div>
+    }>
       <ChatPageContent />
     </Suspense>
   );
