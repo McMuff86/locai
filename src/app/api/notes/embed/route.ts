@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { FileNoteStorage } from '@/lib/notes/fileNoteStorage';
-import { upsertEmbeddingsForNote } from '@/lib/notes/embeddings';
+import { upsertEmbeddingsForNote, loadEmbeddings } from '@/lib/notes/embeddings';
 import { Note } from '@/lib/notes/types';
 import { sanitizeBasePath } from '../../_utils/security';
+import { createHash } from 'crypto';
 
 export const runtime = 'nodejs';
 
@@ -17,6 +18,11 @@ function getBasePath(req: NextRequest, bodyBasePath?: string | null): string | n
     process.env.LOCAL_NOTES_PATH ||
     null
   );
+}
+
+// Compute a content hash for change detection
+function hashContent(content: string): string {
+  return createHash('sha256').update(content).digest('hex').slice(0, 16);
 }
 
 // Check if embedding model is available
@@ -57,6 +63,7 @@ export async function POST(req: NextRequest) {
   const chunkSize: number | undefined = body.chunkSize;
   const chunkOverlap: number | undefined = body.chunkOverlap;
   const streaming: boolean = body.streaming ?? true;
+  const forceRebuild: boolean = body.forceRebuild ?? false;
 
   if (!basePath) {
     return NextResponse.json({ error: 'basePath is required' }, { status: 400 });
@@ -75,20 +82,66 @@ export async function POST(req: NextRequest) {
   }
 
   const storage = new FileNoteStorage(safeBasePath);
-  let targets: Note[] = [];
+  let allNotes: Note[] = [];
 
   if (noteId) {
     const note = await storage.getNote(noteId);
     if (!note) return NextResponse.json({ error: 'Note not found' }, { status: 404 });
-    targets = [note];
+    allNotes = [note];
   } else {
     const summaries = await storage.listNotes();
     const fetched = await Promise.all(summaries.map((s) => storage.getNote(s.id)));
-    targets = fetched.filter(Boolean) as Note[];
+    allNotes = fetched.filter(Boolean) as Note[];
   }
 
-  if (targets.length === 0) {
+  if (allNotes.length === 0) {
     return NextResponse.json({ error: 'Keine Notizen zum Verarbeiten gefunden' }, { status: 400 });
+  }
+
+  // Incremental: determine which notes actually need re-embedding
+  let targets: Note[] = allNotes;
+  let skippedCount = 0;
+
+  if (!forceRebuild && !noteId) {
+    try {
+      const existingEmbeddings = await loadEmbeddings(safeBasePath);
+      
+      // Build a map: noteId → set of chunk hashes (via chunk content)
+      // We use the first chunk's createdAt and content hash to detect changes
+      const embeddingMap = new Map<string, { chunks: string[]; model: string }>();
+      for (const entry of existingEmbeddings) {
+        const existing = embeddingMap.get(entry.noteId);
+        if (existing) {
+          existing.chunks.push(entry.chunk);
+        } else {
+          embeddingMap.set(entry.noteId, { chunks: [entry.chunk], model: entry.model });
+        }
+      }
+
+      targets = allNotes.filter(note => {
+        const existing = embeddingMap.get(note.id);
+        if (!existing) return true; // No embedding yet
+        if (existing.model !== model) return true; // Different model
+        
+        // Compare content hash: hash the full text that would be embedded
+        const textToEmbed = `${note.title}\n\n${note.content || ''}`.trim();
+        const currentHash = hashContent(textToEmbed);
+        const existingHash = hashContent(existing.chunks.join(''));
+        
+        // Simple heuristic: if the note content changed significantly, re-embed
+        // We compare the hash of the current content vs stored chunks concatenated
+        // More robust: compare content length + title
+        const contentChanged = currentHash !== existingHash;
+        if (!contentChanged) {
+          skippedCount++;
+          return false;
+        }
+        return true;
+      });
+    } catch {
+      // If we can't load existing embeddings, just embed everything
+      targets = allNotes;
+    }
   }
 
   // Streaming response
@@ -97,6 +150,7 @@ export async function POST(req: NextRequest) {
     const stream = new ReadableStream({
       async start(controller) {
         const total = targets.length;
+        const totalAll = allNotes.length;
         let processed = 0;
         const errors: string[] = [];
 
@@ -104,17 +158,19 @@ export async function POST(req: NextRequest) {
         controller.enqueue(encoder.encode(`data: ${JSON.stringify({ 
           type: 'start', 
           total, 
+          totalAll,
+          skipped: skippedCount,
           model 
         })}\n\n`));
 
         for (const note of targets) {
           try {
-            // Send progress with more detail
             console.debug(`[Embed API] Starting note: ${note.title} (${note.id})`);
             controller.enqueue(encoder.encode(`data: ${JSON.stringify({ 
               type: 'progress', 
               current: processed + 1, 
               total, 
+              totalAll,
               noteTitle: note.title,
               noteId: note.id,
               contentLength: note.content?.length || 0
@@ -124,7 +180,6 @@ export async function POST(req: NextRequest) {
             processed++;
 
             console.debug(`[Embed API] Completed note: ${note.title}`);
-            // Send success for this note
             controller.enqueue(encoder.encode(`data: ${JSON.stringify({ 
               type: 'note_done', 
               noteId: note.id, 
@@ -151,6 +206,8 @@ export async function POST(req: NextRequest) {
           type: 'done', 
           processed, 
           total, 
+          totalAll,
+          skipped: skippedCount,
           errors: errors.length > 0 ? errors : undefined 
         })}\n\n`));
 
@@ -184,8 +241,7 @@ export async function POST(req: NextRequest) {
     updated,
     model,
     count: updated.length,
+    skipped: skippedCount,
     errors: errors.length > 0 ? errors : undefined,
   });
 }
-
-

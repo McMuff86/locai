@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { FolderOpen, FileText, Settings } from 'lucide-react';
 import Link from 'next/link';
@@ -10,11 +10,16 @@ import {
   KnowledgeGraph, 
   GraphControls,
   GraphTextView,
+  GraphSearch,
+  NodeDetailPanel,
 } from '@/components/notes';
 import { useNotesContext } from '../layout';
+import type { ForceGraphMethods } from 'react-force-graph-3d';
+import type { GraphNode, GraphLink } from '@/components/notes/types';
 
 export default function GraphPage() {
   const router = useRouter();
+  const graphRef = useRef<ForceGraphMethods<GraphNode, GraphLink> | null>(null);
   const { 
     basePath, 
     notes,
@@ -31,18 +36,46 @@ export default function GraphPage() {
     setGraphExpanded,
     hoveredNode,
     setHoveredNode,
+    selectedNode,
+    setSelectedNode,
     physicsPaused,
     setPhysicsPaused,
+    searchQuery,
+    setSearchQuery,
+    searchMatches,
     generateEmbeddings,
     host,
   } = useNotesContext();
 
   const [graphViewMode, setGraphViewMode] = useState<'text' | 'visual'>('visual');
 
-  // Handle node click - navigate to notes page with note ID
+  // Handle node click - open detail panel instead of navigating
   const handleNodeClick = useCallback((noteId: string) => {
+    setSelectedNode(noteId);
+  }, [setSelectedNode]);
+
+  // Handle navigate from detail panel
+  const handleNavigate = useCallback((noteId: string) => {
     router.push(`/notes?note=${encodeURIComponent(noteId)}`);
   }, [router]);
+
+  // Handle search focus — zoom camera to first match
+  const handleFocusFirstMatch = useCallback(() => {
+    if (searchMatches.length === 0 || graphViewMode !== 'visual') return;
+    const firstMatchId = searchMatches[0];
+    const node = graphData.nodes.find(n => n.id === firstMatchId);
+    if (node && graphRef.current) {
+      const fg = graphRef.current as unknown as {
+        cameraPosition: (pos: { x: number; y: number; z: number }, lookAt?: { x: number; y: number; z: number }, ms?: number) => void;
+      };
+      const nodePos = node as unknown as { x?: number; y?: number; z?: number };
+      fg.cameraPosition(
+        { x: (nodePos.x || 0) + 40, y: (nodePos.y || 0) + 40, z: (nodePos.z || 0) + 80 },
+        { x: nodePos.x || 0, y: nodePos.y || 0, z: nodePos.z || 0 },
+        600
+      );
+    }
+  }, [searchMatches, graphData.nodes, graphViewMode]);
 
   // If no notes path is configured, show setup message
   if (!basePath) {
@@ -95,6 +128,14 @@ export default function GraphPage() {
             nodeCount={graphData.nodes.length}
           />
           
+          {/* Search Bar */}
+          <GraphSearch
+            value={searchQuery}
+            onChange={setSearchQuery}
+            matchCount={searchMatches.length}
+            onFocusFirst={handleFocusFirstMatch}
+          />
+          
           {/* Text View */}
           {graphViewMode === 'text' && (
             <GraphTextView
@@ -110,21 +151,38 @@ export default function GraphPage() {
           
           {/* Visual 3D View */}
           {graphViewMode === 'visual' && (
-            <KnowledgeGraph
-              graphData={graphData}
-              notes={notes}
-              settings={graphSettings}
-              expanded={graphExpanded}
-              hoveredNode={hoveredNode}
-              physicsPaused={physicsPaused}
-              onNodeClick={handleNodeClick}
-              onNodeHover={setHoveredNode}
-              onPhysicsPausedChange={setPhysicsPaused}
-            />
+            <div className="relative">
+              <KnowledgeGraph
+                graphData={graphData}
+                notes={notes}
+                settings={graphSettings}
+                expanded={graphExpanded}
+                hoveredNode={hoveredNode}
+                physicsPaused={physicsPaused}
+                searchMatches={searchMatches}
+                searchActive={searchQuery.trim().length > 0}
+                onNodeClick={handleNodeClick}
+                onNodeHover={setHoveredNode}
+                onPhysicsPausedChange={setPhysicsPaused}
+                graphRefCallback={(ref) => { graphRef.current = ref; }}
+              />
+              
+              {/* Node Detail Panel */}
+              {selectedNode && (
+                <NodeDetailPanel
+                  noteId={selectedNode}
+                  notes={notes}
+                  graphData={graphData}
+                  basePath={basePath}
+                  onClose={() => setSelectedNode(null)}
+                  onNavigate={handleNavigate}
+                  onSelectNode={setSelectedNode}
+                />
+              )}
+            </div>
           )}
         </div>
       </ScrollArea>
     </div>
   );
 }
-

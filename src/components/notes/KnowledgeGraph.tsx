@@ -8,8 +8,7 @@ import { getThemeColors, getNodeColor, mixWithWhite } from './graphUtils';
 import type { ForceGraphMethods } from 'react-force-graph-3d';
 import type * as THREE from 'three';
 
-// Dynamic import with proper typing - use Record<string, unknown> props since
-// ForceGraph3D's generic types don't align well with Next.js dynamic()
+// Dynamic import with proper typing
 const ForceGraph3D = dynamic<Record<string, unknown>>(
   () => import('react-force-graph-3d').then(mod => mod.default) as never,
   { 
@@ -25,9 +24,21 @@ interface KnowledgeGraphProps {
   expanded: boolean;
   hoveredNode: string | null;
   physicsPaused: boolean;
+  searchMatches?: string[];
+  searchActive?: boolean;
   onNodeClick: (nodeId: string) => void;
   onNodeHover: (nodeId: string | null) => void;
   onPhysicsPausedChange: (paused: boolean) => void;
+  graphRefCallback?: (ref: ForceGraphMethods<GraphNode, GraphLink> | null) => void;
+}
+
+// Helper to extract ID from link source/target
+function getLinkId(value: string | { id?: string } | unknown): string {
+  if (typeof value === 'string') return value;
+  if (value && typeof value === 'object' && 'id' in value) {
+    return String((value as { id: string }).id);
+  }
+  return String(value);
 }
 
 export function KnowledgeGraph({
@@ -37,9 +48,12 @@ export function KnowledgeGraph({
   expanded,
   hoveredNode,
   physicsPaused,
+  searchMatches = [],
+  searchActive = false,
   onNodeClick,
   onNodeHover,
   onPhysicsPausedChange,
+  graphRefCallback,
 }: KnowledgeGraphProps) {
   const graphContainerRef = useRef<HTMLDivElement>(null);
   const graphRef = useRef<ForceGraphMethods<GraphNode, GraphLink> | null>(null);
@@ -54,6 +68,12 @@ export function KnowledgeGraph({
       });
     }
   }, []);
+
+  // Pass graphRef to parent
+  const setGraphRef = useCallback((ref: ForceGraphMethods<GraphNode, GraphLink> | null) => {
+    graphRef.current = ref;
+    graphRefCallback?.(ref);
+  }, [graphRefCallback]);
 
   // Update graph dimensions when container size changes
   useEffect(() => {
@@ -84,17 +104,40 @@ export function KnowledgeGraph({
 
   const theme = getThemeColors(settings.graphTheme);
 
+  // Compute connection counts for hover tooltips
+  const connectionCounts = useCallback((nodeId: string) => {
+    let wiki = 0;
+    let semantic = 0;
+    for (const link of graphData.links) {
+      const s = getLinkId(link.source);
+      const t = getLinkId(link.target);
+      if (s === nodeId || t === nodeId) {
+        if (link.type === 'wiki') wiki++;
+        else semantic++;
+      }
+    }
+    return { wiki, semantic, total: wiki + semantic };
+  }, [graphData.links]);
+
+  // Is a node a search match?
+  const isSearchMatch = useCallback((nodeId: string) => {
+    return searchMatches.includes(nodeId);
+  }, [searchMatches]);
 
   const createNodeObject = useCallback((node: GraphNode) => {
     if (!threeJsRef.current) return null;
     
-    // For spheres without glow and without labels, use default
-    if (settings.nodeGeometry === 'sphere' && !settings.nodeGlow && !settings.showLabels) return null;
+    const isMatch = searchActive && isSearchMatch(node.id);
+    const isDimmed = searchActive && searchMatches.length > 0 && !isMatch;
+    
+    // For spheres without glow and without labels and no search dimming, use default
+    if (settings.nodeGeometry === 'sphere' && !settings.nodeGlow && !settings.showLabels && !searchActive) return null;
     
     const ThreeJS = threeJsRef.current;
     const baseSize = (node.val || 2) * 0.5;
-    // nodeSize 1.0 (100%) = vorher 0.2, also 0.2x Multiplikator
-    const size = baseSize * settings.nodeSize * 0.2;
+    // Enlarge matched nodes during search
+    const searchScale = isMatch ? 1.5 : 1.0;
+    const size = baseSize * settings.nodeSize * 0.2 * searchScale;
     let geometry: THREE.BufferGeometry;
     
     try {
@@ -111,7 +154,7 @@ export function KnowledgeGraph({
         case 'tetrahedron':
           geometry = new ThreeJS.TetrahedronGeometry(size);
           break;
-        case 'icon':
+        case 'icon': {
           const shape = new ThreeJS.Shape();
           const radius = size;
           const sides = 6;
@@ -125,6 +168,7 @@ export function KnowledgeGraph({
           shape.closePath();
           geometry = new ThreeJS.ExtrudeGeometry(shape, { depth: size * 0.3, bevelEnabled: true, bevelThickness: size * 0.1 });
           break;
+        }
         default:
           geometry = new ThreeJS.SphereGeometry(size, 32, 32);
       }
@@ -134,16 +178,19 @@ export function KnowledgeGraph({
       const midColor = mixWithWhite(color, 0.5);
       const outerColor = color;
       
+      // Dim non-matching nodes during search
+      const opacity = isDimmed ? settings.nodeOpacity * 0.2 : settings.nodeOpacity;
+      
       const material = new ThreeJS.MeshBasicMaterial({
         color: settings.nodeGlow ? coreColor : color,
         transparent: true,
-        opacity: settings.nodeOpacity,
+        opacity,
       });
       
       const mesh = new ThreeJS.Mesh(geometry, material);
       
-      // Add glow layers
-      if (settings.nodeGlow) {
+      // Add glow layers (skip for dimmed nodes)
+      if (settings.nodeGlow && !isDimmed) {
         const glowLayers = [
           { scale: 3.0, opacity: settings.glowIntensity * settings.bloomStrength * 0.15, color: outerColor, side: ThreeJS.BackSide },
           { scale: 2.2, opacity: settings.glowIntensity * settings.bloomStrength * 0.25, color: outerColor, side: ThreeJS.BackSide },
@@ -165,14 +212,13 @@ export function KnowledgeGraph({
         });
       }
       
-      // Add label sprite
-      if (settings.showLabels && node.name) {
+      // Add label sprite (skip for dimmed nodes)
+      if (settings.showLabels && node.name && !isDimmed) {
         const canvas = document.createElement('canvas');
         const context = canvas.getContext('2d');
         if (context) {
           const text = node.name;
           const baseFontSize = 120;
-          // labelSize 1.0 (100%) = vorher 2.5, also 2.5x Multiplikator
           const scaledFontSize = Math.round(baseFontSize * settings.labelSize * 2.5);
           const glowPadding = scaledFontSize * 1.5;
           
@@ -230,7 +276,6 @@ export function KnowledgeGraph({
           
           const sprite = new ThreeJS.Sprite(spriteMaterial);
           const aspectRatio = canvas.width / canvas.height;
-          // labelSize 1.0 (100%) = vorher 2.5, also 2.5x Multiplikator
           const spriteHeight = size * 2.0 * settings.labelSize * 2.5;
           sprite.scale.set(spriteHeight * aspectRatio, spriteHeight, 1);
           sprite.position.set(0, size * 2.2, 0);
@@ -244,11 +289,10 @@ export function KnowledgeGraph({
       console.error('Error creating custom node geometry:', err);
       return null;
     }
-  }, [settings]);
+  }, [settings, searchActive, searchMatches, isSearchMatch]);
 
   const handleZoomIn = () => {
     if (graphRef.current) {
-      // cameraPosition() as getter is not in the type defs but works at runtime
       const currentPos = (graphRef.current as unknown as { cameraPosition: () => { x: number; y: number; z: number } }).cameraPosition();
       graphRef.current.cameraPosition({ z: currentPos.z * 0.7 }, undefined, 400);
     }
@@ -297,6 +341,23 @@ export function KnowledgeGraph({
     }
   };
 
+  // Build hover label with connection info
+  const getNodeLabel = useCallback((node: GraphNode) => {
+    const counts = connectionCounts(node.id);
+    const note = notes.find(n => n.id === node.id);
+    const tags = note?.tags?.length ? `\n🏷️ ${note.tags.join(', ')}` : '';
+    const links = counts.total > 0 ? `\n🔗 ${counts.wiki} Wiki / ${counts.semantic} Semantic` : '\n🔗 Keine Verknüpfungen';
+    return `${node.name || 'Node'}${tags}${links}`;
+  }, [connectionCounts, notes]);
+
+  // Build link label (hover tooltip)
+  const getLinkLabel = useCallback((link: GraphLink) => {
+    if (link.type === 'semantic' && link.similarity) {
+      return `Ähnlichkeit: ${Math.round(link.similarity * 100)}%`;
+    }
+    return link.type === 'wiki' ? '[[Wikilink]]' : 'Semantisch';
+  }, []);
+
   return (
     <div 
       ref={graphContainerRef}
@@ -320,17 +381,38 @@ export function KnowledgeGraph({
             graphData={graphData}
             width={graphDimensions.width}
             height={graphDimensions.height}
-            nodeLabel={(node: GraphNode) => node.name || 'Node'}
+            nodeLabel={getNodeLabel}
             nodeLabelOpacity={settings.showLabels ? 1 : 0.8}
             nodeLabelPosition="top"
-            nodeColor={(node: GraphNode) => getNodeColor(node, settings.graphTheme)}
-            nodeVal={(node: GraphNode) => (node.val || 2) * settings.nodeSize * 0.2}
+            nodeColor={(node: GraphNode) => {
+              if (searchActive && searchMatches.length > 0 && !isSearchMatch(node.id)) {
+                return '#333333';
+              }
+              return getNodeColor(node, settings.graphTheme);
+            }}
+            nodeVal={(node: GraphNode) => {
+              const base = (node.val || 2) * settings.nodeSize * 0.2;
+              // Enlarge search matches
+              if (searchActive && isSearchMatch(node.id)) return base * 2;
+              return base;
+            }}
             nodeResolution={settings.nodeGlow ? 32 : 16}
             nodeOpacity={settings.nodeOpacity}
-            linkOpacity={settings.linkGlow ? (settings.linkOpacity * 0.5) + 0.15 : settings.linkOpacity * 0.5}
+            linkLabel={getLinkLabel}
+            linkOpacity={(link: GraphLink) => {
+              if (searchActive && searchMatches.length > 0) {
+                const s = getLinkId(link.source);
+                const t = getLinkId(link.target);
+                const connected = searchMatches.includes(s) || searchMatches.includes(t);
+                if (!connected) return 0.05;
+              }
+              return settings.linkGlow ? (settings.linkOpacity * 0.5) + 0.15 : settings.linkOpacity * 0.5;
+            }}
             linkWidth={(link: GraphLink) => {
               const baseWidth = link.type === 'wiki' ? 1.2 : 0.8;
-              return baseWidth * settings.linkWidth;
+              // Scale semantic links by similarity
+              const simScale = link.type === 'semantic' && link.similarity ? link.similarity : 1;
+              return baseWidth * settings.linkWidth * simScale;
             }}
             linkColor={(link: GraphLink) => {
               return link.type === 'wiki' ? theme.wikiLink : theme.semanticLink;
@@ -343,7 +425,7 @@ export function KnowledgeGraph({
             }}
             linkCurvature={settings.curvedLinks ? 0.15 : 0}
             nodeThreeObject={createNodeObject}
-            ref={graphRef}
+            ref={(ref: ForceGraphMethods<GraphNode, GraphLink> | null) => setGraphRef(ref)}
             enableNodeDrag={true}
             enableNavigationControls={true}
             enablePointerInteraction={true}
@@ -434,15 +516,30 @@ export function KnowledgeGraph({
       </div>
       
       {/* Hovered Node Info */}
-      {hoveredNode && (
-        <div className="absolute top-4 left-4 bg-background/90 backdrop-blur-sm rounded-lg border border-border/60 shadow-lg px-3 py-2 z-10 max-w-[200px]">
-          <p className="text-sm font-medium text-foreground truncate">
-            {notes.find(n => n.id === hoveredNode)?.title || hoveredNode}
-          </p>
-          <p className="text-[10px] text-muted-foreground mt-0.5">Klicken zum Öffnen</p>
-        </div>
-      )}
+      {hoveredNode && (() => {
+        const note = notes.find(n => n.id === hoveredNode);
+        const counts = connectionCounts(hoveredNode);
+        return (
+          <div className="absolute top-4 left-4 bg-background/90 backdrop-blur-sm rounded-lg border border-border/60 shadow-lg px-3 py-2 z-10 max-w-[240px]">
+            <p className="text-sm font-medium text-foreground truncate">
+              {note?.title || hoveredNode}
+            </p>
+            {note?.tags && note.tags.length > 0 && (
+              <div className="flex flex-wrap gap-1 mt-1">
+                {note.tags.slice(0, 4).map(tag => (
+                  <span key={tag} className="text-[9px] px-1 py-0.5 bg-primary/10 text-primary rounded">#{tag}</span>
+                ))}
+              </div>
+            )}
+            <div className="flex items-center gap-2 mt-1">
+              <span className="text-[10px] text-muted-foreground">
+                🔗 {counts.total} ({counts.wiki} Wiki, {counts.semantic} AI)
+              </span>
+            </div>
+            <p className="text-[10px] text-muted-foreground/60 mt-0.5">Klicken für Details</p>
+          </div>
+        );
+      })()}
     </div>
   );
 }
-
