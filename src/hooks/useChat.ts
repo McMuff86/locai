@@ -4,6 +4,7 @@ import { useState, useCallback, useRef } from 'react';
 import { v4 as uuidv4 } from 'uuid';
 import { Message, MessageContent, MessageImageContent, Conversation } from '../types/chat';
 import { sendChatMessage, sendStreamingChatMessage } from '../lib/ollama';
+import type { DocumentSearchResult } from '@/lib/documents/types';
 
 export interface TokenStats {
   promptTokens: number;
@@ -13,11 +14,17 @@ export interface TokenStats {
   tokensPerSecond: number;
 }
 
+export interface SendMessageOptions {
+  ragEnabled?: boolean;
+}
+
 export interface UseChatReturn {
   isLoading: boolean;
   isStreaming: boolean;
   streamingContent: string;
   tokenStats: TokenStats | null;
+  /** RAG source citations from the last message (if RAG was active) */
+  lastRAGSources: DocumentSearchResult[] | null;
   sendMessage: (
     content: string,
     images: File[] | undefined,
@@ -27,7 +34,8 @@ export interface UseChatReturn {
     onBotMessage: (msg: Message) => void,
     onModelSwitch?: (newModel: string) => void,
     visionModels?: string[],
-    useStreaming?: boolean
+    useStreaming?: boolean,
+    options?: SendMessageOptions
   ) => Promise<void>;
   clearTokenStats: () => void;
   stopStreaming: () => void;
@@ -38,6 +46,7 @@ export function useChat(): UseChatReturn {
   const [isStreaming, setIsStreaming] = useState(false);
   const [streamingContent, setStreamingContent] = useState('');
   const [tokenStats, setTokenStats] = useState<TokenStats | null>(null);
+  const [lastRAGSources, setLastRAGSources] = useState<DocumentSearchResult[] | null>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
 
   const processImages = async (files: File[]): Promise<MessageImageContent[]> => {
@@ -75,7 +84,8 @@ export function useChat(): UseChatReturn {
     onBotMessage: (msg: Message) => void,
     onModelSwitch?: (newModel: string) => void,
     visionModels?: string[],
-    useStreaming: boolean = true // Default to streaming
+    useStreaming: boolean = true, // Default to streaming
+    options?: { ragEnabled?: boolean }
   ) => {
     if (!model || (!content.trim() && (!images || images.length === 0))) return;
 
@@ -128,6 +138,38 @@ export function useChat(): UseChatReturn {
       content: messageContent
     });
 
+    // RAG: Inject document context if enabled
+    let ragSources: DocumentSearchResult[] | null = null;
+    if (options?.ragEnabled && typeof content === 'string' && content.trim()) {
+      try {
+        const res = await fetch('/api/documents/search', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ query: content, topK: 5, threshold: 0.3 }),
+        });
+        if (res.ok) {
+          const data = await res.json();
+          const results = data.results as DocumentSearchResult[];
+          if (results && results.length > 0) {
+            ragSources = results;
+            setLastRAGSources(results);
+            // Build context string and inject as system message
+            const contextParts = results.map((r, i) => 
+              `[Source ${i + 1}: ${r.document?.name || 'Unknown'}]\n${r.chunk?.content || ''}`
+            );
+            const ragSystemMsg = {
+              role: 'system' as const,
+              content: `Use the following document context to help answer the user's question. Cite sources when relevant.\n\n${contextParts.join('\n\n---\n\n')}`
+            };
+            // Insert RAG context before the last user message
+            apiMessages.splice(apiMessages.length - 1, 0, ragSystemMsg);
+          }
+        }
+      } catch (err) {
+        console.debug('[RAG] Search failed:', err);
+      }
+    }
+
     const botMessageId = uuidv4();
 
     if (useStreaming) {
@@ -170,13 +212,14 @@ export function useChat(): UseChatReturn {
             setTokenStats(response.tokenStats);
           }
           
-          // Final update with complete content
+          // Final update with complete content (attach RAG sources if available)
           const finalMessage: Message = {
             id: botMessageId,
             role: 'assistant',
             content: response.content,
             timestamp: new Date(),
-            modelName: currentModel
+            modelName: currentModel,
+            ...(ragSources ? { ragSources } : {}),
           };
           onBotMessage(finalMessage);
         },
@@ -210,7 +253,8 @@ export function useChat(): UseChatReturn {
           role: 'assistant',
           content: response.content,
           timestamp: new Date(),
-          modelName: currentModel
+          modelName: currentModel,
+          ...(ragSources ? { ragSources } : {}),
         };
 
         onBotMessage(botResponse);
@@ -241,6 +285,7 @@ export function useChat(): UseChatReturn {
     isStreaming,
     streamingContent,
     tokenStats,
+    lastRAGSources,
     sendMessage,
     clearTokenStats,
     stopStreaming

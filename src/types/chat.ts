@@ -1,4 +1,6 @@
 import React from 'react';
+import type { DocumentSearchResult } from '@/lib/documents/types';
+import type { AgentTurn, ToolCall } from '@/lib/agents/types';
 
 export type MessageRole = 'user' | 'assistant' | 'system';
 
@@ -20,6 +22,12 @@ export interface Message {
   timestamp: Date;
   modelName?: string;
   isLoaded?: boolean;
+  /** RAG source citations attached to this assistant message */
+  ragSources?: DocumentSearchResult[];
+  /** Tool calls requested by the model (agent mode) */
+  toolCalls?: ToolCall[];
+  /** Agent turns for this message (agent mode) */
+  agentTurns?: AgentTurn[];
 }
 
 export interface Conversation {

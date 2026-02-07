@@ -5,6 +5,7 @@ import { cn } from "../../lib/utils";
 import { motion } from "framer-motion";
 import { ThinkingProcess } from "./ThinkingProcess";
 import { MarkdownRenderer } from "./MarkdownRenderer";
+import { SourceCitation } from "./SourceCitation";
 import { useSettings } from "../../hooks/useSettings";
 import { ChatAvatar } from "./ChatAvatar";
 
@@ -215,36 +216,51 @@ export function ChatMessage({ message, isLastMessage = false }: ChatMessageProps
                 <MessageContentRenderer content={finalContent} isUser={isUser} />
               </CardContent>
             </Card>
+            {/* RAG Source Citations */}
+            {!isUser && message.ragSources && message.ragSources.length > 0 && (
+              <SourceCitation sources={message.ragSources} className="max-w-[95%]" />
+            )}
           </div>
         </motion.div>
       ) : showResponse ? (
         /* ─── Bubbles Layout (Classic) ─── */
         <motion.div
           className={cn(
-            "flex w-full mb-4",
-            isUser ? "justify-end" : "justify-start"
+            "flex flex-col w-full mb-4",
+            isUser ? "items-end" : "items-start"
           )}
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.3 }}
         >
-          {!isUser && (
-            <ChatAvatar type="ai" size={36} className="mr-3 self-start mt-1" />
-          )}
-          
-          <Card className={cn(
-            "max-w-[80%]",
-            isUser 
-              ? "bg-muted/50 text-foreground" 
-              : "bg-muted/50 text-foreground"
+          <div className={cn(
+            "flex",
+            isUser ? "justify-end" : "justify-start"
           )}>
-            <CardContent className="p-3">
-              <MessageContentRenderer content={finalContent} isUser={isUser} />
-            </CardContent>
-          </Card>
-          
-          {isUser && (
-            <ChatAvatar type="user" size={36} className="ml-2 self-start mt-1" />
+            {!isUser && (
+              <ChatAvatar type="ai" size={36} className="mr-3 self-start mt-1" />
+            )}
+            
+            <Card className={cn(
+              "max-w-[80%]",
+              isUser 
+                ? "bg-muted/50 text-foreground" 
+                : "bg-muted/50 text-foreground"
+            )}>
+              <CardContent className="p-3">
+                <MessageContentRenderer content={finalContent} isUser={isUser} />
+              </CardContent>
+            </Card>
+            
+            {isUser && (
+              <ChatAvatar type="user" size={36} className="ml-2 self-start mt-1" />
+            )}
+          </div>
+          {/* RAG Source Citations */}
+          {!isUser && message.ragSources && message.ragSources.length > 0 && (
+            <div className="ml-[48px]">
+              <SourceCitation sources={message.ragSources} className="max-w-[80%]" />
+            </div>
           )}
         </motion.div>
       ) : null}

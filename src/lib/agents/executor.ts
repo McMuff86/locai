@@ -1,0 +1,187 @@
+// ============================================================================
+// Agent Executor
+// ============================================================================
+// Implements the agentic tool-calling loop:
+//   User message → LLM (with tools) → tool_calls? → execute → feed back → repeat
+// Yields each turn so the caller (API route) can stream progress to the UI.
+// ============================================================================
+
+import {
+  sendAgentChatMessage,
+  OllamaChatMessage,
+  OllamaTool,
+  OllamaToolCall,
+} from '../ollama';
+import {
+  AgentTurn,
+  AgentOptions,
+  ToolCall,
+  ToolResult,
+  AGENT_DEFAULTS,
+} from './types';
+import { ToolRegistry } from './registry';
+
+// ---------------------------------------------------------------------------
+// Types
+// ---------------------------------------------------------------------------
+
+export interface AgentLoopParams {
+  /** Conversation messages (system + user + history) */
+  messages: OllamaChatMessage[];
+  /** Model name to use */
+  model: string;
+  /** Tool registry to draw tools from */
+  registry: ToolRegistry;
+  /** Options for execution limits */
+  options?: AgentOptions;
+  /** Ollama host override */
+  host?: string;
+}
+
+/** The final yield of the generator includes the assistant's text answer */
+export interface AgentFinalTurn extends AgentTurn {
+  /** The assistant's final text response (set on the last turn) */
+  assistantMessage?: string;
+}
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+let callCounter = 0;
+
+function makeCallId(): string {
+  callCounter += 1;
+  return `tc_${Date.now()}_${callCounter}`;
+}
+
+function ollamaToolCallsToToolCalls(
+  raw: OllamaToolCall[]
+): ToolCall[] {
+  return raw.map((tc) => ({
+    id: makeCallId(),
+    name: tc.function.name,
+    arguments: tc.function.arguments ?? {},
+  }));
+}
+
+// ---------------------------------------------------------------------------
+// Agent Loop (AsyncGenerator)
+// ---------------------------------------------------------------------------
+
+/**
+ * Run the agent tool-calling loop.
+ *
+ * Each iteration is yielded as an {@link AgentFinalTurn} so the caller
+ * can stream incremental progress to the client.
+ *
+ * The final yield has `assistantMessage` set to the model's text answer
+ * (when it stops requesting tools).
+ */
+export async function* executeAgentLoop(
+  params: AgentLoopParams,
+): AsyncGenerator<AgentFinalTurn> {
+  const {
+    messages,
+    model,
+    registry,
+    options = {},
+    host,
+  } = params;
+
+  const maxIterations = options.maxIterations ?? AGENT_DEFAULTS.maxIterations;
+  const signal = options.signal;
+
+  // Build the OllamaTool[] from the registry
+  const ollamaTools: OllamaTool[] = registry.list(options.enabledTools);
+
+  // Working copy of the conversation
+  const conversationMessages: OllamaChatMessage[] = [...messages];
+
+  for (let i = 0; i < maxIterations; i++) {
+    // Check abort
+    if (signal?.aborted) {
+      throw new DOMException('Agent loop aborted', 'AbortError');
+    }
+
+    const startedAt = new Date().toISOString();
+
+    // Send to Ollama (non-streaming, tool-calling)
+    const response = await sendAgentChatMessage(
+      model,
+      conversationMessages,
+      ollamaTools,
+      { host, signal },
+    );
+
+    // No tool_calls → this is the final text answer
+    if (!response.tool_calls || response.tool_calls.length === 0) {
+      const finalTurn: AgentFinalTurn = {
+        index: i,
+        toolCalls: [],
+        toolResults: [],
+        startedAt,
+        completedAt: new Date().toISOString(),
+        assistantMessage: response.content,
+      };
+      yield finalTurn;
+      return; // Done
+    }
+
+    // Convert Ollama tool_calls to our ToolCall type
+    const toolCalls = ollamaToolCallsToToolCalls(response.tool_calls);
+
+    // Append the assistant's tool-calling message to the conversation
+    conversationMessages.push({
+      role: 'assistant',
+      content: response.content || '',
+      tool_calls: response.tool_calls,
+    });
+
+    // Execute each tool call
+    const toolResults: ToolResult[] = [];
+    for (const call of toolCalls) {
+      if (signal?.aborted) {
+        throw new DOMException('Agent loop aborted', 'AbortError');
+      }
+      const result = await registry.execute(call, signal);
+      toolResults.push(result);
+
+      // Feed the tool result back to the conversation
+      conversationMessages.push({
+        role: 'tool',
+        content: result.success
+          ? result.content
+          : `Error: ${result.error ?? 'Unknown error'}`,
+      });
+    }
+
+    // Yield this iteration
+    const turn: AgentFinalTurn = {
+      index: i,
+      toolCalls,
+      toolResults,
+      startedAt,
+      completedAt: new Date().toISOString(),
+    };
+    yield turn;
+  }
+
+  // If we exhausted max iterations, ask the model for a final answer without tools
+  const finalResponse = await sendAgentChatMessage(
+    model,
+    conversationMessages,
+    [], // No tools → force text answer
+    { host, signal },
+  );
+
+  const exhaustedTurn: AgentFinalTurn = {
+    index: maxIterations,
+    toolCalls: [],
+    toolResults: [],
+    startedAt: new Date().toISOString(),
+    completedAt: new Date().toISOString(),
+    assistantMessage: finalResponse.content,
+  };
+  yield exhaustedTurn;
+}

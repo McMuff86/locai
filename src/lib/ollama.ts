@@ -70,14 +70,59 @@ export interface OllamaChatContentItem {
   image?: string; // Base64 encoded image
 }
 
+// ---------------------------------------------------------------------------
+// Ollama Tool-Calling Types (compatible with Ollama v0.3+)
+// ---------------------------------------------------------------------------
+
+/** A tool definition sent to Ollama in the request */
+export interface OllamaTool {
+  type: 'function';
+  function: {
+    name: string;
+    description: string;
+    parameters: OllamaToolParameters;
+  };
+}
+
+/** JSON Schema for tool parameters (aligns with ToolParametersSchema from agents/types) */
+export interface OllamaToolParameters {
+  type: 'object';
+  properties: Record<string, OllamaToolProperty>;
+  required?: string[];
+}
+
+/** A single property in a tool's parameter schema */
+export interface OllamaToolProperty {
+  type: string;
+  description?: string;
+  enum?: string[];
+  items?: OllamaToolProperty;
+  properties?: Record<string, OllamaToolProperty>;
+  required?: string[];
+  default?: unknown;
+  [key: string]: unknown; // Allow extra JSON Schema keys
+}
+
+/** A tool call returned by the model in a response message */
+export interface OllamaToolCall {
+  function: {
+    name: string;
+    arguments: Record<string, unknown>;
+  };
+}
+
+/** Message shape used inside requests/responses (supports tool role) */
+export interface OllamaChatMessage {
+  role: 'system' | 'user' | 'assistant' | 'tool';
+  content: string | OllamaChatContentItem[];
+  images?: string[];
+  tool_calls?: OllamaToolCall[];
+}
+
 // Interface for chat requests
 export interface OllamaChatRequest {
   model: string;
-  messages: {
-    role: 'system' | 'user' | 'assistant';
-    content: string | OllamaChatContentItem[];
-    images?: string[]; // Added for vision models
-  }[];
+  messages: OllamaChatMessage[];
   stream?: boolean;
   options?: {
     temperature?: number;
@@ -86,6 +131,7 @@ export interface OllamaChatRequest {
     num_predict?: number;
   };
   template?: string; // Optional template parameter for Ollama
+  tools?: OllamaTool[];
 }
 
 // Interface for chat responses from Ollama API
@@ -94,6 +140,7 @@ export interface OllamaChatResponse {
   message: {
     role: 'assistant';
     content: string;
+    tool_calls?: OllamaToolCall[];
   };
   done: boolean;
   done_reason?: string;
@@ -118,6 +165,7 @@ export interface TokenStats {
 export interface ChatResponse {
   content: string;
   tokenStats: TokenStats | null;
+  tool_calls?: OllamaToolCall[];
 }
 
 // Streaming chunk interface
@@ -127,6 +175,7 @@ export interface StreamChunk {
   message: {
     role: 'assistant';
     content: string;
+    tool_calls?: OllamaToolCall[];
   };
   done: boolean;
   // Final chunk includes these
@@ -324,17 +373,41 @@ export function formatMessageContent(content: MessageContent): string | OllamaCh
   return String(content);
 }
 
+/** Input message shape accepted by our public chat functions */
+export interface ChatInputMessage {
+  role: 'system' | 'user' | 'assistant' | 'tool';
+  content: MessageContent;
+  tool_calls?: OllamaToolCall[];
+}
+
 /**
  * Formats messages for the Ollama API, handling vision model image extraction.
  * Shared between streaming and non-streaming chat functions.
  */
 function formatMessagesForApi(
   model: string,
-  messages: { role: 'system' | 'user' | 'assistant'; content: MessageContent }[]
+  messages: ChatInputMessage[]
 ): OllamaChatRequest['messages'] {
   const isVisionModel = model.toLowerCase().includes('vision');
 
   return messages.map(msg => {
+    // Pass through tool-role messages directly (tool results fed back)
+    if (msg.role === 'tool') {
+      return {
+        role: 'tool' as const,
+        content: typeof msg.content === 'string' ? msg.content : String(msg.content),
+      };
+    }
+
+    // Pass through assistant messages that contain tool_calls
+    if (msg.role === 'assistant' && msg.tool_calls && msg.tool_calls.length > 0) {
+      return {
+        role: 'assistant' as const,
+        content: typeof msg.content === 'string' ? msg.content : '',
+        tool_calls: msg.tool_calls,
+      };
+    }
+
     // For vision models, we need to handle images differently
     if (isVisionModel && msg.role === 'user') {
       const content = msg.content;
@@ -392,7 +465,8 @@ function buildChatRequest(
   model: string,
   formattedMessages: OllamaChatRequest['messages'],
   stream: boolean,
-  options: Record<string, unknown> = {}
+  options: Record<string, unknown> = {},
+  tools?: OllamaTool[]
 ): OllamaChatRequest {
   const modelTemplate = getOllamaTemplate(model);
   const modelOptions = getDefaultOptions(model);
@@ -409,6 +483,10 @@ function buildChatRequest(
 
   if (modelTemplate) {
     chatRequest.template = modelTemplate;
+  }
+
+  if (tools && tools.length > 0) {
+    chatRequest.tools = tools;
   }
 
   return chatRequest;
@@ -443,26 +521,52 @@ function extractTokenStats(data: {
   };
 }
 
+/** Options for sendChatMessage with tool support */
+export interface SendChatOptions {
+  options?: Record<string, unknown>;
+  host?: string;
+  tools?: OllamaTool[];
+  signal?: AbortSignal;
+}
+
 /**
  * Sends a chat request to an Ollama model with support for images
  * Returns content and token statistics
  */
 export async function sendChatMessage(
   model: string,
-  messages: { role: 'system' | 'user' | 'assistant'; content: MessageContent }[],
-  options = {},
-  host?: string
+  messages: ChatInputMessage[],
+  optionsOrLegacy: SendChatOptions | Record<string, unknown> = {},
+  hostLegacy?: string
 ): Promise<ChatResponse> {
   try {
+    // Support both new and legacy call signatures
+    let chatOptions: Record<string, unknown> = {};
+    let host: string | undefined;
+    let tools: OllamaTool[] | undefined;
+    let signal: AbortSignal | undefined;
+
+    if ('tools' in optionsOrLegacy || 'host' in optionsOrLegacy || 'signal' in optionsOrLegacy) {
+      const opts = optionsOrLegacy as SendChatOptions;
+      chatOptions = opts.options ?? {};
+      host = opts.host;
+      tools = opts.tools;
+      signal = opts.signal;
+    } else {
+      chatOptions = optionsOrLegacy as Record<string, unknown>;
+      host = hostLegacy;
+    }
+
     const formattedMessages = formatMessagesForApi(model, messages);
-    const chatRequest = buildChatRequest(model, formattedMessages, false, options);
+    const chatRequest = buildChatRequest(model, formattedMessages, false, chatOptions, tools);
     
     const response = await fetch(`${resolveOllamaApiBase(host)}/chat`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json'
       },
-      body: JSON.stringify(chatRequest)
+      body: JSON.stringify(chatRequest),
+      signal,
     });
     
     if (!response.ok) {
@@ -474,7 +578,8 @@ export async function sendChatMessage(
     
     return {
       content: data.message.content,
-      tokenStats: extractTokenStats(data)
+      tokenStats: extractTokenStats(data),
+      tool_calls: data.message.tool_calls,
     };
   } catch (error) {
     console.error('Error sending chat message:', error);
@@ -485,27 +590,53 @@ export async function sendChatMessage(
   }
 }
 
+/** Options for sendStreamingChatMessage with tool support */
+export interface StreamingChatOptions {
+  options?: Record<string, unknown>;
+  host?: string;
+  tools?: OllamaTool[];
+  signal?: AbortSignal;
+}
+
 /**
  * Sends a streaming chat request to an Ollama model
  * Calls onChunk for each token received, onComplete when done
  */
 export async function sendStreamingChatMessage(
   model: string,
-  messages: { role: 'system' | 'user' | 'assistant'; content: MessageContent }[],
+  messages: ChatInputMessage[],
   onChunk: (content: string, fullContent: string) => void,
   onComplete: (response: ChatResponse) => void,
   onError?: (error: Error) => void,
-  options = {},
-  host?: string
+  optionsOrLegacy: StreamingChatOptions | Record<string, unknown> = {},
+  hostLegacy?: string
 ): Promise<void> {
   try {
+    // Support both new and legacy call signatures
+    let chatOptions: Record<string, unknown> = {};
+    let host: string | undefined;
+    let tools: OllamaTool[] | undefined;
+    let signal: AbortSignal | undefined;
+
+    if ('tools' in optionsOrLegacy || 'host' in optionsOrLegacy || 'signal' in optionsOrLegacy) {
+      const opts = optionsOrLegacy as StreamingChatOptions;
+      chatOptions = opts.options ?? {};
+      host = opts.host;
+      tools = opts.tools;
+      signal = opts.signal;
+    } else {
+      chatOptions = optionsOrLegacy as Record<string, unknown>;
+      host = hostLegacy;
+    }
+
     const formattedMessages = formatMessagesForApi(model, messages);
-    const chatRequest = buildChatRequest(model, formattedMessages, true, options);
+    const chatRequest = buildChatRequest(model, formattedMessages, true, chatOptions, tools);
     
     const response = await fetch(`${resolveOllamaApiBase(host)}/chat`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(chatRequest)
+      body: JSON.stringify(chatRequest),
+      signal,
     });
     
     if (!response.ok) {
@@ -521,6 +652,8 @@ export async function sendStreamingChatMessage(
     const decoder = new TextDecoder();
     let fullContent = '';
     let finalChunk: StreamChunk | null = null;
+    // Accumulate tool_calls across streaming chunks
+    let accumulatedToolCalls: OllamaToolCall[] | undefined;
     
     while (true) {
       const { done, value } = await reader.read();
@@ -538,6 +671,12 @@ export async function sendStreamingChatMessage(
             fullContent += chunk.message.content;
             onChunk(chunk.message.content, fullContent);
           }
+
+          // Accumulate tool_calls from streaming chunks
+          if (chunk.message?.tool_calls && chunk.message.tool_calls.length > 0) {
+            if (!accumulatedToolCalls) accumulatedToolCalls = [];
+            accumulatedToolCalls.push(...chunk.message.tool_calls);
+          }
           
           if (chunk.done) {
             finalChunk = chunk;
@@ -550,11 +689,69 @@ export async function sendStreamingChatMessage(
     
     onComplete({
       content: fullContent,
-      tokenStats: finalChunk ? extractTokenStats(finalChunk) : null
+      tokenStats: finalChunk ? extractTokenStats(finalChunk) : null,
+      tool_calls: accumulatedToolCalls,
     });
     
   } catch (error) {
     console.error('Error in streaming chat:', error);
     onError?.(error instanceof Error ? error : new Error('Unknown error'));
   }
+}
+
+// ---------------------------------------------------------------------------
+// Non-streaming helper for agent executor (server-side, tool-calling)
+// ---------------------------------------------------------------------------
+
+/**
+ * Send a non-streaming chat request with tool definitions.
+ * Designed for the agent executor loop where we need tool_calls in the response.
+ */
+export async function sendAgentChatMessage(
+  model: string,
+  messages: OllamaChatMessage[],
+  tools: OllamaTool[],
+  options: {
+    host?: string;
+    signal?: AbortSignal;
+    chatOptions?: Record<string, unknown>;
+  } = {}
+): Promise<{
+  content: string;
+  tool_calls?: OllamaToolCall[];
+  tokenStats: TokenStats | null;
+}> {
+  const host = options.host;
+  const chatOptions = options.chatOptions ?? {};
+
+  const chatRequest: OllamaChatRequest = {
+    model,
+    messages,
+    stream: false,
+    options: chatOptions,
+  };
+
+  if (tools.length > 0) {
+    chatRequest.tools = tools;
+  }
+
+  const response = await fetch(`${resolveOllamaApiBase(host)}/chat`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(chatRequest),
+    signal: options.signal,
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`Ollama chat error: ${response.statusText}. ${errorText}`);
+  }
+
+  const data = await response.json() as OllamaChatResponse;
+
+  return {
+    content: data.message.content ?? '',
+    tool_calls: data.message.tool_calls,
+    tokenStats: extractTokenStats(data),
+  };
 } 

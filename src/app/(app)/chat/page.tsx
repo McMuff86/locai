@@ -13,6 +13,7 @@ import { ConversationSidebar } from "@/components/chat/sidebar";
 import { TokenCounter } from "@/components/chat/TokenCounter";
 import { GpuFloatWidget } from "@/components/GpuFloatWidget";
 import { ModelPullDialog } from "@/components/ModelPullDialog";
+import { RAGToggle } from "@/components/chat/RAGToggle";
 import { Button } from "@/components/ui/button";
 import { GripVertical } from "lucide-react";
 
@@ -20,8 +21,13 @@ import { GripVertical } from "lucide-react";
 import { useModels } from "@/hooks/useModels";
 import { useConversations } from "@/hooks/useConversations";
 import { useChat } from "@/hooks/useChat";
+import { useAgentChat } from "@/hooks/useAgentChat";
+import { useDocuments } from "@/hooks/useDocuments";
 import { useKeyboardShortcuts, KeyboardShortcut } from "@/hooks/useKeyboardShortcuts";
 import { useSettings } from "@/hooks/useSettings";
+
+// Agent Components
+import { AgentMessage } from "@/components/chat/AgentMessage";
 
 // Types & Utils
 import { Message } from "@/types/chat";
@@ -36,7 +42,7 @@ function ChatPageContent() {
   const searchParams = useSearchParams();
   
   // Settings hook
-  const { settings, updateSettings } = useSettings();
+  const { settings } = useSettings();
   
   // Custom hooks
   const {
@@ -76,6 +82,29 @@ function ChatPageContent() {
     clearTokenStats,
     stopStreaming
   } = useChat();
+
+  // Documents / RAG hook
+  const {
+    ragEnabled,
+    toggleRag,
+    readyCount: ragReadyCount,
+  } = useDocuments();
+
+  const {
+    agentTurns,
+    isAgentMode,
+    toggleAgentMode,
+    enabledTools,
+    toggleTool,
+    isExecutingTool,
+    isAgentLoading,
+    agentStreamingContent,
+    currentTurnIndex,
+    totalTurnsEstimate,
+    agentError,
+    sendAgentMessage,
+    cancelAgentRun,
+  } = useAgentChat();
 
   // ── Local UI state ────────────────────────────────────────────
   const [showSidebar, setShowSidebar] = useState(true);
@@ -312,6 +341,46 @@ function ChatPageContent() {
   // ── Send message ──────────────────────────────────────────────
 
   const handleSendMessage = useCallback(async (content: string, images?: File[]) => {
+    if (isAgentMode && !images?.length) {
+      // Agent mode: send through agent pipeline
+      const userMessage: Message = {
+        id: uuidv4(),
+        role: 'user',
+        content,
+        timestamp: new Date(),
+        modelName: selectedModel,
+      };
+      addMessage(userMessage);
+
+      // Build conversation history for agent context
+      const history = conversation.messages.map(msg => ({
+        role: msg.role as string,
+        content: typeof msg.content === 'string' ? msg.content : '[media content]',
+      }));
+      history.push({ role: 'user', content });
+
+      const finalContent = await sendAgentMessage(content, {
+        conversationHistory: history,
+        enabledTools,
+        model: selectedModel,
+        host: settings?.ollamaHost,
+      });
+
+      // Add the final bot message to conversation
+      if (finalContent) {
+        const botMessage: Message = {
+          id: uuidv4(),
+          role: 'assistant',
+          content: finalContent,
+          timestamp: new Date(),
+          modelName: selectedModel,
+        };
+        addMessage(botMessage);
+      }
+      return;
+    }
+
+    // Standard mode
     await sendMessage(
       content,
       images,
@@ -323,9 +392,11 @@ function ChatPageContent() {
         setSelectedModel(newModel);
         toast({ title: "Verwende Vision-Modell", description: `Bilder werden mit ${newModel} analysiert` });
       },
-      visionModels.map(m => m.name)
+      visionModels.map(m => m.name),
+      undefined, // useStreaming - use default
+      { ragEnabled }
     );
-  }, [sendMessage, conversation, selectedModel, addMessage, setSelectedModel, visionModels, toast]);
+  }, [sendMessage, conversation, selectedModel, addMessage, setSelectedModel, visionModels, toast, isAgentMode, sendAgentMessage, enabledTools, ragEnabled, settings?.ollamaHost]);
 
   // ── Load conversation from URL ────────────────────────────────
 
@@ -541,7 +612,23 @@ function ChatPageContent() {
             />
           ) : (
             <>
-              <ChatContainer conversation={conversation} isLoading={isChatLoading} />
+              <ChatContainer conversation={conversation} isLoading={isChatLoading && !isAgentMode} />
+
+              {/* Agent message (tool calls + streaming) */}
+              {isAgentMode && (isAgentLoading || agentTurns.length > 0) && (
+                <div className="px-4 lg:px-8">
+                  <AgentMessage
+                    turns={agentTurns}
+                    content={agentStreamingContent}
+                    isLoading={isAgentLoading}
+                    isExecutingTool={isExecutingTool}
+                    currentTurnIndex={currentTurnIndex}
+                    totalTurnsEstimate={totalTurnsEstimate}
+                    modelName={selectedModel}
+                    error={agentError}
+                  />
+                </div>
+              )}
 
               {/* Token Counter */}
               {tokenStats && (
@@ -555,29 +642,42 @@ function ChatPageContent() {
               )}
               
               {/* Stop Button */}
-              {isStreaming && (
+              {(isStreaming || isAgentLoading) && (
                 <div className="px-4 py-2 border-t border-border/40 flex justify-center">
                   <Button 
                     variant="outline" 
                     size="sm"
-                    onClick={stopStreaming}
+                    onClick={isAgentLoading ? cancelAgentRun : stopStreaming}
                     className="text-destructive hover:text-destructive"
                   >
-                    Stop Generating
+                    {isAgentLoading ? 'Agent stoppen' : 'Stop Generating'}
                   </Button>
                 </div>
               )}
               
               {/* Chat Input */}
               <div className="px-4 pb-6">
+                {/* RAG + Agent toggles row */}
+                <div className="flex items-center gap-1 mb-1 ml-1">
+                  <RAGToggle
+                    enabled={ragEnabled}
+                    onToggle={toggleRag}
+                    readyCount={ragReadyCount}
+                    disabled={isChatLoading || isAgentLoading}
+                  />
+                </div>
                 <ChatInput 
                   onSend={handleSendMessage} 
-                  disabled={isChatLoading} 
+                  disabled={isChatLoading || isAgentLoading} 
                   inputRef={chatInputRef}
                   searxngUrl={settings?.searxngUrl}
                   searxngEnabled={settings?.searxngEnabled}
                   ollamaHost={settings?.ollamaHost}
                   selectedModel={selectedModel}
+                  agentMode={isAgentMode}
+                  onToggleAgentMode={toggleAgentMode}
+                  enabledTools={enabledTools}
+                  onToggleTool={toggleTool}
                 />
               </div>
             </>
