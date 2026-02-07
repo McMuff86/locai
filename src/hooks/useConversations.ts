@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { v4 as uuidv4 } from 'uuid';
-import { Conversation, Message, MessageContent, MessageImageContent } from '../types/chat';
+import { Conversation, Message } from '../types/chat';
 import { 
   getSavedConversations, 
   saveConversation as saveToStorage, 
@@ -88,7 +88,6 @@ export function useConversations(options: UseConversationsOptions = {}): UseConv
   const [lastAutoSave, setLastAutoSave] = useState<Date | null>(null);
   
   const autoSaveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const isLoadedConversationRef = useRef(false);
 
   // Load saved conversations on mount
   useEffect(() => {

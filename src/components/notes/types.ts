@@ -1,5 +1,4 @@
 // Shared types for Notes components
-import { NoteSummary } from '@/lib/notes';
 
 export interface NoteForm {
   title: string;

@@ -78,7 +78,7 @@ async function trySearXNG(
 
     const mappedResults: SearchResult[] = results
       .slice(0, maxResults)
-      .map((r: any) => ({
+      .map((r: { title?: string; url?: string; content?: string; snippet?: string; engine?: string }) => ({
         title: r.title || 'No title',
         url: r.url || '',
         content: r.content || r.snippet || '',

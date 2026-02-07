@@ -310,7 +310,7 @@ export function useWebSearch(options: UseWebSearchOptions = {}): UseWebSearchRet
     
     // Use the pre-formatted version if available
     if ('formattedForChat' in lastResult) {
-      return (lastResult as any).formattedForChat;
+      return (lastResult as unknown as { formattedForChat: string }).formattedForChat;
     }
 
     // Fallback: Build simple format

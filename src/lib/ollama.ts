@@ -358,7 +358,7 @@ export async function sendChatMessage(
         if (hasImages) {
           // Extract text and images to proper format
           let textContent = '';
-          let images: string[] = [];
+          const images: string[] = [];
           
           if (Array.isArray(content)) {
             // Process array of content (text and images)
@@ -412,11 +412,8 @@ export async function sendChatMessage(
     
     // Add template if available for the model
     if (modelTemplate) {
-      console.log(`Using custom template for model: ${model}`);
       chatRequest.template = modelTemplate;
     }
-    
-    console.log('Sending chat request with payload:', JSON.stringify(chatRequest, null, 2));
     
     const response = await fetch(`${resolveOllamaApiBase(host)}/chat`, {
       method: 'POST',
@@ -493,7 +490,7 @@ export async function sendStreamingChatMessage(
         
         if (hasImages) {
           let textContent = '';
-          let images: string[] = [];
+          const images: string[] = [];
           
           if (Array.isArray(content)) {
             content.forEach(item => {

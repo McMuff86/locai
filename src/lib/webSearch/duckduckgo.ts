@@ -32,10 +32,7 @@ function parseHtmlResults(html: string, maxResults: number): SearchResult[] {
   // Pattern 1: result__a (title link) and result__snippet (description)
   const resultPattern = /<a[^>]*class="[^"]*result__a[^"]*"[^>]*href="([^"]*)"[^>]*>([^<]*)<\/a>[\s\S]*?<a[^>]*class="[^"]*result__snippet[^"]*"[^>]*>([^<]*(?:<[^>]*>[^<]*)*)<\/a>/gi;
   
-  // Pattern 2: Alternative structure
-  const altPattern = /<h2[^>]*class="[^"]*result__title[^"]*"[^>]*>[\s\S]*?<a[^>]*href="([^"]*)"[^>]*>([^<]*)<\/a>[\s\S]*?<a[^>]*class="[^"]*result__snippet[^"]*"[^>]*>([\s\S]*?)<\/a>/gi;
-  
-  // Pattern 3: Simpler extraction
+  // Pattern 2: Simpler extraction
   const simplePattern = /href="\/\/duckduckgo\.com\/l\/\?uddg=([^&"]*)[^"]*"[^>]*>([^<]+)<\/a>[\s\S]*?class="[^"]*result__snippet[^"]*"[^>]*>([\s\S]*?)<\/a>/gi;
   
   let match;

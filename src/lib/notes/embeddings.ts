@@ -167,7 +167,7 @@ async function embedSingle(
     let data;
     try {
       data = JSON.parse(responseText);
-    } catch (parseError) {
+    } catch {
       throw new Error(`JSON Parse-Fehler: ${responseText.slice(0, 100)}`);
     }
     

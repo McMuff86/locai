@@ -73,6 +73,8 @@ export function useSettings(): UseSettingsReturn {
   const [isLoaded, setIsLoaded] = useState(false);
   const [settingsPath, setSettingsPath] = useState<string | null>(null);
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const settingsRef = useRef(settings);
+  settingsRef.current = settings;
 
   // Load settings from localStorage on mount
   useEffect(() => {
@@ -199,7 +201,8 @@ export function useSettings(): UseSettingsReturn {
     path?: string | null;
   }> => {
     try {
-      const path = dataPath || settings.dataPath;
+      const currentSettings = settingsRef.current;
+      const path = dataPath || currentSettings.dataPath;
       if (!path) return { success: false, updatedSettings: null };
       
       const response = await fetch(`/api/settings?dataPath=${encodeURIComponent(path)}`);
@@ -210,7 +213,7 @@ export function useSettings(): UseSettingsReturn {
         setSettingsPath(data.path);
         return {
           success: true,
-          updatedSettings: { ...settings, ...data.settings, dataPath: path },
+          updatedSettings: { ...currentSettings, ...data.settings, dataPath: path },
           source: data.source,
           path: data.path,
         };
@@ -219,7 +222,7 @@ export function useSettings(): UseSettingsReturn {
     } catch {
       return { success: false, updatedSettings: null };
     }
-  }, [settings.dataPath]);
+  }, []);
 
   return {
     settings,
