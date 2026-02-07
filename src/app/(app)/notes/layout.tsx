@@ -34,8 +34,13 @@ interface NotesContextValue {
   setGraphExpanded: (expanded: boolean) => void;
   hoveredNode: string | null;
   setHoveredNode: (nodeId: string | null) => void;
+  selectedNode: string | null;
+  setSelectedNode: (nodeId: string | null) => void;
   physicsPaused: boolean;
   setPhysicsPaused: (paused: boolean) => void;
+  searchQuery: string;
+  setSearchQuery: (query: string) => void;
+  searchMatches: string[];
   generateEmbeddings: (host?: string) => Promise<void>;
   fetchSemanticLinks: () => Promise<void>;
 }
@@ -82,8 +87,13 @@ export default function NotesLayout({
     setGraphExpanded,
     hoveredNode,
     setHoveredNode,
+    selectedNode,
+    setSelectedNode,
     physicsPaused,
     setPhysicsPaused,
+    searchQuery,
+    setSearchQuery,
+    searchMatches,
     generateEmbeddings,
     fetchSemanticLinks,
   } = useGraph({ basePath, notes });
@@ -133,8 +143,13 @@ export default function NotesLayout({
     setGraphExpanded,
     hoveredNode,
     setHoveredNode,
+    selectedNode,
+    setSelectedNode,
     physicsPaused,
     setPhysicsPaused,
+    searchQuery,
+    setSearchQuery,
+    searchMatches,
     generateEmbeddings,
     fetchSemanticLinks,
   };
