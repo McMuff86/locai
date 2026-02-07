@@ -58,6 +58,10 @@ export interface AgentSendOptions {
   enabledTools?: string[];
   maxIterations?: number;
   conversationHistory?: Array<{ role: string; content: string }>;
+  /** Model name to use for agent execution */
+  model?: string;
+  /** Ollama host override */
+  host?: string;
 }
 
 export interface UseAgentChatReturn {
@@ -173,9 +177,11 @@ export function useAgentChat(): UseAgentChatReturn {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           message: content,
+          model: options?.model,
           enabledTools: options?.enabledTools ?? enabledTools,
           maxIterations: options?.maxIterations ?? 8,
           conversationHistory: options?.conversationHistory ?? [],
+          host: options?.host,
         }),
         signal: controller.signal,
       });

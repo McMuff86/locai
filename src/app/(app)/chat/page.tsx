@@ -13,6 +13,7 @@ import { ConversationSidebar } from "@/components/chat/sidebar";
 import { TokenCounter } from "@/components/chat/TokenCounter";
 import { GpuFloatWidget } from "@/components/GpuFloatWidget";
 import { ModelPullDialog } from "@/components/ModelPullDialog";
+import { RAGToggle } from "@/components/chat/RAGToggle";
 import { Button } from "@/components/ui/button";
 import { GripVertical } from "lucide-react";
 
@@ -21,6 +22,7 @@ import { useModels } from "@/hooks/useModels";
 import { useConversations } from "@/hooks/useConversations";
 import { useChat } from "@/hooks/useChat";
 import { useAgentChat } from "@/hooks/useAgentChat";
+import { useDocuments } from "@/hooks/useDocuments";
 import { useKeyboardShortcuts, KeyboardShortcut } from "@/hooks/useKeyboardShortcuts";
 import { useSettings } from "@/hooks/useSettings";
 
@@ -76,10 +78,18 @@ function ChatPageContent() {
     isLoading: isChatLoading,
     isStreaming,
     tokenStats,
+    lastRAGSources,
     sendMessage,
     clearTokenStats,
     stopStreaming
   } = useChat();
+
+  // Documents / RAG hook
+  const {
+    ragEnabled,
+    toggleRag,
+    readyCount: ragReadyCount,
+  } = useDocuments();
 
   const {
     agentTurns,
@@ -355,6 +365,8 @@ function ChatPageContent() {
       const finalContent = await sendAgentMessage(content, {
         conversationHistory: history,
         enabledTools,
+        model: selectedModel,
+        host: settings?.ollamaHost,
       });
 
       // Add the final bot message to conversation
@@ -383,9 +395,11 @@ function ChatPageContent() {
         setSelectedModel(newModel);
         toast({ title: "Verwende Vision-Modell", description: `Bilder werden mit ${newModel} analysiert` });
       },
-      visionModels.map(m => m.name)
+      visionModels.map(m => m.name),
+      undefined, // useStreaming - use default
+      { ragEnabled }
     );
-  }, [sendMessage, conversation, selectedModel, addMessage, setSelectedModel, visionModels, toast, isAgentMode, sendAgentMessage, enabledTools]);
+  }, [sendMessage, conversation, selectedModel, addMessage, setSelectedModel, visionModels, toast, isAgentMode, sendAgentMessage, enabledTools, ragEnabled, settings?.ollamaHost]);
 
   // ── Load conversation from URL ────────────────────────────────
 
@@ -646,6 +660,15 @@ function ChatPageContent() {
               
               {/* Chat Input */}
               <div className="px-4 pb-6">
+                {/* RAG + Agent toggles row */}
+                <div className="flex items-center gap-1 mb-1 ml-1">
+                  <RAGToggle
+                    enabled={ragEnabled}
+                    onToggle={toggleRag}
+                    readyCount={ragReadyCount}
+                    disabled={isChatLoading || isAgentLoading}
+                  />
+                </div>
                 <ChatInput 
                   onSend={handleSendMessage} 
                   disabled={isChatLoading || isAgentLoading} 

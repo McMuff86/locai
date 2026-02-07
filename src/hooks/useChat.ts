@@ -4,7 +4,7 @@ import { useState, useCallback, useRef } from 'react';
 import { v4 as uuidv4 } from 'uuid';
 import { Message, MessageContent, MessageImageContent, Conversation } from '../types/chat';
 import { sendChatMessage, sendStreamingChatMessage } from '../lib/ollama';
-import type { DocumentSearchResult, RAGContext } from '@/lib/documents/types';
+import type { DocumentSearchResult } from '@/lib/documents/types';
 
 export interface TokenStats {
   promptTokens: number;
@@ -84,7 +84,8 @@ export function useChat(): UseChatReturn {
     onBotMessage: (msg: Message) => void,
     onModelSwitch?: (newModel: string) => void,
     visionModels?: string[],
-    useStreaming: boolean = true // Default to streaming
+    useStreaming: boolean = true, // Default to streaming
+    options?: { ragEnabled?: boolean }
   ) => {
     if (!model || (!content.trim() && (!images || images.length === 0))) return;
 
@@ -136,6 +137,38 @@ export function useChat(): UseChatReturn {
       role: 'user',
       content: messageContent
     });
+
+    // RAG: Inject document context if enabled
+    let ragSources: DocumentSearchResult[] | null = null;
+    if (options?.ragEnabled && typeof content === 'string' && content.trim()) {
+      try {
+        const res = await fetch('/api/documents/search', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ query: content, topK: 5, threshold: 0.3 }),
+        });
+        if (res.ok) {
+          const data = await res.json();
+          const results = data.results as DocumentSearchResult[];
+          if (results && results.length > 0) {
+            ragSources = results;
+            setLastRAGSources(results);
+            // Build context string and inject as system message
+            const contextParts = results.map((r, i) => 
+              `[Source ${i + 1}: ${r.document?.name || 'Unknown'}]\n${r.chunk?.content || ''}`
+            );
+            const ragSystemMsg = {
+              role: 'system' as const,
+              content: `Use the following document context to help answer the user's question. Cite sources when relevant.\n\n${contextParts.join('\n\n---\n\n')}`
+            };
+            // Insert RAG context before the last user message
+            apiMessages.splice(apiMessages.length - 1, 0, ragSystemMsg);
+          }
+        }
+      } catch (err) {
+        console.debug('[RAG] Search failed:', err);
+      }
+    }
 
     const botMessageId = uuidv4();
 

@@ -1,159 +1,137 @@
 // ============================================================================
 // Agent Chat API Route
 // ============================================================================
+// Streams NDJSON events for the agent tool-calling loop.
 // POST /api/chat/agent
-//
-// Accepts messages + model + enabledTools, runs the agent executor loop,
-// and streams results back as NDJSON (newline-delimited JSON).
-//
-// Event types:
-//   { type: "tool_call",     data: { index, toolCalls } }
-//   { type: "tool_result",   data: { index, toolResults } }
-//   { type: "final_response", data: { content, index } }
-//   { type: "error",         data: { message } }
 // ============================================================================
 
-import { NextRequest } from 'next/server';
-import { OllamaChatMessage } from '@/lib/ollama';
+import { NextRequest, NextResponse } from 'next/server';
+import { executeAgentLoop } from '@/lib/agents/executor';
 import { ToolRegistry } from '@/lib/agents/registry';
 import { registerBuiltinTools } from '@/lib/agents/tools';
-import { executeAgentLoop } from '@/lib/agents/executor';
-import { AgentOptions } from '@/lib/agents/types';
+import type { OllamaChatMessage } from '@/lib/ollama';
+import type { AgentOptions } from '@/lib/agents/types';
 
-export const runtime = 'nodejs';
-export const dynamic = 'force-dynamic';
+// ---------------------------------------------------------------------------
+// Request body type
+// ---------------------------------------------------------------------------
 
-interface AgentChatBody {
-  messages: OllamaChatMessage[];
-  model: string;
+interface AgentRequestBody {
+  /** User message content */
+  message: string;
+  /** Model to use */
+  model?: string;
+  /** Enabled tool names */
   enabledTools?: string[];
+  /** Max agent iterations */
   maxIterations?: number;
+  /** Conversation history */
+  conversationHistory?: Array<{ role: string; content: string }>;
+  /** Ollama host override */
   host?: string;
 }
 
-export async function POST(req: NextRequest) {
-  let body: AgentChatBody;
+// ---------------------------------------------------------------------------
+// Route handler
+// ---------------------------------------------------------------------------
 
+export async function POST(request: NextRequest) {
   try {
-    body = (await req.json()) as AgentChatBody;
-  } catch {
-    return new Response(
-      JSON.stringify({ type: 'error', data: { message: 'Invalid JSON body' } }),
-      { status: 400, headers: { 'Content-Type': 'application/json' } },
-    );
-  }
+    const body = (await request.json()) as AgentRequestBody;
 
-  const { messages, model, enabledTools, maxIterations, host } = body;
+    const {
+      message,
+      model = 'llama3',
+      enabledTools,
+      maxIterations = 8,
+      conversationHistory = [],
+      host,
+    } = body;
 
-  if (!messages || !Array.isArray(messages) || messages.length === 0) {
-    return new Response(
-      JSON.stringify({ type: 'error', data: { message: 'messages array is required' } }),
-      { status: 400, headers: { 'Content-Type': 'application/json' } },
-    );
-  }
+    if (!message?.trim()) {
+      return NextResponse.json({ error: 'Message is required' }, { status: 400 });
+    }
 
-  if (!model || typeof model !== 'string') {
-    return new Response(
-      JSON.stringify({ type: 'error', data: { message: 'model is required' } }),
-      { status: 400, headers: { 'Content-Type': 'application/json' } },
-    );
-  }
+    // Set up tool registry
+    const registry = new ToolRegistry();
+    registerBuiltinTools(registry);
 
-  // Build a fresh registry with built-in tools
-  const registry = new ToolRegistry();
-  registerBuiltinTools(registry);
+    // Build conversation messages
+    const messages: OllamaChatMessage[] = [
+      ...conversationHistory.map((m) => ({
+        role: m.role as 'system' | 'user' | 'assistant',
+        content: m.content,
+      })),
+      { role: 'user' as const, content: message },
+    ];
 
-  const abortController = new AbortController();
+    const options: AgentOptions = {
+      maxIterations,
+      enabledTools,
+    };
 
-  const agentOptions: AgentOptions = {
-    maxIterations: maxIterations ?? 8,
-    enabledTools,
-    signal: abortController.signal,
-  };
+    // Create a ReadableStream for NDJSON streaming
+    const stream = new ReadableStream({
+      async start(controller) {
+        const encoder = new TextEncoder();
 
-  const encoder = new TextEncoder();
-
-  const stream = new ReadableStream({
-    async start(controller) {
-      try {
-        const agentLoop = executeAgentLoop({
-          messages,
-          model,
-          registry,
-          options: agentOptions,
-          host,
-        });
-
-        for await (const turn of agentLoop) {
-          // Emit tool calls (if any)
-          if (turn.toolCalls.length > 0) {
-            const toolCallEvent = JSON.stringify({
-              type: 'tool_call',
-              data: {
-                index: turn.index,
-                toolCalls: turn.toolCalls.map((tc) => ({
-                  id: tc.id,
-                  name: tc.name,
-                  arguments: tc.arguments,
-                })),
-              },
-            });
-            controller.enqueue(encoder.encode(toolCallEvent + '\n'));
-          }
-
-          // Emit tool results (if any)
-          if (turn.toolResults.length > 0) {
-            const toolResultEvent = JSON.stringify({
-              type: 'tool_result',
-              data: {
-                index: turn.index,
-                toolResults: turn.toolResults.map((tr) => ({
-                  callId: tr.callId,
-                  success: tr.success,
-                  content: tr.content.slice(0, 2000), // Limit for streaming
-                  error: tr.error,
-                })),
-              },
-            });
-            controller.enqueue(encoder.encode(toolResultEvent + '\n'));
-          }
-
-          // Emit final response (if present)
-          if (turn.assistantMessage !== undefined) {
-            const finalEvent = JSON.stringify({
-              type: 'final_response',
-              data: {
-                content: turn.assistantMessage,
-                index: turn.index,
-              },
-            });
-            controller.enqueue(encoder.encode(finalEvent + '\n'));
-          }
+        function emit(data: Record<string, unknown>) {
+          controller.enqueue(encoder.encode(JSON.stringify(data) + '\n'));
         }
-      } catch (err) {
-        const message =
-          err instanceof Error ? err.message : 'Agent execution failed';
-        const errorEvent = JSON.stringify({
-          type: 'error',
-          data: { message },
-        });
-        controller.enqueue(encoder.encode(errorEvent + '\n'));
-      } finally {
-        controller.close();
-      }
-    },
 
-    cancel() {
-      abortController.abort();
-    },
-  });
+        try {
+          const generator = executeAgentLoop({
+            messages,
+            model,
+            registry,
+            options,
+            host,
+          });
 
-  return new Response(stream, {
-    headers: {
-      'Content-Type': 'application/x-ndjson',
-      'Cache-Control': 'no-cache',
-      Connection: 'keep-alive',
-      'X-Content-Type-Options': 'nosniff',
-    },
-  });
+          for await (const turn of generator) {
+            // Emit turn start
+            emit({ type: 'turn_start', turn: turn.index });
+
+            // Emit tool calls
+            for (const call of turn.toolCalls) {
+              emit({ type: 'tool_call', turn: turn.index, call });
+            }
+
+            // Emit tool results
+            for (const result of turn.toolResults) {
+              emit({ type: 'tool_result', turn: turn.index, result });
+            }
+
+            // Emit turn end
+            emit({ type: 'turn_end', turn: turn.index });
+
+            // If this turn has the final assistant message, stream it
+            if (turn.assistantMessage) {
+              emit({
+                type: 'message',
+                content: turn.assistantMessage,
+                done: true,
+              });
+            }
+          }
+        } catch (err) {
+          const errMsg = err instanceof Error ? err.message : 'Unknown agent error';
+          emit({ type: 'error', message: errMsg });
+        } finally {
+          controller.close();
+        }
+      },
+    });
+
+    return new Response(stream, {
+      headers: {
+        'Content-Type': 'application/x-ndjson',
+        'Cache-Control': 'no-cache',
+        'Connection': 'keep-alive',
+      },
+    });
+  } catch (err) {
+    const errMsg = err instanceof Error ? err.message : 'Internal server error';
+    return NextResponse.json({ error: errMsg }, { status: 500 });
+  }
 }
