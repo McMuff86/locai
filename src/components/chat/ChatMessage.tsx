@@ -198,7 +198,7 @@ export function ChatMessage({ message, isLastMessage = false }: ChatMessageProps
         >
           {/* Header row: Avatar + Name + Timestamp */}
           <div className="flex items-center gap-2 mb-1">
-            <ChatAvatar type={isUser ? 'user' : 'ai'} size={isUser ? 36 : 40} />
+            <ChatAvatar type={isUser ? 'user' : 'ai'} size={36} />
             <span className="text-sm font-medium text-foreground">{displayName}</span>
             <span className="text-xs text-muted-foreground">{timestamp}</span>
           </div>
@@ -229,7 +229,7 @@ export function ChatMessage({ message, isLastMessage = false }: ChatMessageProps
           transition={{ duration: 0.3 }}
         >
           {!isUser && (
-            <ChatAvatar type="ai" size={40} className="mr-3 self-start mt-1" />
+            <ChatAvatar type="ai" size={36} className="mr-3 self-start mt-1" />
           )}
           
           <Card className={cn(
