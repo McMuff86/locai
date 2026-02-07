@@ -21,6 +21,8 @@ export interface JSONSchemaProperty {
   properties?: Record<string, JSONSchemaProperty>;
   required?: string[];
   default?: unknown;
+  /** Allow additional JSON Schema keywords */
+  [key: string]: unknown;
 }
 
 /** Top-level JSON Schema for tool parameters (always type: "object") */
