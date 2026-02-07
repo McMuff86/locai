@@ -32,6 +32,7 @@ function persistSettings(settings: GraphSettings) {
 interface UseGraphOptions {
   basePath?: string;
   notes: NoteSummary[];
+  embeddingModel?: string;
 }
 
 interface UseGraphReturn {
@@ -59,7 +60,7 @@ interface UseGraphReturn {
   generateEmbeddings: (host?: string) => Promise<void>;
 }
 
-export function useGraph({ basePath, notes }: UseGraphOptions): UseGraphReturn {
+export function useGraph({ basePath, notes, embeddingModel }: UseGraphOptions): UseGraphReturn {
   const [semanticLinks, setSemanticLinks] = useState<SemanticLink[]>([]);
   const [semanticThreshold, setSemanticThreshold] = useState(0.75);
   const [isGeneratingEmbeddings, setIsGeneratingEmbeddings] = useState(false);
@@ -116,12 +117,13 @@ export function useGraph({ basePath, notes }: UseGraphOptions): UseGraphReturn {
     setEmbeddingsStatus('Verbinde mit Ollama...');
     
     try {
+      const model = embeddingModel || 'nomic-embed-text';
       const res = await fetch('/api/notes/embed', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           basePath,
-          model: 'nomic-embed-text',
+          model,
           host,
           streaming: true,
         }),
@@ -202,7 +204,7 @@ export function useGraph({ basePath, notes }: UseGraphOptions): UseGraphReturn {
     } finally {
       setIsGeneratingEmbeddings(false);
     }
-  }, [basePath, fetchSemanticLinks]);
+  }, [basePath, embeddingModel, fetchSemanticLinks]);
 
   const updateGraphSettings = useCallback((updates: Partial<GraphSettings>) => {
     setGraphSettings((prev) => {
@@ -247,7 +249,7 @@ export function useGraph({ basePath, notes }: UseGraphOptions): UseGraphReturn {
     }
 
     // Semantic links (from embeddings) - type: 'semantic'
-    const maxSemanticLinks = 50;
+    const maxSemanticLinks = graphSettings.semanticLinksCap;
     const sortedSemanticLinks = [...semanticLinks]
       .sort((a, b) => b.similarity - a.similarity)
       .slice(0, maxSemanticLinks);
@@ -281,7 +283,7 @@ export function useGraph({ basePath, notes }: UseGraphOptions): UseGraphReturn {
     }
 
     return { nodes, links: filteredEdges };
-  }, [notes, semanticLinks, graphSettings.linkFilter]);
+  }, [notes, semanticLinks, graphSettings.linkFilter, graphSettings.semanticLinksCap]);
 
   return {
     semanticLinks,

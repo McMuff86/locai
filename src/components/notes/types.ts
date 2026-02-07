@@ -42,6 +42,7 @@ export interface GraphData {
 export type GraphTheme = 'cyber' | 'obsidian' | 'neon' | 'minimal';
 export type NodeGeometry = 'sphere' | 'box' | 'octahedron' | 'tetrahedron' | 'icon';
 export type LinkFilter = 'all' | 'wiki' | 'semantic';
+export type GraphViewMode = 'text' | '2d' | '3d';
 
 export interface GraphSettings {
   showLabels: boolean;
@@ -64,6 +65,10 @@ export interface GraphSettings {
   curvedLinks: boolean;
   labelColor: string;
   linkFilter: LinkFilter;
+  semanticLinksCap: number;
+  showOrphans: boolean;
+  localGraph: boolean;
+  localGraphDepth: 1 | 2;
 }
 
 export const defaultGraphSettings: GraphSettings = {
@@ -87,6 +92,10 @@ export const defaultGraphSettings: GraphSettings = {
   curvedLinks: true,
   labelColor: '#ffffff',
   linkFilter: 'all',     // 'all' | 'wiki' | 'semantic'
+  semanticLinksCap: 100,
+  showOrphans: true,
+  localGraph: false,
+  localGraphDepth: 1,
 };
 
 export const labelColorPresets = [
