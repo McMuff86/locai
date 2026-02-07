@@ -139,10 +139,26 @@
 
 @layer base {
   * {
-    @apply border-border outline-ring/50;
+    @apply border-border/70 outline-ring/50;
   }
   body {
     @apply bg-background text-foreground;
+  }
+}
+
+/* ── Global visual refinements ───────────────────────────────── */
+
+/* Cards: softer borders, more breathing room */
+@layer components {
+  .card-elevated {
+    @apply rounded-xl border border-border/40 bg-card shadow-sm;
+  }
+}
+
+/* Subtle focus ring for interactive elements */
+@layer utilities {
+  .focus-ring {
+    @apply focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary/50;
   }
 }
 

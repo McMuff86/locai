@@ -45,7 +45,7 @@ export default function AppLayout({
   return (
     <div className="flex h-screen overflow-hidden bg-background">
       {/* Vertical Navigation Bar */}
-      <nav className="hidden md:flex flex-col w-16 bg-sidebar border-r border-border">
+      <nav className="hidden md:flex flex-col w-16 bg-sidebar border-r border-border/60">
         {/* Logo */}
         <Link href="/" className="flex items-center justify-center h-14 border-b border-border hover:bg-accent/50 transition-colors">
           <NextImage
@@ -58,7 +58,7 @@ export default function AppLayout({
         </Link>
 
         {/* Nav Items */}
-        <div className="flex-1 flex flex-col items-center py-4 gap-2">
+        <div className="flex-1 flex flex-col items-center py-4 gap-1.5">
           {navItems.map((item) => {
             const isActive = pathname === item.href || pathname?.startsWith(item.href + '/');
             return (
@@ -66,9 +66,16 @@ export default function AppLayout({
                 <Button
                   variant={isActive ? "secondary" : "ghost"}
                   size="icon"
-                  className={`w-12 h-12 ${isActive ? 'bg-primary/15 text-primary' : 'text-muted-foreground hover:text-foreground'}`}
+                  className={`w-12 h-12 relative ${
+                    isActive 
+                      ? 'bg-primary/15 text-primary shadow-sm' 
+                      : 'text-muted-foreground hover:text-foreground hover:bg-accent/50'
+                  }`}
                 >
-                  <item.icon className="h-5 w-5" />
+                  <item.icon className="h-[22px] w-[22px]" />
+                  {isActive && (
+                    <span className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-6 rounded-r-full bg-primary" />
+                  )}
                 </Button>
               </Link>
             );
