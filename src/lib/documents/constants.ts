@@ -8,7 +8,11 @@ import { DocumentType } from './types';
 // Supported File Types
 // ---------------------------------------------------------------------------
 
-/** Mapping of DocumentType → accepted MIME types */
+/**
+ * Mapping of {@link DocumentType} to accepted MIME types.
+ * Used for upload validation — a file is accepted if its MIME type
+ * matches any entry for its detected document type.
+ */
 export const SUPPORTED_MIME_TYPES: Record<DocumentType, string[]> = {
   [DocumentType.PDF]: ['application/pdf'],
   [DocumentType.TXT]: ['text/plain'],
@@ -36,7 +40,11 @@ export const SUPPORTED_MIME_TYPES: Record<DocumentType, string[]> = {
   ],
 };
 
-/** File extensions → DocumentType (used for auto-detection) */
+/**
+ * File extension to {@link DocumentType} mapping for auto-detection.
+ * This is the primary detection mechanism — MIME type is used as fallback.
+ * Extensions must include the leading dot and be lowercase.
+ */
 export const EXTENSION_TO_TYPE: Record<string, DocumentType> = {
   // PDF
   '.pdf': DocumentType.PDF,
@@ -85,6 +93,11 @@ export const EXTENSION_TO_TYPE: Record<string, DocumentType> = {
 // Chunk Configuration (per document type)
 // ---------------------------------------------------------------------------
 
+/**
+ * Configuration for document chunking.
+ * Each document type can have its own chunk size and overlap to optimize
+ * embedding quality for different content structures.
+ */
 export interface ChunkConfig {
   /** Chunk size in characters */
   chunkSize: number;

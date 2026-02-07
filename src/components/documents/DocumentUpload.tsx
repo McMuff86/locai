@@ -21,10 +21,17 @@ const ACCEPTED_TYPES = [
 ];
 
 interface DocumentUploadProps {
+  /** Callback invoked when a file is selected or dropped */
   onUpload: (file: File) => Promise<void>;
+  /** Whether an upload is currently in progress (disables interaction) */
   isUploading: boolean;
 }
 
+/**
+ * Drag-and-drop file upload zone with a file picker fallback.
+ * Displays accepted formats and max file size.
+ * Shows a spinner during upload.
+ */
 export function DocumentUpload({ onUpload, isUploading }: DocumentUploadProps) {
   const [isDragOver, setIsDragOver] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);

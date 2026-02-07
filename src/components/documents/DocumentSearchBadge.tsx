@@ -5,11 +5,19 @@ import { BookOpen, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface DocumentSearchBadgeProps {
+  /** Whether RAG document search is currently enabled */
   ragEnabled: boolean;
+  /** Number of documents with status "ready" (shown in badge) */
   readyCount: number;
+  /** Callback to toggle RAG on/off */
   onToggle: () => void;
 }
 
+/**
+ * Compact badge displayed in the chat input area when RAG is active.
+ * Shows the number of indexed documents and provides a dismiss button.
+ * Renders nothing when RAG is disabled.
+ */
 export function DocumentSearchBadge({
   ragEnabled,
   readyCount,

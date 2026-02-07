@@ -90,10 +90,17 @@ function StatusBadge({ status, error }: { status: IndexStatus; error?: string })
 // ---------------------------------------------------------------------------
 
 interface DocumentCardProps {
+  /** The document to display */
   document: Document;
+  /** Callback to delete a document by ID */
   onDelete: (id: string) => Promise<void>;
 }
 
+/**
+ * Renders a single document row with type icon, status badge,
+ * metadata (size, chunk count, date), and a delete button with
+ * confirmation.
+ */
 export function DocumentCard({ document: doc, onDelete }: DocumentCardProps) {
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);

@@ -41,6 +41,17 @@ interface UseDocumentsReturn {
 // Hook
 // ---------------------------------------------------------------------------
 
+/**
+ * React hook for managing the document RAG lifecycle.
+ *
+ * Provides:
+ * - Document CRUD (list, upload, delete)
+ * - Semantic search over indexed documents
+ * - RAG toggle state for the chat
+ * - Auto-polling (every 5s) to pick up indexing status changes
+ *
+ * @returns {UseDocumentsReturn} Document state and actions
+ */
 export function useDocuments(): UseDocumentsReturn {
   const [documents, setDocuments] = useState<Document[]>([]);
   const [isUploading, setIsUploading] = useState(false);
