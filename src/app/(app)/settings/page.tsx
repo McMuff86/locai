@@ -29,6 +29,8 @@ import {
   Cpu,
   Trash2,
   Activity,
+  MessageSquare,
+  Type,
 } from 'lucide-react';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -245,6 +247,89 @@ export default function SettingsPage() {
                 >
                   <Moon className="h-4 w-4" />
                   Dunkel
+                </Button>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* ────────────── Chat Display ────────────── */}
+        <section className="space-y-4">
+          <div className="flex items-center gap-2 text-lg font-semibold">
+            <MessageSquare className="h-5 w-5 text-primary" />
+            Chat Darstellung
+          </div>
+          <div className="bg-card border border-border rounded-lg p-4 space-y-4">
+            {/* Chat Layout */}
+            <div className="flex items-center justify-between">
+              <div>
+                <div className="font-medium">Chat Layout</div>
+                <div className="text-sm text-muted-foreground">Wähle zwischen linearem und Bubble-Stil</div>
+              </div>
+              <div className="flex items-center gap-2 bg-muted rounded-lg p-1">
+                <Button
+                  variant={settings?.chatLayout === 'linear' ? 'secondary' : 'ghost'}
+                  size="sm"
+                  onClick={() => {
+                    updateSettings({ chatLayout: 'linear' });
+                    showSaved();
+                  }}
+                  className="gap-2"
+                >
+                  <MessageSquare className="h-4 w-4" />
+                  Linear
+                </Button>
+                <Button
+                  variant={settings?.chatLayout === 'bubbles' ? 'secondary' : 'ghost'}
+                  size="sm"
+                  onClick={() => {
+                    updateSettings({ chatLayout: 'bubbles' });
+                    showSaved();
+                  }}
+                  className="gap-2"
+                >
+                  <MessageSquare className="h-4 w-4" />
+                  Bubbles
+                </Button>
+              </div>
+            </div>
+
+            {/* Font Size */}
+            <div className="flex items-center justify-between">
+              <div>
+                <div className="font-medium">Schriftgrösse</div>
+                <div className="text-sm text-muted-foreground">Globale Textgrösse anpassen</div>
+              </div>
+              <div className="flex items-center gap-2 bg-muted rounded-lg p-1">
+                <Button
+                  variant={settings?.fontSize === 'small' ? 'secondary' : 'ghost'}
+                  size="sm"
+                  onClick={() => {
+                    updateSettings({ fontSize: 'small' });
+                    showSaved();
+                  }}
+                >
+                  <Type className="h-3 w-3" />
+                </Button>
+                <Button
+                  variant={settings?.fontSize === 'medium' ? 'secondary' : 'ghost'}
+                  size="sm"
+                  onClick={() => {
+                    updateSettings({ fontSize: 'medium' });
+                    showSaved();
+                  }}
+                >
+                  <Type className="h-4 w-4" />
+                </Button>
+                <Button
+                  variant={settings?.fontSize === 'large' ? 'secondary' : 'ghost'}
+                  size="sm"
+                  onClick={() => {
+                    updateSettings({ fontSize: 'large' });
+                    showSaved();
+                  }}
+                >
+                  <Type className="h-5 w-5" />
                 </Button>
               </div>
             </div>

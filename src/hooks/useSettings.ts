@@ -29,6 +29,10 @@ export interface AppSettings {
   searxngUrl: string; // URL to SearXNG instance (e.g., https://searx.example.com or http://localhost:8080)
   searxngEnabled: boolean;
   
+  // Chat Display Settings
+  chatLayout: 'linear' | 'bubbles'; // 'linear' = OpenClaw style (default), 'bubbles' = classic
+  fontSize: 'small' | 'medium' | 'large'; // Default: 'medium'
+  
   // Data Storage
   dataPath: string; // Local path for storing chats, settings file, etc.
 }
@@ -48,6 +52,8 @@ const DEFAULT_SETTINGS: AppSettings = {
   notesAllowAI: true,
   searxngUrl: 'http://localhost:8888', // Local SearXNG Docker instance
   searxngEnabled: true,
+  chatLayout: 'linear',
+  fontSize: 'medium',
   dataPath: '',
 };
 
