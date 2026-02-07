@@ -3,12 +3,15 @@
 import { useRef, useEffect, useState, useCallback } from 'react';
 import dynamic from 'next/dynamic';
 import { ZoomIn, ZoomOut, RotateCcw, Focus, Download, Pause, Play } from 'lucide-react';
-import { GraphData, GraphSettings, NoteSummary } from './types';
+import { GraphData, GraphNode, GraphLink, GraphSettings, NoteSummary } from './types';
 import { getThemeColors, getNodeColor, mixWithWhite } from './graphUtils';
+import type { ForceGraphMethods } from 'react-force-graph-3d';
+import type * as THREE from 'three';
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const ForceGraph3D = dynamic<any>(
-  () => import('react-force-graph-3d').then(mod => mod.default),
+// Dynamic import with proper typing - use Record<string, unknown> props since
+// ForceGraph3D's generic types don't align well with Next.js dynamic()
+const ForceGraph3D = dynamic<Record<string, unknown>>(
+  () => import('react-force-graph-3d').then(mod => mod.default) as never,
   { 
     ssr: false,
     loading: () => <div className="flex items-center justify-center h-full text-muted-foreground">Lade 3D Graph...</div>
@@ -39,16 +42,15 @@ export function KnowledgeGraph({
   onPhysicsPausedChange,
 }: KnowledgeGraphProps) {
   const graphContainerRef = useRef<HTMLDivElement>(null);
-  const graphRef = useRef<any>(null);
-  const threeJsRef = useRef<any>(null);
+  const graphRef = useRef<ForceGraphMethods<GraphNode, GraphLink> | null>(null);
+  const threeJsRef = useRef<typeof THREE | null>(null);
   const [graphDimensions, setGraphDimensions] = useState({ width: 800, height: 500 });
 
   // Load Three.js once
   useEffect(() => {
     if (typeof window !== 'undefined' && !threeJsRef.current) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      import('three').then((THREE: any) => {
-        threeJsRef.current = THREE;
+      import('three').then((threeModule) => {
+        threeJsRef.current = threeModule;
       });
     }
   }, []);
@@ -83,34 +85,34 @@ export function KnowledgeGraph({
   const theme = getThemeColors(settings.graphTheme);
 
 
-  const createNodeObject = useCallback((node: any) => {
+  const createNodeObject = useCallback((node: GraphNode) => {
     if (!threeJsRef.current) return null;
     
     // For spheres without glow and without labels, use default
     if (settings.nodeGeometry === 'sphere' && !settings.nodeGlow && !settings.showLabels) return null;
     
-    const THREE = threeJsRef.current;
+    const ThreeJS = threeJsRef.current;
     const baseSize = (node.val || 2) * 0.5;
     // nodeSize 1.0 (100%) = vorher 0.2, also 0.2x Multiplikator
     const size = baseSize * settings.nodeSize * 0.2;
-    let geometry: any;
+    let geometry: THREE.BufferGeometry;
     
     try {
       switch (settings.nodeGeometry) {
         case 'sphere':
-          geometry = new THREE.SphereGeometry(size, 32, 32);
+          geometry = new ThreeJS.SphereGeometry(size, 32, 32);
           break;
         case 'box':
-          geometry = new THREE.BoxGeometry(size, size, size);
+          geometry = new ThreeJS.BoxGeometry(size, size, size);
           break;
         case 'octahedron':
-          geometry = new THREE.OctahedronGeometry(size);
+          geometry = new ThreeJS.OctahedronGeometry(size);
           break;
         case 'tetrahedron':
-          geometry = new THREE.TetrahedronGeometry(size);
+          geometry = new ThreeJS.TetrahedronGeometry(size);
           break;
         case 'icon':
-          const shape = new THREE.Shape();
+          const shape = new ThreeJS.Shape();
           const radius = size;
           const sides = 6;
           for (let i = 0; i < sides; i++) {
@@ -121,10 +123,10 @@ export function KnowledgeGraph({
             else shape.lineTo(x, y);
           }
           shape.closePath();
-          geometry = new THREE.ExtrudeGeometry(shape, { depth: size * 0.3, bevelEnabled: true, bevelThickness: size * 0.1 });
+          geometry = new ThreeJS.ExtrudeGeometry(shape, { depth: size * 0.3, bevelEnabled: true, bevelThickness: size * 0.1 });
           break;
         default:
-          geometry = new THREE.SphereGeometry(size, 32, 32);
+          geometry = new ThreeJS.SphereGeometry(size, 32, 32);
       }
       
       const color = getNodeColor(node, settings.graphTheme);
@@ -132,32 +134,32 @@ export function KnowledgeGraph({
       const midColor = mixWithWhite(color, 0.5);
       const outerColor = color;
       
-      const material = new THREE.MeshBasicMaterial({
+      const material = new ThreeJS.MeshBasicMaterial({
         color: settings.nodeGlow ? coreColor : color,
         transparent: true,
         opacity: settings.nodeOpacity,
       });
       
-      const mesh = new THREE.Mesh(geometry, material);
+      const mesh = new ThreeJS.Mesh(geometry, material);
       
       // Add glow layers
       if (settings.nodeGlow) {
         const glowLayers = [
-          { scale: 3.0, opacity: settings.glowIntensity * settings.bloomStrength * 0.15, color: outerColor, side: THREE.BackSide },
-          { scale: 2.2, opacity: settings.glowIntensity * settings.bloomStrength * 0.25, color: outerColor, side: THREE.BackSide },
+          { scale: 3.0, opacity: settings.glowIntensity * settings.bloomStrength * 0.15, color: outerColor, side: ThreeJS.BackSide },
+          { scale: 2.2, opacity: settings.glowIntensity * settings.bloomStrength * 0.25, color: outerColor, side: ThreeJS.BackSide },
           { scale: 1.6, opacity: settings.glowIntensity * settings.bloomStrength * 0.4, color: midColor, side: undefined },
           { scale: 1.25, opacity: settings.glowIntensity * settings.bloomStrength * 0.6, color: coreColor, side: undefined },
         ];
         
         glowLayers.forEach(layer => {
           const glowGeometry = geometry.clone();
-          const glowMaterial = new THREE.MeshBasicMaterial({
+          const glowMaterial = new ThreeJS.MeshBasicMaterial({
             color: layer.color,
             transparent: true,
             opacity: layer.opacity,
             side: layer.side,
           });
-          const glowMesh = new THREE.Mesh(glowGeometry, glowMaterial);
+          const glowMesh = new ThreeJS.Mesh(glowGeometry, glowMaterial);
           glowMesh.scale.multiplyScalar(layer.scale);
           mesh.add(glowMesh);
         });
@@ -213,12 +215,12 @@ export function KnowledgeGraph({
           context.fillStyle = settings.labelColor;
           context.fillText(text, centerX, centerY);
           
-          const texture = new THREE.CanvasTexture(canvas);
+          const texture = new ThreeJS.CanvasTexture(canvas);
           texture.needsUpdate = true;
-          texture.minFilter = THREE.LinearFilter;
-          texture.magFilter = THREE.LinearFilter;
+          texture.minFilter = ThreeJS.LinearFilter;
+          texture.magFilter = ThreeJS.LinearFilter;
           
-          const spriteMaterial = new THREE.SpriteMaterial({
+          const spriteMaterial = new ThreeJS.SpriteMaterial({
             map: texture,
             transparent: true,
             opacity: 1,
@@ -226,7 +228,7 @@ export function KnowledgeGraph({
             depthWrite: false,
           });
           
-          const sprite = new THREE.Sprite(spriteMaterial);
+          const sprite = new ThreeJS.Sprite(spriteMaterial);
           const aspectRatio = canvas.width / canvas.height;
           // labelSize 1.0 (100%) = vorher 2.5, also 2.5x Multiplikator
           const spriteHeight = size * 2.0 * settings.labelSize * 2.5;
@@ -246,14 +248,15 @@ export function KnowledgeGraph({
 
   const handleZoomIn = () => {
     if (graphRef.current) {
-      const currentPos = graphRef.current.cameraPosition();
+      // cameraPosition() as getter is not in the type defs but works at runtime
+      const currentPos = (graphRef.current as unknown as { cameraPosition: () => { x: number; y: number; z: number } }).cameraPosition();
       graphRef.current.cameraPosition({ z: currentPos.z * 0.7 }, undefined, 400);
     }
   };
 
   const handleZoomOut = () => {
     if (graphRef.current) {
-      const currentPos = graphRef.current.cameraPosition();
+      const currentPos = (graphRef.current as unknown as { cameraPosition: () => { x: number; y: number; z: number } }).cameraPosition();
       graphRef.current.cameraPosition({ z: currentPos.z * 1.4 }, undefined, 400);
     }
   };
@@ -317,25 +320,25 @@ export function KnowledgeGraph({
             graphData={graphData}
             width={graphDimensions.width}
             height={graphDimensions.height}
-            nodeLabel={(node: any) => node.name || 'Node'}
+            nodeLabel={(node: GraphNode) => node.name || 'Node'}
             nodeLabelOpacity={settings.showLabels ? 1 : 0.8}
             nodeLabelPosition="top"
-            nodeColor={(node: any) => getNodeColor(node, settings.graphTheme)}
-            nodeVal={(node: any) => (node.val || 2) * settings.nodeSize * 0.2}
+            nodeColor={(node: GraphNode) => getNodeColor(node, settings.graphTheme)}
+            nodeVal={(node: GraphNode) => (node.val || 2) * settings.nodeSize * 0.2}
             nodeResolution={settings.nodeGlow ? 32 : 16}
             nodeOpacity={settings.nodeOpacity}
             linkOpacity={settings.linkGlow ? (settings.linkOpacity * 0.5) + 0.15 : settings.linkOpacity * 0.5}
-            linkWidth={(link: any) => {
+            linkWidth={(link: GraphLink) => {
               const baseWidth = link.type === 'wiki' ? 1.2 : 0.8;
               return baseWidth * settings.linkWidth;
             }}
-            linkColor={(link: any) => {
+            linkColor={(link: GraphLink) => {
               return link.type === 'wiki' ? theme.wikiLink : theme.semanticLink;
             }}
-            linkLineDash={(link: any) => link.type === 'semantic' ? [3, 3] : null}
+            linkLineDash={(link: GraphLink) => link.type === 'semantic' ? [3, 3] : null}
             linkDirectionalArrowLength={settings.showArrows ? 3 * settings.linkWidth : 0}
             linkDirectionalArrowRelPos={1}
-            linkDirectionalArrowColor={(link: any) => {
+            linkDirectionalArrowColor={(link: GraphLink) => {
               return link.type === 'wiki' ? theme.wikiLink : theme.semanticLink;
             }}
             linkCurvature={settings.curvedLinks ? 0.15 : 0}
@@ -356,7 +359,7 @@ export function KnowledgeGraph({
             dagMode={undefined}
             onEngineStop={() => {
               if (graphRef.current) {
-                const controls = graphRef.current.controls();
+                const controls = graphRef.current.controls() as { autoRotate?: boolean; enableDamping?: boolean; dampingFactor?: number };
                 if (controls) {
                   controls.autoRotate = false;
                   controls.enableDamping = true;
@@ -364,12 +367,12 @@ export function KnowledgeGraph({
                 }
               }
             }}
-            onNodeClick={(node: any) => {
+            onNodeClick={(node: GraphNode) => {
               if (node?.id) {
                 onNodeClick(node.id);
               }
             }}
-            onNodeHover={(node: any) => {
+            onNodeHover={(node: GraphNode | null) => {
               onNodeHover(node?.id || null);
               if (graphContainerRef.current) {
                 graphContainerRef.current.style.cursor = node ? 'pointer' : 'grab';

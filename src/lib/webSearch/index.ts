@@ -118,14 +118,14 @@ export async function performWebSearch(
     let searchQuery = question;
     
     if (shouldOptimize) {
-      console.log('\n[WebSearch] Step 1: Optimizing query...');
+      console.debug('\n[WebSearch] Step 1: Optimizing query...');
       const optimization = await optimizeQuery(question, { ollamaHost, model });
       result.optimization = optimization;
       searchQuery = optimization.optimizedQuery;
     }
 
     // Step 2: Search the web
-    console.log('\n[WebSearch] Step 2: Searching the web...');
+    console.debug('\n[WebSearch] Step 2: Searching the web...');
     const searchResponse = await searchWeb(searchQuery, {
       customInstance: searxngUrl,
       maxResults,
@@ -146,7 +146,7 @@ export async function performWebSearch(
 
     // Step 3: Select best result (optional)
     if (shouldSelect && searchResponse.results.length > 1) {
-      console.log('\n[WebSearch] Step 3: Selecting best result...');
+      console.debug('\n[WebSearch] Step 3: Selecting best result...');
       const selection = await selectBestResult(
         question,
         searchQuery,
@@ -165,7 +165,7 @@ export async function performWebSearch(
 
     // Step 4: Fetch page content (optional)
     if (shouldFetch && result.selection) {
-      console.log('\n[WebSearch] Step 4: Fetching page content...');
+      console.debug('\n[WebSearch] Step 4: Fetching page content...');
       const content = await fetchPageContent(result.selection.url);
       result.content = content;
     }
@@ -173,7 +173,7 @@ export async function performWebSearch(
     result.success = true;
     result.durationMs = Date.now() - startTime;
     
-    console.log(`\n[WebSearch] ✓ Complete in ${result.durationMs}ms`);
+    console.debug(`\n[WebSearch] ✓ Complete in ${result.durationMs}ms`);
     return result;
     
   } catch (error) {

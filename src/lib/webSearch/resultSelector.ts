@@ -97,7 +97,7 @@ export async function selectBestResult(
     };
   }
 
-  console.log(`[ResultSelector] Selecting best result for: "${question}"`);
+  console.debug(`[ResultSelector] Selecting best result for: "${question}"`);
 
   try {
     const prompt = PROMPTS.resultSelection
@@ -130,12 +130,12 @@ export async function selectBestResult(
     const selection = parseSelection(aiResponse, results);
     
     if (selection) {
-      console.log(`[ResultSelector] ✓ Selected #${selection.selectedIndex + 1}: ${selection.title}`);
+      console.debug(`[ResultSelector] ✓ Selected #${selection.selectedIndex + 1}: ${selection.title}`);
       return selection;
     }
 
     // Fallback to first result
-    console.log('[ResultSelector] Could not parse AI selection, using first result');
+    console.debug('[ResultSelector] Could not parse AI selection, using first result');
     return {
       selectedIndex: 0,
       title: results[0].title,

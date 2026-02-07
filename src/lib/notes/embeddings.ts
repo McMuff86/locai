@@ -86,7 +86,7 @@ async function readLines(filePath: string): Promise<string[]> {
 
 export async function loadEmbeddings(basePath: string): Promise<EmbeddingEntry[]> {
   const filePath = embeddingsPath(basePath);
-  console.log(`[Embeddings] Loading from ${filePath}`);
+  console.debug(`[Embeddings] Loading from ${filePath}`);
   
   const lines = await readLines(filePath);
   const entries: EmbeddingEntry[] = [];
@@ -106,7 +106,7 @@ export async function loadEmbeddings(basePath: string): Promise<EmbeddingEntry[]
     }
   }
   
-  console.log(`[Embeddings] Loaded ${entries.length} entries, skipped ${skipped} invalid`);
+  console.debug(`[Embeddings] Loaded ${entries.length} entries, skipped ${skipped} invalid`);
   return entries;
 }
 
@@ -118,7 +118,7 @@ async function saveEmbeddings(basePath: string, entries: EmbeddingEntry[]): Prom
     e.id && e.noteId && Array.isArray(e.embedding) && e.embedding.length > 0
   );
   
-  console.log(`[Embeddings] Saving ${validEntries.length} entries to ${embeddingsPath(basePath)}`);
+  console.debug(`[Embeddings] Saving ${validEntries.length} entries to ${embeddingsPath(basePath)}`);
   
   const content = validEntries.map((entry) => JSON.stringify(entry)).join('\n');
   await fs.writeFile(embeddingsPath(basePath), content, 'utf8');
@@ -229,7 +229,7 @@ export async function upsertEmbeddingsForNote(
   note: Note,
   options: EmbeddingRequestOptions = {},
 ): Promise<EmbeddingEntry[]> {
-  console.log(`[Embeddings] Processing note: "${note.title}" (${note.id})`);
+  console.debug(`[Embeddings] Processing note: "${note.title}" (${note.id})`);
   
   const chunkSize = options.chunkSize ?? DEFAULT_CHUNK_SIZE;
   const overlap = options.chunkOverlap ?? DEFAULT_CHUNK_OVERLAP;
@@ -238,16 +238,16 @@ export async function upsertEmbeddingsForNote(
   const textToEmbed = `${note.title}\n\n${note.content || ''}`.trim();
   
   if (!textToEmbed || textToEmbed.length < 10) {
-    console.log(`[Embeddings] Skipping "${note.title}" - too short (${textToEmbed.length} chars)`);
+    console.debug(`[Embeddings] Skipping "${note.title}" - too short (${textToEmbed.length} chars)`);
     const existing = await loadEmbeddings(basePath);
     return existing;
   }
   
   const chunks = chunkText(textToEmbed, chunkSize, overlap);
-  console.log(`[Embeddings] Created ${chunks.length} chunks for "${note.title}"`);
+  console.debug(`[Embeddings] Created ${chunks.length} chunks for "${note.title}"`);
   
   if (chunks.length === 0) {
-    console.log(`[Embeddings] Skipping "${note.title}" - no chunks generated`);
+    console.debug(`[Embeddings] Skipping "${note.title}" - no chunks generated`);
     const existing = await loadEmbeddings(basePath);
     return existing;
   }
@@ -256,7 +256,7 @@ export async function upsertEmbeddingsForNote(
   const vectors: number[][] = [];
   for (let i = 0; i < chunks.length; i++) {
     try {
-      console.log(`[Embeddings] Embedding chunk ${i + 1}/${chunks.length} for "${note.title}"`);
+      console.debug(`[Embeddings] Embedding chunk ${i + 1}/${chunks.length} for "${note.title}"`);
       const vector = await embedSingle(
         chunks[i], 
         (options.host || DEFAULT_HOST).replace(/\/$/, ''),
@@ -285,14 +285,14 @@ export async function upsertEmbeddingsForNote(
     createdAt: now,
   }));
 
-  console.log(`[Embeddings] Created ${nextEntries.length} entries for "${note.title}"`);
+  console.debug(`[Embeddings] Created ${nextEntries.length} entries for "${note.title}"`);
 
   const existing = await loadEmbeddings(basePath);
   const withoutNote = existing.filter((entry) => entry.noteId !== note.id);
   const merged = [...withoutNote, ...nextEntries];
   await saveEmbeddings(basePath, merged);
   
-  console.log(`[Embeddings] Saved. Total entries: ${merged.length}`);
+  console.debug(`[Embeddings] Saved. Total entries: ${merged.length}`);
   return merged;
 }
 

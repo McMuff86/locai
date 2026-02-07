@@ -213,7 +213,7 @@ async function getGpuStats(): Promise<GpuStats> {
     };
   } catch (error) {
     // nvidia-smi not available or failed
-    console.log('nvidia-smi not available:', error instanceof Error ? error.message : 'Unknown error');
+    console.debug('nvidia-smi not available:', error instanceof Error ? error.message : 'Unknown error');
     return defaultStats;
   }
 }

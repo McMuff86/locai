@@ -125,7 +125,7 @@ export async function searchDuckDuckGo(
   }
 
   const cleanQuery = query.trim();
-  console.log(`[DuckDuckGo] Searching for: "${cleanQuery}"`);
+  console.debug(`[DuckDuckGo] Searching for: "${cleanQuery}"`);
 
   try {
     // DuckDuckGo HTML search URL - build manually to avoid URL constructor issues
@@ -166,7 +166,7 @@ export async function searchDuckDuckGo(
 
     const results = parseHtmlResults(html, maxResults);
     
-    console.log(`[DuckDuckGo] ✓ Found ${results.length} results`);
+    console.debug(`[DuckDuckGo] ✓ Found ${results.length} results`);
 
     return {
       query,
