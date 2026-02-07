@@ -91,7 +91,7 @@ export function ChatInput({
     >
       {/* Image previews */}
       {imagePreviews.length > 0 && (
-        <div className="flex flex-wrap gap-2 mb-2 max-w-4xl mx-auto">
+        <div className="flex flex-wrap gap-2 mb-2 max-w-5xl mx-auto">
           {imagePreviews.map((preview, index) => (
             <div key={index} className="relative inline-block">
               <img 
@@ -111,7 +111,7 @@ export function ChatInput({
         </div>
       )}
 
-      <form onSubmit={handleSubmit} className="flex gap-2 max-w-4xl mx-auto items-end">
+      <form onSubmit={handleSubmit} className="flex gap-2 max-w-5xl mx-auto items-end">
         <Textarea
           ref={textareaRef as React.RefObject<HTMLTextAreaElement>}
           value={message}

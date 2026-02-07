@@ -18,7 +18,7 @@ export function ChatContainer({ conversation, isLoading = false }: ChatContainer
       animate={{ opacity: 1 }}
       transition={{ duration: 0.5 }}
     >
-      <div className="max-w-4xl mx-auto">
+      <div className="max-w-5xl mx-auto">
         {conversation.messages.map((message, index) => (
           <ChatMessage 
             key={message.id} 

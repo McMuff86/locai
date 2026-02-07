@@ -147,7 +147,7 @@ export function SetupCard({
 
   return (
     <div className="flex-1 flex items-center justify-center p-4">
-      <Card className="w-full max-w-4xl">
+      <Card className="w-full max-w-6xl">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Sparkles className="h-5 w-5 text-primary" />
