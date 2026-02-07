@@ -14,6 +14,7 @@ import {
 } from '@/lib/documents/types';
 import {
   MAX_FILE_SIZE,
+  MAX_DOCUMENTS,
   DEFAULT_EMBEDDING_MODEL,
   DEFAULT_OLLAMA_HOST,
   MAX_EMBED_TEXT_LENGTH,
@@ -26,7 +27,6 @@ import {
   saveDocumentEmbeddings,
   updateDocumentStatus,
   loadDocuments,
-  getStoragePath,
 } from '@/lib/documents/store';
 import { embedQuery } from '@/lib/notes/embeddings';
 
@@ -93,8 +93,19 @@ export async function POST(req: NextRequest) {
     const id = generateId();
     const hash = contentHash(buffer);
 
-    // Check for duplicate
+    // Check document limit and duplicate
     const existingDocs = await loadDocuments();
+
+    if (existingDocs.length >= MAX_DOCUMENTS) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: `Maximale Anzahl Dokumente erreicht (${MAX_DOCUMENTS}). Bitte lösche zuerst alte Dokumente.`,
+        },
+        { status: 400 },
+      );
+    }
+
     const duplicate = existingDocs.find((d) => d.contentHash === hash);
     if (duplicate) {
       return NextResponse.json(

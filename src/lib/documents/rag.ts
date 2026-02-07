@@ -8,6 +8,8 @@
 import {
   DocumentSearchResult,
   DocumentSummary,
+  DocumentType,
+  IndexStatus,
   RAGContext,
   SearchOptions,
   DocumentEmbeddingEntry,
@@ -108,12 +110,12 @@ export async function searchDocuments(
       : {
           id: entry.documentId,
           name: 'Unbekanntes Dokument',
-          type: 'txt' as never,
+          type: DocumentType.TXT,
           size: 0,
           uploadedAt: '',
           indexedAt: null,
           chunkCount: 0,
-          status: 'ready' as never,
+          status: IndexStatus.Ready,
           contentHash: '',
         };
 

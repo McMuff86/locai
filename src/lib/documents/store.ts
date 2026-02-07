@@ -138,6 +138,11 @@ export async function deleteDocument(
   id: string,
   basePath?: string,
 ): Promise<boolean> {
+  // Validate ID format (must be safe for filesystem use)
+  if (!id || /[\/\\]/.test(id)) {
+    return false;
+  }
+
   const storagePath = getStoragePath(basePath);
   const existing = await loadDocuments(storagePath);
   const filtered = existing.filter((d) => d.id !== id);
@@ -154,6 +159,12 @@ export async function deleteDocument(
   // Try to remove uploaded file (best effort)
   try {
     const uploadPath = path.join(uploadsDir(storagePath), id);
+    // Ensure path is within uploads dir (prevent path traversal)
+    const resolvedUploads = path.resolve(uploadsDir(storagePath));
+    const resolvedUpload = path.resolve(uploadPath);
+    if (!resolvedUpload.startsWith(resolvedUploads)) {
+      return true; // silently skip file removal
+    }
     const entries = await fs.readdir(uploadPath);
     for (const entry of entries) {
       await fs.unlink(path.join(uploadPath, entry));
@@ -200,6 +211,19 @@ export async function updateDocumentStatus(
 // ---------------------------------------------------------------------------
 
 /**
+ * Sanitise a user-provided filename to prevent path-traversal.
+ * Strips directory components, replaces dangerous characters, and
+ * ensures a non-empty result.
+ */
+function sanitizeFilename(raw: string): string {
+  // Take only the basename (strip directory separators)
+  const base = path.basename(raw);
+  // Remove any remaining path-like characters and null bytes
+  const clean = base.replace(/[\x00-\x1f]/g, '').trim();
+  return clean || 'upload';
+}
+
+/**
  * Save the raw uploaded file to disk.
  */
 export async function saveUploadedFile(
@@ -211,7 +235,16 @@ export async function saveUploadedFile(
   const storagePath = getStoragePath(basePath);
   const dir = path.join(uploadsDir(storagePath), id);
   await fs.mkdir(dir, { recursive: true });
-  const filePath = path.join(dir, filename);
+  const safeName = sanitizeFilename(filename);
+  const filePath = path.join(dir, safeName);
+
+  // Double-check resolved path is within the uploads directory
+  const resolvedDir = path.resolve(dir);
+  const resolvedFile = path.resolve(filePath);
+  if (!resolvedFile.startsWith(resolvedDir)) {
+    throw new Error('Invalid filename: path traversal detected');
+  }
+
   await fs.writeFile(filePath, buffer);
   return filePath;
 }

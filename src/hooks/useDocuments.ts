@@ -101,7 +101,7 @@ export function useDocuments(): UseDocumentsReturn {
       const formData = new FormData();
       formData.append('file', file);
 
-      const res = await fetch('/api/documents', {
+      const res = await fetch('/api/documents/upload', {
         method: 'POST',
         body: formData,
       });
@@ -111,8 +111,10 @@ export function useDocuments(): UseDocumentsReturn {
         throw new Error(error.error || 'Upload fehlgeschlagen');
       }
 
-      const newDoc = await res.json();
-      setDocuments((prev) => [newDoc, ...prev]);
+      const data = await res.json();
+      if (data.document) {
+        setDocuments((prev) => [data.document, ...prev]);
+      }
 
       toast({
         title: 'Dokument hochgeladen',

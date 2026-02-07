@@ -8,17 +8,6 @@ import { MAX_FILE_SIZE } from '@/lib/documents/constants';
 
 // Accepted file extensions
 const ACCEPTED_EXTENSIONS = '.pdf,.txt,.md,.ts,.tsx,.js,.py,.css,.html,.json';
-const ACCEPTED_TYPES = [
-  'application/pdf',
-  'text/plain',
-  'text/markdown',
-  'text/x-markdown',
-  'text/javascript',
-  'text/typescript',
-  'text/css',
-  'text/html',
-  'application/json',
-];
 
 interface DocumentUploadProps {
   /** Callback invoked when a file is selected or dropped */

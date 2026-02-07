@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState } from 'react';
-import { Trash2, Loader2, CheckCircle2, AlertCircle, Clock, FileText, FileCode, File } from 'lucide-react';
+import { Trash2, Loader2, CheckCircle2, AlertCircle, Clock, File } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import type { Document } from '@/lib/documents/types';

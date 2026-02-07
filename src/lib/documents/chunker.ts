@@ -127,23 +127,7 @@ function chunkCode(
   chunkSize: number,
   overlap: number,
 ): string[] {
-  // Patterns that typically start a new logical block
-  const blockPatterns = [
-    /^(export\s+)?(async\s+)?function\s+/m, // function declarations
-    /^(export\s+)?(const|let|var)\s+\w+\s*=\s*(async\s+)?\(/m, // arrow functions
-    /^(export\s+)?(abstract\s+)?class\s+/m, // class declarations
-    /^(export\s+)?interface\s+/m, // TS interfaces
-    /^(export\s+)?type\s+/m, // TS type aliases
-    /^(export\s+)?enum\s+/m, // TS enums
-    /^def\s+/m, // Python functions
-    /^class\s+/m, // Python classes
-    /^func\s+/m, // Go functions
-    /^fn\s+/m, // Rust functions
-    /^impl\s+/m, // Rust impl blocks
-    /^pub\s+(fn|struct|enum|trait)\s+/m, // Rust pub items
-  ];
-
-  // Combine into a mega-pattern for splitting
+  // Combined pattern for block boundaries (function/class/interface/etc.)
   const combinedPattern =
     /^(?:(?:export\s+)?(?:async\s+)?function\s+|(?:export\s+)?(?:const|let|var)\s+\w+\s*=\s*(?:async\s+)?\(|(?:export\s+)?(?:abstract\s+)?class\s+|(?:export\s+)?interface\s+|(?:export\s+)?type\s+\w|(?:export\s+)?enum\s+|def\s+|func\s+|fn\s+|impl\s+|pub\s+(?:fn|struct|enum|trait)\s+)/m;
 

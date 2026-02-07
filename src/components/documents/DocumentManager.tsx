@@ -8,7 +8,6 @@ import { DocumentUpload } from './DocumentUpload';
 import { DocumentCard } from './DocumentCard';
 import { useDocuments } from '@/hooks/useDocuments';
 import { IndexStatus } from '@/lib/documents/types';
-import { cn } from '@/lib/utils';
 
 export function DocumentManager() {
   const {

@@ -76,11 +76,11 @@ The document RAG system builds on the same patterns established for note embeddi
 | `/api/documents/[id]`            | `DELETE` | Remove document + its embeddings     |
 | `/api/documents/search`          | `POST`   | Semantic search across all documents |
 
-### 4. RAG Pipeline (`src/lib/rag/`)
+### 4. RAG Pipeline (`src/lib/documents/rag.ts`)
 
-| File           | Responsibility                                            |
-|----------------|-----------------------------------------------------------|
-| `pipeline.ts`  | Orchestrate: query embedding → search → context assembly  |
+| File       | Responsibility                                            |
+|------------|-----------------------------------------------------------|
+| `rag.ts`   | Orchestrate: query embedding → search → context assembly  |
 
 ### 5. UI Components (`src/components/documents/`)
 
@@ -103,7 +103,7 @@ The document RAG system builds on the same patterns established for note embeddi
    - **TXT** → read as-is
    - **MD/MDX** → read as-is (markdown preserved for context)
    - **Code** → read as-is (language-aware chunking applied later)
-   - **DOCX** → `mammoth` library (optional)
+   - **DOCX** → Not yet implemented (planned for a future sprint)
 4. **Chunking**: Text is split into overlapping chunks using type-specific configuration:
    - Default: 500 chars, 80 char overlap
    - Code: 400 chars, 60 char overlap
@@ -212,7 +212,7 @@ Original files are stored in the `uploads/` subdirectory under the data path, na
 | Text   | `.txt`                                                          | Native (fs.read)  |
 | Markdown | `.md`, `.mdx`                                                 | Native (fs.read)  |
 | Code   | `.js`, `.jsx`, `.ts`, `.tsx`, `.py`, `.java`, `.c`, `.cpp`, `.h`, `.hpp`, `.rs`, `.go`, `.rb`, `.php`, `.swift`, `.kt`, `.cs`, `.css`, `.html`, `.xml`, `.json`, `.yaml`, `.yml`, `.toml`, `.sh`, `.bash`, `.zsh`, `.sql`, `.dockerfile`, `.vue`, `.svelte` | Native (fs.read) |
-| DOCX   | `.docx`                                                         | `mammoth`         |
+| DOCX   | `.docx`                                                         | Planned (not yet) |
 
 ### Limits
 
