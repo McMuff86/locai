@@ -387,8 +387,8 @@ export default function SettingsPage() {
                           input.onchange = (e) => {
                             const file = (e.target as HTMLInputElement).files?.[0];
                             if (!file) return;
-                            if (file.size > 500 * 1024) {
-                              showStatus('error', 'Bild zu gross (max. 500KB).');
+                            if (file.size > 5 * 1024 * 1024) {
+                              showStatus('error', 'Bild zu gross (max. 5MB).');
                               return;
                             }
                             const reader = new FileReader();
@@ -468,8 +468,8 @@ export default function SettingsPage() {
                           input.onchange = (e) => {
                             const file = (e.target as HTMLInputElement).files?.[0];
                             if (!file) return;
-                            if (file.size > 500 * 1024) {
-                              showStatus('error', 'Bild zu gross (max. 500KB).');
+                            if (file.size > 5 * 1024 * 1024) {
+                              showStatus('error', 'Bild zu gross (max. 5MB).');
                               return;
                             }
                             const reader = new FileReader();
@@ -507,7 +507,7 @@ export default function SettingsPage() {
             </div>
 
             <div className="text-xs text-muted-foreground bg-muted/50 p-2 rounded">
-              💡 Bilder werden lokal als Base64 gespeichert. Max. Dateigrösse: 500KB.
+              💡 Bilder werden lokal als Base64 gespeichert. Max. Dateigrösse: 5MB.
             </div>
           </div>
         </section>
