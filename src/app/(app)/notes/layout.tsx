@@ -96,7 +96,7 @@ export default function NotesLayout({
     searchMatches,
     generateEmbeddings,
     fetchSemanticLinks,
-  } = useGraph({ basePath, notes });
+  } = useGraph({ basePath, notes, embeddingModel: settings?.notesEmbeddingModel });
 
   // Fetch notes on mount
   useEffect(() => {
