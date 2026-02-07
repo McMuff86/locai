@@ -5,7 +5,7 @@ import {
   Hash, Settings, Palette, Zap, ZapOff, Sparkles,
   Loader2, X, ChevronDown, ChevronUp, Eye, LayoutList, Link2, Brain, Layers
 } from 'lucide-react';
-import { GraphSettings, labelColorPresets, SemanticLink, LinkFilter } from './types';
+import { GraphSettings, labelColorPresets, SemanticLink, LinkFilter, GraphViewMode } from './types';
 import { getThemeColors } from './graphUtils';
 
 interface GraphControlsProps {
@@ -14,8 +14,8 @@ interface GraphControlsProps {
   semanticLinks: SemanticLink[];
   semanticThreshold: number;
   onThresholdChange: (threshold: number) => void;
-  graphViewMode: 'text' | 'visual';
-  onViewModeChange: (mode: 'text' | 'visual') => void;
+  graphViewMode: GraphViewMode;
+  onViewModeChange: (mode: GraphViewMode) => void;
   expanded: boolean;
   onExpandedChange: (expanded: boolean) => void;
   isGeneratingEmbeddings: boolean;
@@ -112,9 +112,20 @@ export function GraphControls({
               Text
             </button>
             <button
-              onClick={() => onViewModeChange('visual')}
+              onClick={() => onViewModeChange('2d')}
               className={`px-2 py-1 text-xs flex items-center gap-1 transition-colors ${
-                graphViewMode === 'visual' 
+                graphViewMode === '2d' 
+                  ? 'bg-primary text-primary-foreground' 
+                  : 'bg-muted/50 text-muted-foreground hover:bg-muted'
+              }`}
+            >
+              <Eye className="h-3 w-3" />
+              2D
+            </button>
+            <button
+              onClick={() => onViewModeChange('3d')}
+              className={`px-2 py-1 text-xs flex items-center gap-1 transition-colors ${
+                graphViewMode === '3d' 
                   ? 'bg-primary text-primary-foreground' 
                   : 'bg-muted/50 text-muted-foreground hover:bg-muted'
               }`}
@@ -235,7 +246,7 @@ export function GraphControls({
         )}
         
         {/* Graph Settings (only in visual mode) */}
-        {graphViewMode === 'visual' && (
+        {(graphViewMode === '2d' || graphViewMode === '3d') && (
           <div className="flex items-center gap-2 ml-auto flex-wrap">
             <button
               onClick={() => onSettingsChange({ showLabels: !settings.showLabels })}
@@ -302,7 +313,7 @@ export function GraphControls({
       </div>
       
       {/* Advanced Settings Panel */}
-      {graphViewMode === 'visual' && settings.showAdvancedSettings && (
+      {(graphViewMode === '2d' || graphViewMode === '3d') && settings.showAdvancedSettings && (
         <div className="rounded-md border border-border/60 bg-muted/20 p-3 space-y-3">
           <div className="grid grid-cols-2 gap-4">
             {/* Node Opacity */}
@@ -532,6 +543,41 @@ export function GraphControls({
                   }`}
                 >
                   {settings.curvedLinks ? 'Kurvig' : 'Gerade'}
+                </button>
+              </div>
+            </div>
+            
+            {/* Semantic Links Cap */}
+            <div className="space-y-1">
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-muted-foreground">Semantic Links Max</span>
+                <span className="text-xs font-mono text-muted-foreground">{settings.semanticLinksCap}</span>
+              </div>
+              <input
+                type="range"
+                min="10"
+                max="500"
+                step="10"
+                value={settings.semanticLinksCap}
+                onChange={(e) => onSettingsChange({ semanticLinksCap: parseInt(e.target.value) })}
+                className="w-full h-1.5"
+                style={{ accentColor: theme.semanticLink }}
+              />
+            </div>
+
+            {/* Show Orphans Toggle */}
+            <div className="space-y-1">
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-muted-foreground">Verwaiste Nodes</span>
+                <button
+                  onClick={() => onSettingsChange({ showOrphans: !settings.showOrphans })}
+                  className={`px-3 py-1 text-xs rounded-md transition-colors ${
+                    settings.showOrphans 
+                      ? 'bg-primary/20 text-primary border border-primary/30' 
+                      : 'bg-muted text-muted-foreground border border-border'
+                  }`}
+                >
+                  {settings.showOrphans ? 'Anzeigen' : 'Versteckt'}
                 </button>
               </div>
             </div>
