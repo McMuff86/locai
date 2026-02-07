@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { loadEmbeddings, cosineSimilarity } from '@/lib/notes/embeddings';
+import { sanitizeBasePath } from '../../_utils/security';
 
 export const runtime = 'nodejs';
 
@@ -45,11 +46,17 @@ function calculateNoteEmbedding(
 }
 
 export async function GET(req: NextRequest) {
-  const basePath = getBasePath(req);
+  const rawBasePath = getBasePath(req);
   const threshold = parseFloat(req.nextUrl.searchParams.get('threshold') || '0.7');
   
-  if (!basePath) {
+  if (!rawBasePath) {
     return NextResponse.json({ error: 'basePath is required' }, { status: 400 });
+  }
+
+  // SEC-2: Validate basePath (no traversal)
+  const basePath = sanitizeBasePath(rawBasePath);
+  if (!basePath) {
+    return NextResponse.json({ error: 'Invalid basePath' }, { status: 400 });
   }
   
   try {

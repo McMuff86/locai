@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { FileNoteStorage } from '@/lib/notes/fileNoteStorage';
 import { Note } from '@/lib/notes/types';
 import { performWebSearch, formatForChat } from '@/lib/webSearch';
+import { sanitizeBasePath } from '../../_utils/security';
 
 export const runtime = 'nodejs';
 
@@ -77,8 +78,11 @@ function buildPrompt(action: AiAction, note: Note, userPrompt?: string) {
 export async function POST(req: NextRequest) {
   try {
     const body = (await req.json()) as AiBody;
-    const basePath = resolveBasePath(req, body);
-    if (!basePath) return NextResponse.json({ error: 'basePath is required' }, { status: 400 });
+    const rawBasePath = resolveBasePath(req, body);
+    if (!rawBasePath) return NextResponse.json({ error: 'basePath is required' }, { status: 400 });
+    // SEC-2: Validate basePath (no traversal)
+    const basePath = sanitizeBasePath(rawBasePath);
+    if (!basePath) return NextResponse.json({ error: 'Invalid basePath' }, { status: 400 });
 
     const action: AiAction = body.action || 'complete';
     const note = await loadContent(basePath, body.noteId, body.content);

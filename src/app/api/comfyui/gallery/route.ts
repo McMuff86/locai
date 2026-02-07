@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import fs from 'fs';
 import path from 'path';
+import { sanitizeBasePath } from '../../_utils/security';
 
 export const dynamic = 'force-dynamic';
 
@@ -43,6 +44,16 @@ export async function GET(request: Request) {
         { status: 400 }
       );
     }
+
+    // SEC-2: Validate output path (no traversal)
+    const safePath = sanitizeBasePath(finalOutputPath);
+    if (!safePath) {
+      return NextResponse.json(
+        { success: false, error: 'Invalid output path' },
+        { status: 400 }
+      );
+    }
+    finalOutputPath = safePath;
     
     // Check if path exists
     if (!fs.existsSync(finalOutputPath)) {

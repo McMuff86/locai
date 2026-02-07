@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { FileNoteStorage } from '@/lib/notes/fileNoteStorage';
 import { upsertEmbeddingsForNote } from '@/lib/notes/embeddings';
 import { Note } from '@/lib/notes/types';
+import { sanitizeBasePath } from '../../_utils/security';
 
 export const runtime = 'nodejs';
 
@@ -61,13 +62,19 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'basePath is required' }, { status: 400 });
   }
 
+  // SEC-2: Validate basePath (no traversal)
+  const safeBasePath = sanitizeBasePath(basePath);
+  if (!safeBasePath) {
+    return NextResponse.json({ error: 'Invalid basePath' }, { status: 400 });
+  }
+
   // Check if model is available first
   const modelCheck = await checkEmbeddingModel(host, model);
   if (!modelCheck.available) {
     return NextResponse.json({ error: modelCheck.error }, { status: 400 });
   }
 
-  const storage = new FileNoteStorage(basePath);
+  const storage = new FileNoteStorage(safeBasePath);
   let targets: Note[] = [];
 
   if (noteId) {
@@ -103,7 +110,7 @@ export async function POST(req: NextRequest) {
         for (const note of targets) {
           try {
             // Send progress with more detail
-            console.log(`[Embed API] Starting note: ${note.title} (${note.id})`);
+            console.debug(`[Embed API] Starting note: ${note.title} (${note.id})`);
             controller.enqueue(encoder.encode(`data: ${JSON.stringify({ 
               type: 'progress', 
               current: processed + 1, 
@@ -113,10 +120,10 @@ export async function POST(req: NextRequest) {
               contentLength: note.content?.length || 0
             })}\n\n`));
 
-            await upsertEmbeddingsForNote(basePath, note, { model, host, chunkSize, chunkOverlap });
+            await upsertEmbeddingsForNote(safeBasePath, note, { model, host, chunkSize, chunkOverlap });
             processed++;
 
-            console.log(`[Embed API] Completed note: ${note.title}`);
+            console.debug(`[Embed API] Completed note: ${note.title}`);
             // Send success for this note
             controller.enqueue(encoder.encode(`data: ${JSON.stringify({ 
               type: 'note_done', 
@@ -166,7 +173,7 @@ export async function POST(req: NextRequest) {
 
   for (const note of targets) {
     try {
-      await upsertEmbeddingsForNote(basePath, note, { model, host, chunkSize, chunkOverlap });
+      await upsertEmbeddingsForNote(safeBasePath, note, { model, host, chunkSize, chunkOverlap });
       updated.push(note.id);
     } catch (err) {
       errors.push(`${note.title}: ${err instanceof Error ? err.message : 'Fehler'}`);

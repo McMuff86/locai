@@ -1,29 +1,10 @@
-import { NextResponse } from 'next/server';
-import path from 'path';
+import { NextResponse, NextRequest } from 'next/server';
 
 /**
- * SEC-2: Validate that a user-supplied path doesn't contain traversal sequences.
- * Resolves to absolute and rejects paths containing '..'.
- * Returns the resolved absolute path on success, or null on traversal attempt.
+ * SEC-1: Middleware that enforces local-only access for all API routes.
+ * This mirrors the logic from assertLocalRequest() but works at the middleware level
+ * to protect ALL /api/* routes uniformly.
  */
-export function sanitizeBasePath(userPath: string): string | null {
-  if (!userPath || typeof userPath !== 'string') return null;
-  // Reject any path with '..' components to prevent traversal
-  if (userPath.includes('..')) return null;
-  return path.resolve(userPath);
-}
-
-/**
- * SEC-2: Validate that a resolved path stays within an allowed prefix directory.
- */
-export function validatePath(userPath: string, allowedPrefix: string): string | null {
-  const resolved = path.resolve(userPath);
-  const normalizedPrefix = path.resolve(allowedPrefix);
-  if (resolved === normalizedPrefix || resolved.startsWith(normalizedPrefix + path.sep)) {
-    return resolved;
-  }
-  return null;
-}
 
 function isTruthyEnv(value: string | undefined) {
   if (!value) return false;
@@ -66,7 +47,8 @@ function forbidden(error: string, details?: Record<string, unknown>) {
   return NextResponse.json({ success: false, error, ...details }, { status: 403 });
 }
 
-export function assertLocalRequest(request: Request) {
+export function middleware(request: NextRequest) {
+  // --- Token-based auth ---
   const requiredToken = process.env.LOCAI_API_TOKEN?.trim();
   if (requiredToken) {
     const tokenHeader = request.headers.get('x-locai-token')?.trim();
@@ -76,8 +58,12 @@ export function assertLocalRequest(request: Request) {
     }
   }
 
-  if (isTruthyEnv(process.env.LOCAI_ALLOW_REMOTE)) return null;
+  // --- Allow remote if explicitly configured ---
+  if (isTruthyEnv(process.env.LOCAI_ALLOW_REMOTE)) {
+    return NextResponse.next();
+  }
 
+  // --- Enforce local-only ---
   const originHostname = parseHostnameFromOrigin(request.headers.get('origin'));
   const hostHostname = parseHostnameFromHost(request.headers.get('host'));
 
@@ -88,7 +74,14 @@ export function assertLocalRequest(request: Request) {
     return forbidden('Remote requests are not allowed', { reason: 'host_not_local' });
   }
 
-  if (originHostname || hostHostname) return null;
+  if (originHostname || hostHostname) {
+    return NextResponse.next();
+  }
+
   return forbidden('Remote requests are not allowed', { reason: 'missing_origin_and_host' });
 }
 
+// Only apply to API routes
+export const config = {
+  matcher: '/api/:path*',
+};
