@@ -35,14 +35,15 @@ import {
 
 interface SystemStats {
   cpu: { model: string; cores: number; usage: number };
-  ram: { total: number; used: number; free: number };
+  memory: { total: number; used: number; free: number; usagePercent: number };
   gpu?: {
+    available: boolean;
     name: string;
-    memoryTotal: number;
-    memoryUsed: number;
-    memoryFree: number;
+    driver: string;
+    vram: { total: number; used: number; free: number; usagePercent: number };
     utilization: number;
     temperature: number;
+    power: { current: number; limit: number };
   };
 }
 
@@ -637,23 +638,23 @@ export default function SettingsPage() {
                   <div className="bg-muted/30 rounded-lg p-3">
                     <div className="flex items-center justify-between text-sm mb-1.5">
                       <span className="text-muted-foreground">
-                        {formatBytes(systemStats.ram.used)} / {formatBytes(systemStats.ram.total)}
+                        {systemStats.memory.used.toFixed(1)} GB / {systemStats.memory.total.toFixed(1)} GB
                       </span>
                       <span className="font-medium">
-                        {((systemStats.ram.used / systemStats.ram.total) * 100).toFixed(0)}%
+                        {systemStats.memory.usagePercent.toFixed(0)}%
                       </span>
                     </div>
                     <div className="h-2 bg-muted rounded-full overflow-hidden">
                       <div
                         className="h-full bg-primary rounded-full transition-all"
-                        style={{ width: `${(systemStats.ram.used / systemStats.ram.total) * 100}%` }}
+                        style={{ width: `${systemStats.memory.usagePercent}%` }}
                       />
                     </div>
                   </div>
                 </div>
 
                 {/* GPU */}
-                {systemStats.gpu && (
+                {systemStats.gpu?.available && (
                   <div className="space-y-2">
                     <h4 className="text-sm font-medium">GPU</h4>
                     <div className="bg-muted/30 rounded-lg p-3 space-y-2">
@@ -663,13 +664,13 @@ export default function SettingsPage() {
                       </div>
                       <div>
                         <div className="flex items-center justify-between text-xs text-muted-foreground mb-1">
-                          <span>VRAM: {formatBytes(systemStats.gpu.memoryUsed)} / {formatBytes(systemStats.gpu.memoryTotal)}</span>
+                          <span>VRAM: {systemStats.gpu.vram.used.toFixed(1)} GB / {systemStats.gpu.vram.total.toFixed(1)} GB</span>
                           <span>{systemStats.gpu.utilization}%</span>
                         </div>
                         <div className="h-2 bg-muted rounded-full overflow-hidden">
                           <div
                             className="h-full bg-emerald-500 rounded-full transition-all"
-                            style={{ width: `${(systemStats.gpu.memoryUsed / systemStats.gpu.memoryTotal) * 100}%` }}
+                            style={{ width: `${systemStats.gpu.vram.usagePercent}%` }}
                           />
                         </div>
                       </div>
