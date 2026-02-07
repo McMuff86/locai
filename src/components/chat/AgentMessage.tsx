@@ -5,13 +5,10 @@ import { motion } from 'framer-motion';
 import { Loader2, Bot } from 'lucide-react';
 import { AgentTurn } from '@/lib/agents/types';
 import { ToolCallBlock } from './ToolCallBlock';
-import { ChatMessage } from './ChatMessage';
 import { ChatAvatar } from './ChatAvatar';
 import { Card, CardContent } from '@/components/ui/card';
 import { MarkdownRenderer } from './MarkdownRenderer';
-import { Message } from '@/types/chat';
 import { cn } from '@/lib/utils';
-import { useSettings } from '@/hooks/useSettings';
 
 // ---------------------------------------------------------------------------
 // Props
@@ -26,8 +23,8 @@ interface AgentMessageProps {
   isLoading: boolean;
   /** Whether a tool is currently being executed */
   isExecutingTool: boolean;
-  /** Current turn index */
-  currentTurnIndex: number;
+  /** Current turn index (reserved for future progress display) */
+  currentTurnIndex?: number;
   /** Total estimated turns */
   totalTurnsEstimate: number | null;
   /** Model name for display */
@@ -50,8 +47,6 @@ export function AgentMessage({
   modelName,
   error,
 }: AgentMessageProps) {
-  const { settings } = useSettings();
-  const chatLayout = settings?.chatLayout || 'linear';
   const hasTurns = turns.length > 0;
   const hasContent = content.length > 0;
   const displayName = modelName || 'LocAI Agent';

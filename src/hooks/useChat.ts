@@ -212,13 +212,14 @@ export function useChat(): UseChatReturn {
             setTokenStats(response.tokenStats);
           }
           
-          // Final update with complete content
+          // Final update with complete content (attach RAG sources if available)
           const finalMessage: Message = {
             id: botMessageId,
             role: 'assistant',
             content: response.content,
             timestamp: new Date(),
-            modelName: currentModel
+            modelName: currentModel,
+            ...(ragSources ? { ragSources } : {}),
           };
           onBotMessage(finalMessage);
         },
@@ -252,7 +253,8 @@ export function useChat(): UseChatReturn {
           role: 'assistant',
           content: response.content,
           timestamp: new Date(),
-          modelName: currentModel
+          modelName: currentModel,
+          ...(ragSources ? { ragSources } : {}),
         };
 
         onBotMessage(botResponse);

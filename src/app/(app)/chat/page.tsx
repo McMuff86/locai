@@ -42,7 +42,7 @@ function ChatPageContent() {
   const searchParams = useSearchParams();
   
   // Settings hook
-  const { settings, updateSettings } = useSettings();
+  const { settings } = useSettings();
   
   // Custom hooks
   const {
@@ -78,7 +78,6 @@ function ChatPageContent() {
     isLoading: isChatLoading,
     isStreaming,
     tokenStats,
-    lastRAGSources,
     sendMessage,
     clearTokenStats,
     stopStreaming
@@ -100,13 +99,11 @@ function ChatPageContent() {
     isExecutingTool,
     isAgentLoading,
     agentStreamingContent,
-    agentFinalContent,
     currentTurnIndex,
     totalTurnsEstimate,
     agentError,
     sendAgentMessage,
     cancelAgentRun,
-    resetAgentState,
   } = useAgentChat();
 
   // ── Local UI state ────────────────────────────────────────────

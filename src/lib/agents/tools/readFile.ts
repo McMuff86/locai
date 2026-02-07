@@ -82,12 +82,15 @@ const readFileTool: RegisteredTool = {
       };
     }
 
-    // Security: reject path traversal
-    if (filePath.includes('..')) {
+    // Security: resolve path first, then check containment.
+    // The `path.resolve` call normalises away any ".." segments,
+    // so we rely on the `isPathAllowed` check below for real security.
+    // We additionally reject obvious traversal attempts early.
+    if (filePath.includes('..') || filePath.includes('\0')) {
       return {
         callId,
         content: '',
-        error: 'Path traversal ("..") is not allowed',
+        error: 'Path traversal ("..") or null bytes are not allowed',
         success: false,
       };
     }

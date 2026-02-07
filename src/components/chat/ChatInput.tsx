@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState, useRef } from "react";
 import { Button } from "../ui/button";
 import { Textarea } from "../ui/textarea";
 import { ChatInputProps } from "../../types/chat";
