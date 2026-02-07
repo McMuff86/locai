@@ -93,7 +93,7 @@ export async function POST(request: NextRequest) {
       fetchContent: options.fetchContent !== false, // default true
     };
 
-    console.log(`[Search API] AI-powered search for: "${question}"`);
+    console.debug(`[Search API] AI-powered search for: "${question}"`);
     
     const result = await performWebSearch(question, searchOptions);
 
@@ -139,7 +139,7 @@ export async function PUT(request: NextRequest) {
       );
     }
 
-    console.log(`[Search API] Fetching content from: ${url}`);
+    console.debug(`[Search API] Fetching content from: ${url}`);
     
     const content = await fetchPageContent(url, { maxLength });
 
@@ -176,7 +176,7 @@ export async function PATCH(request: NextRequest) {
       );
     }
 
-    console.log(`[Search API] Optimizing query: "${question}"`);
+    console.debug(`[Search API] Optimizing query: "${question}"`);
     
     const result = await optimizeQuery(question, {
       ollamaHost: ollamaHost || 'http://localhost:11434',

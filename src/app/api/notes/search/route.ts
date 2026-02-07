@@ -3,6 +3,7 @@ import { FileNoteStorage } from '@/lib/notes/fileNoteStorage';
 import { basicSearch, semanticSearch } from '@/lib/notes/search';
 import { embedQuery, loadEmbeddings } from '@/lib/notes/embeddings';
 import { EmbeddingSearchResult, Note } from '@/lib/notes/types';
+import { sanitizeBasePath } from '../../_utils/security';
 
 export const runtime = 'nodejs';
 
@@ -18,11 +19,16 @@ function getBasePath(req: NextRequest, bodyBasePath?: string | null): string | n
 
 // GET method for unified search
 export async function GET(req: NextRequest) {
-  const basePath = getBasePath(req);
+  const rawBasePath = getBasePath(req);
   const query = req.nextUrl.searchParams.get('query');
   
-  if (!basePath) {
+  if (!rawBasePath) {
     return NextResponse.json({ success: false, error: 'basePath is required' }, { status: 400 });
+  }
+  // SEC-2: Validate basePath (no traversal)
+  const basePath = sanitizeBasePath(rawBasePath);
+  if (!basePath) {
+    return NextResponse.json({ success: false, error: 'Invalid basePath' }, { status: 400 });
   }
   
   if (!query || query.length < 2) {
@@ -125,11 +131,17 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'basePath is required' }, { status: 400 });
   }
 
+  // SEC-2: Validate basePath (no traversal)
+  const safeBasePath = sanitizeBasePath(basePath);
+  if (!safeBasePath) {
+    return NextResponse.json({ error: 'Invalid basePath' }, { status: 400 });
+  }
+
   if (!query || typeof query !== 'string') {
     return NextResponse.json({ error: 'query is required' }, { status: 400 });
   }
 
-  const storage = new FileNoteStorage(basePath);
+  const storage = new FileNoteStorage(safeBasePath);
   const summaries = await storage.listNotes();
   const resolved = await Promise.all(summaries.map((s) => storage.getNote(s.id)));
   const notes = resolved.filter((note): note is Note => Boolean(note));
@@ -140,7 +152,7 @@ export async function POST(req: NextRequest) {
   let embeddingsUsed = false;
 
   if (useEmbeddings) {
-    const entries = await loadEmbeddings(basePath);
+    const entries = await loadEmbeddings(safeBasePath);
     if (entries.length > 0) {
       try {
         const vector = await embedQuery(query, { host, model });

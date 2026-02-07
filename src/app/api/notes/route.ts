@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { FileNoteStorage } from '@/lib/notes/fileNoteStorage';
 import { NoteInput } from '@/lib/notes/types';
+import { sanitizeBasePath } from '../_utils/security';
 
 export const runtime = 'nodejs';
 
@@ -15,9 +16,14 @@ function getBasePath(req: NextRequest, bodyBasePath?: string | null): string | n
 }
 
 function buildStorage(req: NextRequest, bodyBasePath?: string | null) {
-  const basePath = getBasePath(req, bodyBasePath);
-  if (!basePath) {
+  const raw = getBasePath(req, bodyBasePath);
+  if (!raw) {
     return { error: NextResponse.json({ error: 'basePath is required' }, { status: 400 }) };
+  }
+  // SEC-2: Validate basePath (no traversal)
+  const basePath = sanitizeBasePath(raw);
+  if (!basePath) {
+    return { error: NextResponse.json({ error: 'Invalid basePath' }, { status: 400 }) };
   }
   return { storage: new FileNoteStorage(basePath) };
 }

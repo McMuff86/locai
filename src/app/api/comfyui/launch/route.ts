@@ -75,12 +75,21 @@ export async function POST(request: Request) {
       );
     }
     
-    // Launch ComfyUI in detached mode
+    // SEC-3: Validate path has no shell metacharacters
+    const shellMetachars = /[;&|`$(){}[\]!#~<>*?\\'"]/;
+    if (shellMetachars.test(normalizedPath) || shellMetachars.test(startFile)) {
+      return NextResponse.json(
+        { success: false, error: 'Path contains invalid characters' },
+        { status: 400 }
+      );
+    }
+
+    // Launch ComfyUI in detached mode (shell: false to prevent command injection)
     const child = spawn(startCommand, startArgs, {
       cwd: normalizedPath,
       detached: true,
       stdio: 'ignore',
-      shell: true,
+      shell: false,
     });
     
     // Unref to allow Node.js to exit independently

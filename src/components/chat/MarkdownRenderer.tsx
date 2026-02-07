@@ -12,6 +12,7 @@ import { Copy, Check } from 'lucide-react';
 interface MarkdownRendererProps {
   content: string;
   className?: string;
+  style?: React.CSSProperties;
 }
 
 // Copy button for code blocks
@@ -45,9 +46,9 @@ const CopyButton = ({ text }: { text: string }) => {
   );
 };
 
-export function MarkdownRenderer({ content, className = '' }: MarkdownRendererProps) {
+export function MarkdownRenderer({ content, className = '', style }: MarkdownRendererProps) {
   return (
-    <div className={`markdown-content ${className}`}>
+    <div className={`markdown-content ${className}`} style={style}>
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
         rehypePlugins={[rehypeRaw]}

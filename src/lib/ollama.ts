@@ -325,6 +325,125 @@ export function formatMessageContent(content: MessageContent): string | OllamaCh
 }
 
 /**
+ * Formats messages for the Ollama API, handling vision model image extraction.
+ * Shared between streaming and non-streaming chat functions.
+ */
+function formatMessagesForApi(
+  model: string,
+  messages: { role: 'system' | 'user' | 'assistant'; content: MessageContent }[]
+): OllamaChatRequest['messages'] {
+  const isVisionModel = model.toLowerCase().includes('vision');
+
+  return messages.map(msg => {
+    // For vision models, we need to handle images differently
+    if (isVisionModel && msg.role === 'user') {
+      const content = msg.content;
+
+      // Check if there are images in the content
+      const hasImages =
+        (Array.isArray(content) && content.some(item => typeof item !== 'string')) ||
+        (typeof content !== 'string' && (content as MessageImageContent)?.type === 'image');
+
+      if (hasImages) {
+        // Extract text and images to proper format
+        let textContent = '';
+        const images: string[] = [];
+
+        if (Array.isArray(content)) {
+          content.forEach(item => {
+            if (typeof item === 'string') {
+              textContent += (textContent ? ' ' : '') + item;
+            } else if ((item as MessageImageContent).type === 'image') {
+              const imageItem = item as MessageImageContent;
+              const imageData = imageItem.url.startsWith('data:')
+                ? imageItem.url.split(',')[1]
+                : imageItem.url;
+              images.push(imageData);
+            }
+          });
+        } else if ((content as MessageImageContent).type === 'image') {
+          const imageContent = content as MessageImageContent;
+          const imageData = imageContent.url.startsWith('data:')
+            ? imageContent.url.split(',')[1]
+            : imageContent.url;
+          images.push(imageData);
+        }
+
+        return {
+          role: msg.role,
+          content: textContent || "What is in this image?",
+          images: images
+        };
+      }
+    }
+
+    // For non-vision models or messages without images, use standard format
+    return {
+      role: msg.role,
+      content: formatMessageContent(msg.content)
+    };
+  });
+}
+
+/**
+ * Builds the OllamaChatRequest with model-specific template and options.
+ */
+function buildChatRequest(
+  model: string,
+  formattedMessages: OllamaChatRequest['messages'],
+  stream: boolean,
+  options: Record<string, unknown> = {}
+): OllamaChatRequest {
+  const modelTemplate = getOllamaTemplate(model);
+  const modelOptions = getDefaultOptions(model);
+
+  const chatRequest: OllamaChatRequest = {
+    model,
+    messages: formattedMessages,
+    stream,
+    options: {
+      ...modelOptions,
+      ...options
+    }
+  };
+
+  if (modelTemplate) {
+    chatRequest.template = modelTemplate;
+  }
+
+  return chatRequest;
+}
+
+/**
+ * Extracts token statistics from an Ollama API response.
+ */
+function extractTokenStats(data: {
+  prompt_eval_count?: number;
+  eval_count?: number;
+  total_duration?: number;
+  eval_duration?: number;
+}): TokenStats | null {
+  if (data.prompt_eval_count === undefined && data.eval_count === undefined) {
+    return null;
+  }
+
+  const promptTokens = data.prompt_eval_count || 0;
+  const completionTokens = data.eval_count || 0;
+  const totalDuration = (data.total_duration || 0) / 1e9;
+  const evalDuration = (data.eval_duration || 0) / 1e9;
+
+  return {
+    promptTokens,
+    completionTokens,
+    totalTokens: promptTokens + completionTokens,
+    totalDuration: Math.round(totalDuration * 100) / 100,
+    tokensPerSecond: evalDuration > 0
+      ? Math.round((completionTokens / evalDuration) * 10) / 10
+      : 0
+  };
+}
+
+/**
  * Sends a chat request to an Ollama model with support for images
  * Returns content and token statistics
  */
@@ -335,85 +454,8 @@ export async function sendChatMessage(
   host?: string
 ): Promise<ChatResponse> {
   try {
-    // Get model-specific template if available
-    const modelTemplate = getOllamaTemplate(model);
-    
-    // Get model-specific default options
-    const modelOptions = getDefaultOptions(model);
-    
-    // Check if using a vision model
-    const isVisionModel = model.toLowerCase().includes('vision');
-    
-    // Format messages for Ollama API
-    const formattedMessages = messages.map(msg => {
-      // For vision models, we need to handle images differently
-      if (isVisionModel && msg.role === 'user') {
-        const content = msg.content;
-        
-        // Check if there are images in the content
-        const hasImages = 
-          (Array.isArray(content) && content.some(item => typeof item !== 'string')) ||
-          (typeof content !== 'string' && (content as MessageImageContent)?.type === 'image');
-        
-        if (hasImages) {
-          // Extract text and images to proper format
-          let textContent = '';
-          const images: string[] = [];
-          
-          if (Array.isArray(content)) {
-            // Process array of content (text and images)
-            content.forEach(item => {
-              if (typeof item === 'string') {
-                // Combine all text content
-                textContent += (textContent ? ' ' : '') + item;
-              } else if ((item as MessageImageContent).type === 'image') {
-                // Extract image data
-                const imageItem = item as MessageImageContent;
-                const imageData = imageItem.url.startsWith('data:')
-                  ? imageItem.url.split(',')[1] // Extract base64 data without prefix
-                  : imageItem.url;
-                images.push(imageData);
-              }
-            });
-          } else if ((content as MessageImageContent).type === 'image') {
-            // Single image content
-            const imageContent = content as MessageImageContent;
-            const imageData = imageContent.url.startsWith('data:')
-              ? imageContent.url.split(',')[1]
-              : imageContent.url;
-            images.push(imageData);
-          }
-          
-          // Return the message in the format expected by vision models
-          return {
-            role: msg.role,
-            content: textContent || "What is in this image?", // Default prompt if no text
-            images: images
-          };
-        }
-      }
-      
-      // For non-vision models or messages without images, use standard format
-      return {
-        role: msg.role,
-        content: formatMessageContent(msg.content)
-      };
-    });
-    
-    const chatRequest: OllamaChatRequest = {
-      model,
-      messages: formattedMessages,
-      stream: false,
-      options: {
-        ...modelOptions,
-        ...options
-      }
-    };
-    
-    // Add template if available for the model
-    if (modelTemplate) {
-      chatRequest.template = modelTemplate;
-    }
+    const formattedMessages = formatMessagesForApi(model, messages);
+    const chatRequest = buildChatRequest(model, formattedMessages, false, options);
     
     const response = await fetch(`${resolveOllamaApiBase(host)}/chat`, {
       method: 'POST',
@@ -430,28 +472,9 @@ export async function sendChatMessage(
     
     const data = await response.json() as OllamaChatResponse;
     
-    // Calculate token statistics
-    let tokenStats: TokenStats | null = null;
-    if (data.prompt_eval_count !== undefined || data.eval_count !== undefined) {
-      const promptTokens = data.prompt_eval_count || 0;
-      const completionTokens = data.eval_count || 0;
-      const totalDuration = (data.total_duration || 0) / 1e9; // Convert nanoseconds to seconds
-      const evalDuration = (data.eval_duration || 0) / 1e9;
-      
-      tokenStats = {
-        promptTokens,
-        completionTokens,
-        totalTokens: promptTokens + completionTokens,
-        totalDuration: Math.round(totalDuration * 100) / 100,
-        tokensPerSecond: evalDuration > 0 
-          ? Math.round((completionTokens / evalDuration) * 10) / 10 
-          : 0
-      };
-    }
-    
     return {
       content: data.message.content,
-      tokenStats
+      tokenStats: extractTokenStats(data)
     };
   } catch (error) {
     console.error('Error sending chat message:', error);
@@ -476,69 +499,8 @@ export async function sendStreamingChatMessage(
   host?: string
 ): Promise<void> {
   try {
-    const modelTemplate = getOllamaTemplate(model);
-    const modelOptions = getDefaultOptions(model);
-    const isVisionModel = model.toLowerCase().includes('vision');
-    
-    // Format messages (same logic as non-streaming)
-    const formattedMessages = messages.map(msg => {
-      if (isVisionModel && msg.role === 'user') {
-        const content = msg.content;
-        const hasImages = 
-          (Array.isArray(content) && content.some(item => typeof item !== 'string')) ||
-          (typeof content !== 'string' && (content as MessageImageContent)?.type === 'image');
-        
-        if (hasImages) {
-          let textContent = '';
-          const images: string[] = [];
-          
-          if (Array.isArray(content)) {
-            content.forEach(item => {
-              if (typeof item === 'string') {
-                textContent += (textContent ? ' ' : '') + item;
-              } else if ((item as MessageImageContent).type === 'image') {
-                const imageItem = item as MessageImageContent;
-                const imageData = imageItem.url.startsWith('data:')
-                  ? imageItem.url.split(',')[1]
-                  : imageItem.url;
-                images.push(imageData);
-              }
-            });
-          } else if ((content as MessageImageContent).type === 'image') {
-            const imageContent = content as MessageImageContent;
-            const imageData = imageContent.url.startsWith('data:')
-              ? imageContent.url.split(',')[1]
-              : imageContent.url;
-            images.push(imageData);
-          }
-          
-          return {
-            role: msg.role,
-            content: textContent || "What is in this image?",
-            images: images
-          };
-        }
-      }
-      
-      return {
-        role: msg.role,
-        content: formatMessageContent(msg.content)
-      };
-    });
-    
-    const chatRequest: OllamaChatRequest = {
-      model,
-      messages: formattedMessages,
-      stream: true, // Enable streaming!
-      options: {
-        ...modelOptions,
-        ...options
-      }
-    };
-    
-    if (modelTemplate) {
-      chatRequest.template = modelTemplate;
-    }
+    const formattedMessages = formatMessagesForApi(model, messages);
+    const chatRequest = buildChatRequest(model, formattedMessages, true, options);
     
     const response = await fetch(`${resolveOllamaApiBase(host)}/chat`, {
       method: 'POST',
@@ -586,28 +548,9 @@ export async function sendStreamingChatMessage(
       }
     }
     
-    // Calculate token stats from final chunk
-    let tokenStats: TokenStats | null = null;
-    if (finalChunk) {
-      const promptTokens = finalChunk.prompt_eval_count || 0;
-      const completionTokens = finalChunk.eval_count || 0;
-      const totalDuration = (finalChunk.total_duration || 0) / 1e9;
-      const evalDuration = (finalChunk.eval_duration || 0) / 1e9;
-      
-      tokenStats = {
-        promptTokens,
-        completionTokens,
-        totalTokens: promptTokens + completionTokens,
-        totalDuration: Math.round(totalDuration * 100) / 100,
-        tokensPerSecond: evalDuration > 0 
-          ? Math.round((completionTokens / evalDuration) * 10) / 10 
-          : 0
-      };
-    }
-    
     onComplete({
       content: fullContent,
-      tokenStats
+      tokenStats: finalChunk ? extractTokenStats(finalChunk) : null
     });
     
   } catch (error) {

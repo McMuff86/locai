@@ -4,6 +4,7 @@ import "./globals.css";
 import { ThemeProvider } from "../components/ThemeProvider";
 import { Toaster } from "../components/ui/toaster";
 import { ClientErrorBoundary } from "../components/ClientErrorBoundary";
+import { FontSizeSync } from "../components/FontSizeSync";
 
 export const metadata = {
   title: 'LocAI',
@@ -36,6 +37,7 @@ export default function RootLayout({
           enableSystem
           disableTransitionOnChange
         >
+          <FontSizeSync />
           <ClientErrorBoundary>
             {children}
           </ClientErrorBoundary>

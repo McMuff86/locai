@@ -359,7 +359,7 @@ export async function exportConversationsToFile(): Promise<boolean> {
         console.error("Error with File System Access API:", err);
         // Check if user canceled the operation (AbortError)
         if (err instanceof Error && err.name === 'AbortError') {
-          console.log("User canceled file save operation");
+          console.debug("User canceled file save operation");
           return false;
         }
         // Otherwise fall back to download method

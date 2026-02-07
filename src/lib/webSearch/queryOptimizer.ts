@@ -28,7 +28,7 @@ export async function optimizeQuery(
     timeout = 30000,
   } = options;
 
-  console.log(`[QueryOptimizer] Optimizing: "${question}"`);
+  console.debug(`[QueryOptimizer] Optimizing: "${question}"`);
 
   try {
     const response = await fetch(`${ollamaHost}/api/generate`, {
@@ -59,7 +59,7 @@ export async function optimizeQuery(
       .split(/\s+/)
       .filter((word: string) => word.length > 2);
 
-    console.log(`[QueryOptimizer] ✓ Optimized to: "${optimizedQuery}"`);
+    console.debug(`[QueryOptimizer] ✓ Optimized to: "${optimizedQuery}"`);
 
     return {
       originalQuery: question,

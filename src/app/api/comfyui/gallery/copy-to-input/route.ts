@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import fs from 'fs';
 import path from 'path';
-import { assertLocalRequest } from '../../../_utils/security';
+import { assertLocalRequest, sanitizeBasePath } from '../../../_utils/security';
 
 export const dynamic = 'force-dynamic';
 
@@ -32,6 +32,16 @@ export async function POST(request: Request) {
     if (!finalOutputPath) {
       finalOutputPath = path.join(comfyUIPath, 'ComfyUI', 'output');
     }
+
+    // SEC-2: Validate output path (no traversal)
+    const safePath = sanitizeBasePath(finalOutputPath);
+    if (!safePath) {
+      return NextResponse.json(
+        { success: false, error: 'Invalid output path' },
+        { status: 400 }
+      );
+    }
+    finalOutputPath = safePath;
     
     // Decode image path
     let relativePath: string;

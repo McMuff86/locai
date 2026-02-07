@@ -45,7 +45,7 @@ async function trySearXNG(
       return null;
     }
     
-    console.log(`[SearXNG] Trying: ${instanceUrl}`);
+    console.debug(`[SearXNG] Trying: ${instanceUrl}`);
     
     // Build search URL manually to avoid URL constructor issues
     const separator = instanceUrl.includes('?') ? '&' : '?';
@@ -57,14 +57,14 @@ async function trySearXNG(
     });
 
     if (!response.ok) {
-      console.log(`[SearXNG] ✗ HTTP ${response.status}`);
+      console.debug(`[SearXNG] ✗ HTTP ${response.status}`);
       return null;
     }
 
     // Check if response is JSON
     const contentType = response.headers.get('content-type');
     if (!contentType || !contentType.includes('application/json')) {
-      console.log(`[SearXNG] ✗ Not JSON response`);
+      console.debug(`[SearXNG] ✗ Not JSON response`);
       return null;
     }
 
@@ -72,7 +72,7 @@ async function trySearXNG(
     const results = data.results || [];
 
     if (results.length === 0) {
-      console.log(`[SearXNG] ✗ No results`);
+      console.debug(`[SearXNG] ✗ No results`);
       return null;
     }
 
@@ -85,7 +85,7 @@ async function trySearXNG(
         engine: r.engine || 'searxng',
       }));
 
-    console.log(`[SearXNG] ✓ Found ${mappedResults.length} results`);
+    console.debug(`[SearXNG] ✓ Found ${mappedResults.length} results`);
     
     return {
       query,
@@ -95,7 +95,7 @@ async function trySearXNG(
     };
   } catch (error) {
     const errorMsg = error instanceof Error ? error.message : 'Unknown error';
-    console.log(`[SearXNG] ✗ Error: ${errorMsg}`);
+    console.debug(`[SearXNG] ✗ Error: ${errorMsg}`);
     return null;
   }
 }
@@ -114,7 +114,7 @@ export async function searchWeb(
     language = 'de-DE',
   } = options;
 
-  console.log(`[WebSearch] Searching for: "${query}"`);
+  console.debug(`[WebSearch] Searching for: "${query}"`);
 
   // Try custom SearXNG instance first (if configured)
   if (customInstance) {
@@ -127,11 +127,11 @@ export async function searchWeb(
     if (searxResult && searxResult.results.length > 0) {
       return searxResult;
     }
-    console.log('[WebSearch] Custom SearXNG failed, falling back to DuckDuckGo');
+    console.debug('[WebSearch] Custom SearXNG failed, falling back to DuckDuckGo');
   }
 
   // Use DuckDuckGo as the reliable fallback
-  console.log('[WebSearch] Using DuckDuckGo');
+  console.debug('[WebSearch] Using DuckDuckGo');
   return searchDuckDuckGo(query, { maxResults, timeout });
 }
 

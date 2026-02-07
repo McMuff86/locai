@@ -1,31 +1,34 @@
 import React, { useState, useEffect, useRef } from "react";
-import { Avatar, AvatarFallback } from "../ui/avatar";
 import { Card, CardContent } from "../ui/card";
 import { ChatMessageProps, MessageContent, MessageImageContent } from "../../types/chat";
 import { cn } from "../../lib/utils";
 import { motion } from "framer-motion";
 import { ThinkingProcess } from "./ThinkingProcess";
 import { MarkdownRenderer } from "./MarkdownRenderer";
-import { User } from "lucide-react";
+import { useSettings } from "../../hooks/useSettings";
+import { ChatAvatar } from "./ChatAvatar";
 
 // Regular expression to extract thinking process from messages
 const THINK_REGEX = /<think>([\s\S]*?)<\/think>/;
 
 // Render message content (text or images or both)
 const MessageContentRenderer = ({ content, isUser }: { content: MessageContent; isUser: boolean }) => {
+  const textClass = "whitespace-pre-wrap" ; // font-size comes from CSS var
+  const textStyle = { fontSize: 'var(--font-size-chat)' };
+  
   // Sicherheitscheck für ungültige Inhalte
   if (content === null || content === undefined) {
-    return <p className="text-sm whitespace-pre-wrap text-muted-foreground">Keine Inhalte</p>;
+    return <p className={cn(textClass, "text-muted-foreground")} style={textStyle}>Keine Inhalte</p>;
   }
   
   // If content is a string
   if (typeof content === 'string') {
     // For user messages, use simple text rendering
     if (isUser) {
-      return <p className="text-sm whitespace-pre-wrap">{content}</p>;
+      return <p className={textClass} style={textStyle}>{content}</p>;
     }
     // For assistant messages, use markdown renderer
-    return <MarkdownRenderer content={content} className="text-sm" />;
+    return <MarkdownRenderer content={content} className="" style={textStyle} />;
   }
   
   // If content is an image
@@ -50,9 +53,9 @@ const MessageContentRenderer = ({ content, isUser }: { content: MessageContent; 
         {content.map((item, index) => {
           if (typeof item === 'string') {
             if (isUser) {
-              return <p key={index} className="text-sm whitespace-pre-wrap mb-2">{item}</p>;
+              return <p key={index} className={cn(textClass, "mb-2")} style={textStyle}>{item}</p>;
             }
-            return <MarkdownRenderer key={index} content={item} className="text-sm mb-2" />;
+            return <MarkdownRenderer key={index} content={item} className="mb-2" style={textStyle} />;
           }
           
           if (typeof item === 'object' && 'type' in item && item.type === 'image') {
@@ -77,11 +80,19 @@ const MessageContentRenderer = ({ content, isUser }: { content: MessageContent; 
   
   // Fallback for unexpected content
   console.warn("Unbekannter Inhaltstyp:", content);
-  return <p className="text-sm whitespace-pre-wrap text-muted-foreground">Nicht unterstützter Inhalt</p>;
+  return <p className={cn(textClass, "text-muted-foreground")} style={textStyle}>Nicht unterstützter Inhalt</p>;
 };
+
+// Format timestamp for display
+function formatTimestamp(date: Date): string {
+  const d = date instanceof Date ? date : new Date(date);
+  return d.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
+}
 
 export function ChatMessage({ message, isLastMessage = false }: ChatMessageProps) {
   const isUser = message.role === 'user';
+  const { settings } = useSettings();
+  const chatLayout = settings?.chatLayout || 'linear';
   const [thinkingProcess, setThinkingProcess] = useState<string | null>(null);
   const [finalContent, setFinalContent] = useState<MessageContent>(message.content);
   const [showResponse, setShowResponse] = useState(false);
@@ -157,6 +168,10 @@ export function ChatMessage({ message, isLastMessage = false }: ChatMessageProps
     animationCompletedRef.current = true; // Mark this animation as completed
     setShowResponse(true);
   };
+
+  // Derive display name
+  const displayName = isUser ? 'Du' : (message.modelName || 'LocAI');
+  const timestamp = formatTimestamp(message.timestamp);
   
   return (
     <>
@@ -170,7 +185,40 @@ export function ChatMessage({ message, isLastMessage = false }: ChatMessageProps
       )}
       
       {/* Render actual message */}
-      {showResponse && (
+      {showResponse && chatLayout === 'linear' ? (
+        /* ─── Linear Layout (OpenClaw Style) ─── */
+        <motion.div
+          className={cn(
+            "flex flex-col w-full mb-4",
+            isUser && "pl-6 border-l-2 border-primary/20"
+          )}
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.3 }}
+        >
+          {/* Header row: Avatar + Name + Timestamp */}
+          <div className="flex items-center gap-2 mb-1">
+            <ChatAvatar type={isUser ? 'user' : 'ai'} size={isUser ? 36 : 40} />
+            <span className="text-sm font-medium text-foreground">{displayName}</span>
+            <span className="text-xs text-muted-foreground">{timestamp}</span>
+          </div>
+          
+          {/* Message content card */}
+          <div className={cn(isUser ? "pl-[44px]" : "pl-[48px]")}>
+            <Card className={cn(
+              "max-w-[95%]",
+              isUser 
+                ? "bg-muted/30 text-foreground border-border/50" 
+                : "bg-muted/50 text-foreground"
+            )}>
+              <CardContent className="p-3">
+                <MessageContentRenderer content={finalContent} isUser={isUser} />
+              </CardContent>
+            </Card>
+          </div>
+        </motion.div>
+      ) : showResponse ? (
+        /* ─── Bubbles Layout (Classic) ─── */
         <motion.div
           className={cn(
             "flex w-full mb-4",
@@ -181,13 +229,7 @@ export function ChatMessage({ message, isLastMessage = false }: ChatMessageProps
           transition={{ duration: 0.3 }}
         >
           {!isUser && (
-            <div className="h-40 w-40 mr-4 self-start flex-shrink-0">
-              <img 
-                src="/LocAI_logo_v0.2.svg" 
-                alt="LocAI" 
-                className="h-full w-full object-contain"
-              />
-            </div>
+            <ChatAvatar type="ai" size={40} className="mr-3 self-start mt-1" />
           )}
           
           <Card className={cn(
@@ -196,24 +238,16 @@ export function ChatMessage({ message, isLastMessage = false }: ChatMessageProps
               ? "bg-muted/50 text-foreground" 
               : "bg-muted/50 text-foreground"
           )}>
-            <CardContent className={cn(
-              "p-3",
-              isUser ? "" : "prose-sm"
-            )}>
+            <CardContent className="p-3">
               <MessageContentRenderer content={finalContent} isUser={isUser} />
             </CardContent>
           </Card>
           
           {isUser && (
-            <Avatar className="h-8 w-8 ml-2 self-start mt-1">
-              <div className="flex items-center justify-center w-full h-full bg-background text-primary">
-                <User className="h-6 w-6" />
-              </div>
-              <AvatarFallback className="bg-primary text-primary-foreground">U</AvatarFallback>
-            </Avatar>
+            <ChatAvatar type="user" size={36} className="ml-2 self-start mt-1" />
           )}
         </motion.div>
-      )}
+      ) : null}
     </>
   );
 } 

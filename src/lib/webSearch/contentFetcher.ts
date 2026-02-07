@@ -33,7 +33,7 @@ export async function fetchPageContent(
     timeout = 15000,
   } = options;
 
-  console.log(`[ContentFetcher] Fetching: ${url}`);
+  console.debug(`[ContentFetcher] Fetching: ${url}`);
 
   // Validate and clean URL
   if (!url || !url.startsWith('http')) {
@@ -80,7 +80,7 @@ export async function fetchPageContent(
       .replace(/\n{3,}/g, '\n\n')  // Remove excessive newlines
       .trim();
 
-    console.log(`[ContentFetcher] ✓ Fetched ${content.length} chars from ${url}`);
+    console.debug(`[ContentFetcher] ✓ Fetched ${content.length} chars from ${url}`);
 
     return {
       url,
