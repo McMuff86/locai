@@ -9,7 +9,7 @@ import { ChatContainer } from "@/components/chat/ChatContainer";
 import { ChatInput } from "@/components/chat/ChatInput";
 import { ChatHeader } from "@/components/chat/ChatHeader";
 import { SetupCard, IMAGE_PROMPT } from "@/components/chat/SetupCard";
-import { ConversationSidebar } from "@/components/chat/ConversationSidebar";
+import { ConversationSidebar } from "@/components/chat/sidebar";
 import { TokenCounter } from "@/components/chat/TokenCounter";
 import { SystemMonitor } from "@/components/SystemMonitor";
 import { RightSidebar } from "@/components/RightSidebar";
@@ -515,13 +515,7 @@ function ChatPageContent() {
             onSelectConversation={handleSelectConversation}
             onDeleteConversation={handleDeleteConversation}
             onNewConversation={handleNewConversation}
-            onExportConversations={handleExportConversations}
-            onImportConversations={handleImportConversations}
-            onClearAllConversations={handleClearAllConversations}
             onUpdateConversationTags={updateConversationTags}
-            settings={settings}
-            onUpdateSettings={updateSettings}
-            onPullModel={() => setShowModelPull(true)}
             className="h-full"
           />
           
