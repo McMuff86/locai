@@ -1,13 +1,12 @@
 import React, { useState, useEffect, useRef } from "react";
-import { Avatar, AvatarFallback } from "../ui/avatar";
 import { Card, CardContent } from "../ui/card";
 import { ChatMessageProps, MessageContent, MessageImageContent } from "../../types/chat";
 import { cn } from "../../lib/utils";
 import { motion } from "framer-motion";
 import { ThinkingProcess } from "./ThinkingProcess";
 import { MarkdownRenderer } from "./MarkdownRenderer";
-import { User } from "lucide-react";
 import { useSettings } from "../../hooks/useSettings";
+import { ChatAvatar } from "./ChatAvatar";
 
 // Regular expression to extract thinking process from messages
 const THINK_REGEX = /<think>([\s\S]*?)<\/think>/;
@@ -189,35 +188,23 @@ export function ChatMessage({ message, isLastMessage = false }: ChatMessageProps
       {showResponse && chatLayout === 'linear' ? (
         /* ─── Linear Layout (OpenClaw Style) ─── */
         <motion.div
-          className="flex flex-col w-full mb-4"
+          className={cn(
+            "flex flex-col w-full mb-4",
+            isUser && "pl-6 border-l-2 border-primary/20"
+          )}
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.3 }}
         >
           {/* Header row: Avatar + Name + Timestamp */}
           <div className="flex items-center gap-2 mb-1">
-            {isUser ? (
-              <Avatar className="h-7 w-7 flex-shrink-0">
-                <div className="flex items-center justify-center w-full h-full bg-background text-primary">
-                  <User className="h-4 w-4" />
-                </div>
-                <AvatarFallback className="bg-primary text-primary-foreground text-xs">U</AvatarFallback>
-              </Avatar>
-            ) : (
-              <div className="h-7 w-7 flex-shrink-0">
-                <img 
-                  src="/LocAI_logo_v0.2.svg" 
-                  alt="LocAI" 
-                  className="h-full w-full object-contain"
-                />
-              </div>
-            )}
+            <ChatAvatar type={isUser ? 'user' : 'ai'} size={isUser ? 36 : 40} />
             <span className="text-sm font-medium text-foreground">{displayName}</span>
             <span className="text-xs text-muted-foreground">{timestamp}</span>
           </div>
           
           {/* Message content card */}
-          <div className="pl-9">
+          <div className={cn(isUser ? "pl-[44px]" : "pl-[48px]")}>
             <Card className={cn(
               "max-w-[95%]",
               isUser 
@@ -242,13 +229,7 @@ export function ChatMessage({ message, isLastMessage = false }: ChatMessageProps
           transition={{ duration: 0.3 }}
         >
           {!isUser && (
-            <div className="h-8 w-8 mr-3 self-start flex-shrink-0 mt-1">
-              <img 
-                src="/LocAI_logo_v0.2.svg" 
-                alt="LocAI" 
-                className="h-full w-full object-contain"
-              />
-            </div>
+            <ChatAvatar type="ai" size={40} className="mr-3 self-start mt-1" />
           )}
           
           <Card className={cn(
@@ -257,21 +238,13 @@ export function ChatMessage({ message, isLastMessage = false }: ChatMessageProps
               ? "bg-muted/50 text-foreground" 
               : "bg-muted/50 text-foreground"
           )}>
-            <CardContent className={cn(
-              "p-3",
-              isUser ? "" : ""
-            )}>
+            <CardContent className="p-3">
               <MessageContentRenderer content={finalContent} isUser={isUser} />
             </CardContent>
           </Card>
           
           {isUser && (
-            <Avatar className="h-8 w-8 ml-2 self-start mt-1">
-              <div className="flex items-center justify-center w-full h-full bg-background text-primary">
-                <User className="h-6 w-6" />
-              </div>
-              <AvatarFallback className="bg-primary text-primary-foreground">U</AvatarFallback>
-            </Avatar>
+            <ChatAvatar type="user" size={36} className="ml-2 self-start mt-1" />
           )}
         </motion.div>
       ) : null}

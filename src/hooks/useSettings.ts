@@ -33,6 +33,12 @@ export interface AppSettings {
   chatLayout: 'linear' | 'bubbles'; // 'linear' = OpenClaw style (default), 'bubbles' = classic
   fontSize: 'small' | 'medium' | 'large'; // Default: 'medium'
   
+  // Avatar Settings
+  userAvatarType: 'icon' | 'image';    // Default: 'icon'
+  userAvatarUrl: string;                // URL or Data-URL for custom image
+  aiAvatarType: 'icon' | 'image';      // Default: 'icon' (LocAI Logo)
+  aiAvatarUrl: string;                  // URL or Data-URL for custom image
+  
   // Data Storage
   dataPath: string; // Local path for storing chats, settings file, etc.
 }
@@ -54,6 +60,10 @@ const DEFAULT_SETTINGS: AppSettings = {
   searxngEnabled: true,
   chatLayout: 'linear',
   fontSize: 'medium',
+  userAvatarType: 'icon',
+  userAvatarUrl: '',
+  aiAvatarType: 'icon',
+  aiAvatarUrl: '',
   dataPath: '',
 };
 
