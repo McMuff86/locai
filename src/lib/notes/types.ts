@@ -18,24 +18,6 @@ export interface NoteInput {
   links?: string[];
 }
 
-export interface NoteLink {
-  source: string;
-  target: string;
-  type?: string;
-}
-
-export interface NoteNode {
-  id: string;
-  label: string;
-  tags: string[];
-  updatedAt: string;
-}
-
-export interface NoteGraph {
-  nodes: NoteNode[];
-  edges: NoteLink[];
-}
-
 export interface EmbeddingEntry {
   id: string;
   noteId: string;
