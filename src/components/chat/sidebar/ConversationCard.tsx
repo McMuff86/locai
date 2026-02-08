@@ -1,11 +1,10 @@
 "use client";
 
 import React, { useState } from 'react';
-import { Conversation, MessageContent } from '../../../types/chat';
+import { ConversationSummary } from '../../../lib/conversations/types';
 import { Button } from '../../ui/button';
 import {
   Trash2,
-  Image,
   BarChart2,
   Tag,
   Check,
@@ -15,48 +14,14 @@ import { de } from 'date-fns/locale';
 import { TagDisplay, TagInput } from '../../shared/TagInput';
 
 interface ConversationCardProps {
-  conversation: Conversation;
+  conversation: ConversationSummary;
   isActive: boolean;
-  onSelect: (conversation: Conversation) => void;
+  onSelect: (conversationId: string) => void;
   onDelete: (conversationId: string) => void;
   onUpdateTags?: (conversationId: string, tags: string[]) => void;
   onTagFilterSelect?: (tag: string) => void;
   onToggleStats?: (conversationId: string) => void;
   showingStats?: boolean;
-}
-
-/** Extract preview text from message content */
-function getTextFromContent(content: MessageContent): string {
-  if (typeof content === 'string') return content;
-  if (typeof content === 'object' && 'type' in content && content.type === 'image') return '[Bild]';
-  if (Array.isArray(content)) {
-    const textItem = content.find((item): item is string => typeof item === 'string');
-    if (textItem) return textItem;
-    if (content.some((item) => typeof item === 'object' && 'type' in item && item.type === 'image')) return '[Bild]';
-  }
-  return 'Inhalt';
-}
-
-/** Get a short preview from the last user message */
-function getConversationPreview(conversation: Conversation): string {
-  const lastUserMessage = [...conversation.messages].reverse().find((msg) => msg.role === 'user');
-  if (lastUserMessage) {
-    const previewText = getTextFromContent(lastUserMessage.content);
-    return previewText.length > 45 ? `${previewText.substring(0, 45)}…` : previewText;
-  }
-  return typeof conversation.title === 'string' ? conversation.title : 'Konversation';
-}
-
-/** Check if a conversation contains images */
-function hasImages(conversation: Conversation): boolean {
-  return conversation.messages.some((msg) => {
-    const content = msg.content;
-    if (typeof content === 'object' && 'type' in content && content.type === 'image') return true;
-    if (Array.isArray(content)) {
-      return content.some((item) => typeof item === 'object' && 'type' in item && item.type === 'image');
-    }
-    return false;
-  });
 }
 
 export function ConversationCard({
@@ -71,7 +36,7 @@ export function ConversationCard({
 }: ConversationCardProps) {
   const [editingTags, setEditingTags] = useState(false);
 
-  const messageCount = conversation.messages.filter((m) => m.role !== 'system').length;
+  const messageCount = conversation.messageCount;
   const timeAgo = formatDistanceToNow(new Date(conversation.updatedAt), { addSuffix: false, locale: de });
 
   return (
@@ -81,14 +46,11 @@ export function ConversationCard({
           ? 'bg-primary/8 border border-primary/20 shadow-sm shadow-primary/5'
           : 'hover:bg-muted/40 border border-transparent'
       }`}
-      onClick={() => onSelect(conversation)}
+      onClick={() => onSelect(conversation.id)}
     >
       {/* Row 1: Title + time */}
       <div className="flex items-center justify-between gap-2">
         <div className="font-medium text-sm truncate flex items-center gap-1.5 min-w-0">
-          {hasImages(conversation) && (
-            <Image className="h-3.5 w-3.5 text-primary/70 flex-shrink-0" />
-          )}
           <span className="truncate">
             {typeof conversation.title === 'string' ? conversation.title : 'Bildkonversation'}
           </span>
@@ -98,14 +60,11 @@ export function ConversationCard({
         </span>
       </div>
 
-      {/* Row 2: Preview + message count */}
+      {/* Row 2: Message count */}
       <div className="flex items-center justify-between gap-2 mt-0.5">
         <p className="text-xs text-muted-foreground/80 truncate">
-          {getConversationPreview(conversation)}
+          {messageCount} Nachrichten
         </p>
-        <span className="text-[10px] text-muted-foreground/50 flex-shrink-0">
-          {messageCount}
-        </span>
       </div>
 
       {/* Row 3: Tags (compact pills) */}

@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect, useCallback } from 'react';
-import { FAVORITES_KEY } from '../types';
 
 interface UseFavoritesReturn {
   favorites: Set<string>;
@@ -11,26 +10,37 @@ interface UseFavoritesReturn {
   favoriteCount: number;
 }
 
+async function loadFavoritesFromServer(): Promise<string[]> {
+  try {
+    const res = await fetch('/api/preferences/favorites');
+    if (!res.ok) return [];
+    const data = await res.json();
+    return Array.isArray(data.favorites) ? data.favorites : [];
+  } catch {
+    return [];
+  }
+}
+
+async function saveFavoritesToServer(favorites: string[]): Promise<void> {
+  try {
+    await fetch('/api/preferences/favorites', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ favorites }),
+    });
+  } catch {
+    console.error('Failed to save favorites to server');
+  }
+}
+
 export function useFavorites(): UseFavoritesReturn {
   const [favorites, setFavorites] = useState<Set<string>>(new Set());
 
-  // Load favorites from localStorage on mount
+  // Load favorites from server on mount
   useEffect(() => {
-    const stored = localStorage.getItem(FAVORITES_KEY);
-    if (stored) {
-      try {
-        const parsed = JSON.parse(stored);
-        setFavorites(new Set(parsed));
-      } catch (e) {
-        console.error('Failed to load favorites:', e);
-      }
-    }
-  }, []);
-
-  // Save favorites to localStorage
-  const saveFavorites = useCallback((newFavorites: Set<string>) => {
-    localStorage.setItem(FAVORITES_KEY, JSON.stringify([...newFavorites]));
-    setFavorites(newFavorites);
+    loadFavoritesFromServer().then(items => {
+      setFavorites(new Set(items));
+    });
   }, []);
 
   // Toggle favorite status
@@ -43,7 +53,7 @@ export function useFavorites(): UseFavoritesReturn {
       } else {
         newFavorites.add(imageId);
       }
-      localStorage.setItem(FAVORITES_KEY, JSON.stringify([...newFavorites]));
+      saveFavoritesToServer([...newFavorites]);
       return newFavorites;
     });
   }, []);
@@ -58,7 +68,7 @@ export function useFavorites(): UseFavoritesReturn {
     setFavorites(prev => {
       const newFavorites = new Set(prev);
       newFavorites.delete(imageId);
-      localStorage.setItem(FAVORITES_KEY, JSON.stringify([...newFavorites]));
+      saveFavoritesToServer([...newFavorites]);
       return newFavorites;
     });
   }, []);
@@ -71,4 +81,3 @@ export function useFavorites(): UseFavoritesReturn {
     favoriteCount: favorites.size,
   };
 }
-

@@ -3,11 +3,11 @@
 import React, { useState, useMemo } from 'react';
 import { Button } from '../../ui/button';
 import { Filter, X } from 'lucide-react';
-import { Conversation } from '../../../types/chat';
+import { ConversationSummary } from '../../../lib/conversations/types';
 import { getTagColor } from '@/types/chat';
 
 interface TagFilterProps {
-  conversations: Conversation[];
+  conversations: ConversationSummary[];
   selectedTag: string | null;
   onSelectTag: (tag: string | null) => void;
 }

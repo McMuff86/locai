@@ -18,6 +18,7 @@ import {
 } from 'lucide-react';
 import Link from 'next/link';
 import NextImage from 'next/image';
+import { MigrationBanner } from '@/components/MigrationBanner';
 
 // Section definitions for grouped navigation
 const navSections = [
@@ -238,8 +239,11 @@ export default function AppLayout({
       )}
 
       {/* ── Main Content ── */}
-      <main className="flex-1 overflow-hidden md:pt-0 pt-14">
-        {children}
+      <main className="flex-1 overflow-hidden md:pt-0 pt-14 flex flex-col">
+        <MigrationBanner />
+        <div className="flex-1 overflow-hidden">
+          {children}
+        </div>
       </main>
     </div>
   );

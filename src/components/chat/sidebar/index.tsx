@@ -1,15 +1,15 @@
 "use client";
 
 import React, { useState } from 'react';
-import { Conversation } from '../../../types/chat';
+import { ConversationSummary } from '../../../lib/conversations/types';
 import { SidebarHeader } from './SidebarHeader';
 import { TagFilter } from './TagFilter';
 import { ConversationList } from './ConversationList';
 
 interface ConversationSidebarProps {
-  conversations: Conversation[];
+  conversations: ConversationSummary[];
   currentConversationId: string | null;
-  onSelectConversation: (conversation: Conversation) => void;
+  onSelectConversation: (conversationId: string) => void;
   onDeleteConversation: (conversationId: string) => void;
   onNewConversation: () => void;
   onUpdateConversationTags?: (conversationId: string, tags: string[]) => void;

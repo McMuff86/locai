@@ -5,80 +5,30 @@ import { Input } from '../ui/input';
 import { Button } from '../ui/button';
 import { ScrollArea } from '../ui/scroll-area';
 import { Search, X, MessageSquare, Calendar, ChevronRight } from 'lucide-react';
-import { Conversation, Message, MessageContent } from '../../types/chat';
+import { ConversationSummary } from '../../lib/conversations/types';
 import { formatDistanceToNow } from 'date-fns';
 import { de } from 'date-fns/locale';
 
 interface ChatSearchProps {
-  conversations: Conversation[];
-  onSelectConversation: (conversation: Conversation) => void;
+  conversations: ConversationSummary[];
+  onSelectConversation: (conversationId: string) => void;
   onClose?: () => void;
 }
 
 interface SearchResult {
-  conversation: Conversation;
-  matchingMessages: {
-    message: Message;
-    matchText: string;
-    highlightedText: string;
-  }[];
+  conversation: ConversationSummary;
   relevanceScore: number;
 }
 
-// Extract text from message content
-function getTextFromContent(content: MessageContent): string {
-  if (typeof content === 'string') {
-    return content;
-  }
-  
-  if (typeof content === 'object' && 'type' in content && content.type === 'image') {
-    return '';
-  }
-  
-  if (Array.isArray(content)) {
-    return content
-      .filter(item => typeof item === 'string')
-      .join(' ');
-  }
-  
-  return '';
-}
-
-// Highlight search term in text
-function highlightText(text: string, searchTerm: string): string {
-  if (!searchTerm) return text;
-  
-  const regex = new RegExp(`(${searchTerm.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi');
-  return text.replace(regex, '**$1**');
-}
-
-// Get excerpt around the match
-function getExcerpt(text: string, searchTerm: string, maxLength: number = 100): string {
-  const lowerText = text.toLowerCase();
-  const lowerSearch = searchTerm.toLowerCase();
-  const index = lowerText.indexOf(lowerSearch);
-  
-  if (index === -1) return text.slice(0, maxLength);
-  
-  const start = Math.max(0, index - 30);
-  const end = Math.min(text.length, index + searchTerm.length + 70);
-  
-  let excerpt = text.slice(start, end);
-  if (start > 0) excerpt = '...' + excerpt;
-  if (end < text.length) excerpt = excerpt + '...';
-  
-  return excerpt;
-}
-
-export function ChatSearch({ 
-  conversations, 
+export function ChatSearch({
+  conversations,
   onSelectConversation,
-  onClose 
+  onClose
 }: ChatSearchProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [isExpanded, setIsExpanded] = useState(false);
 
-  // Search through conversations
+  // Search through conversation titles and tags
   const searchResults = useMemo((): SearchResult[] => {
     if (!searchQuery.trim() || searchQuery.length < 2) {
       return [];
@@ -88,7 +38,6 @@ export function ChatSearch({
     const results: SearchResult[] = [];
 
     for (const conversation of conversations) {
-      const matchingMessages: SearchResult['matchingMessages'] = [];
       let relevanceScore = 0;
 
       // Check title
@@ -96,40 +45,21 @@ export function ChatSearch({
         relevanceScore += 10;
       }
 
-      // Check messages
-      for (const message of conversation.messages) {
-        if (message.role === 'system') continue;
-        
-        const text = getTextFromContent(message.content);
-        if (text.toLowerCase().includes(query)) {
-          const excerpt = getExcerpt(text, searchQuery);
-          const highlighted = highlightText(excerpt, searchQuery);
-          
-          matchingMessages.push({
-            message,
-            matchText: excerpt,
-            highlightedText: highlighted
-          });
-          
-          relevanceScore += message.role === 'user' ? 3 : 1;
-        }
+      // Check tags
+      if (conversation.tags?.some(t => t.toLowerCase().includes(query))) {
+        relevanceScore += 5;
       }
 
-      if (matchingMessages.length > 0 || relevanceScore > 0) {
-        results.push({
-          conversation,
-          matchingMessages: matchingMessages.slice(0, 3), // Limit to 3 matches per conversation
-          relevanceScore
-        });
+      if (relevanceScore > 0) {
+        results.push({ conversation, relevanceScore });
       }
     }
 
-    // Sort by relevance
     return results.sort((a, b) => b.relevanceScore - a.relevanceScore);
   }, [searchQuery, conversations]);
 
-  const handleSelect = useCallback((conversation: Conversation) => {
-    onSelectConversation(conversation);
+  const handleSelect = useCallback((conversationId: string) => {
+    onSelectConversation(conversationId);
     setSearchQuery('');
     setIsExpanded(false);
     onClose?.();
@@ -175,22 +105,21 @@ export function ChatSearch({
             {searchResults.length === 0 ? (
               <div className="p-4 text-center text-muted-foreground">
                 <Search className="h-8 w-8 mx-auto mb-2 opacity-50" />
-                <p className="text-sm">Keine Ergebnisse für "{searchQuery}"</p>
+                <p className="text-sm">Keine Ergebnisse für &quot;{searchQuery}&quot;</p>
               </div>
             ) : (
               <div className="p-2">
                 <p className="text-xs text-muted-foreground px-2 mb-2">
                   {searchResults.length} Konversation{searchResults.length !== 1 ? 'en' : ''} gefunden
                 </p>
-                
+
                 {searchResults.map((result) => (
                   <div
                     key={result.conversation.id}
                     className="p-3 rounded-lg hover:bg-muted/50 cursor-pointer transition-colors group"
-                    onClick={() => handleSelect(result.conversation)}
+                    onClick={() => handleSelect(result.conversation.id)}
                   >
-                    {/* Conversation Header */}
-                    <div className="flex items-start justify-between gap-2 mb-2">
+                    <div className="flex items-start justify-between gap-2">
                       <div className="flex-1 min-w-0">
                         <h4 className="font-medium text-sm truncate text-foreground group-hover:text-primary transition-colors">
                           {result.conversation.title}
@@ -198,39 +127,19 @@ export function ChatSearch({
                         <div className="flex items-center gap-2 text-xs text-muted-foreground mt-0.5">
                           <span className="flex items-center gap-1">
                             <MessageSquare className="h-3 w-3" />
-                            {result.conversation.messages.filter(m => m.role !== 'system').length}
+                            {result.conversation.messageCount}
                           </span>
                           <span className="flex items-center gap-1">
                             <Calendar className="h-3 w-3" />
-                            {formatDistanceToNow(new Date(result.conversation.updatedAt), { 
+                            {formatDistanceToNow(new Date(result.conversation.updatedAt), {
                               addSuffix: true,
-                              locale: de 
+                              locale: de
                             })}
                           </span>
                         </div>
                       </div>
                       <ChevronRight className="h-4 w-4 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
                     </div>
-                    
-                    {/* Matching Messages Preview */}
-                    {result.matchingMessages.length > 0 && (
-                      <div className="space-y-1.5 mt-2 pl-2 border-l-2 border-primary/30">
-                        {result.matchingMessages.map((match, idx) => (
-                          <div key={idx} className="text-xs">
-                            <span className={`font-medium ${match.message.role === 'user' ? 'text-primary' : 'text-muted-foreground'}`}>
-                              {match.message.role === 'user' ? 'Du: ' : 'AI: '}
-                            </span>
-                            <span 
-                              className="text-muted-foreground"
-                              dangerouslySetInnerHTML={{ 
-                                __html: match.highlightedText
-                                  .replace(/\*\*(.*?)\*\*/g, '<mark class="bg-primary/30 text-foreground px-0.5 rounded">$1</mark>')
-                              }}
-                            />
-                          </div>
-                        ))}
-                      </div>
-                    )}
                   </div>
                 ))}
               </div>
@@ -243,4 +152,3 @@ export function ChatSearch({
 }
 
 export default ChatSearch;
-

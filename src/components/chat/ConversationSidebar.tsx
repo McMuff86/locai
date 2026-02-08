@@ -2,17 +2,16 @@
 
 import React, { useState } from 'react';
 import Link from 'next/link';
-import { Conversation, MessageContent } from '../../types/chat';
+import { ConversationSummary } from '../../lib/conversations/types';
 import { Button } from '../ui/button';
 import { ScrollArea } from '../ui/scroll-area';
-import { 
-  Trash2, 
-  MessageSquare, 
-  PlusCircle, 
-  Download, 
-  Upload, 
-  Image, 
-  BarChart2, 
+import {
+  Trash2,
+  MessageSquare,
+  PlusCircle,
+  Download,
+  Upload,
+  Image,
   X,
   FileText,
   Tag,
@@ -23,17 +22,16 @@ import {
 import { formatDistanceToNow } from 'date-fns';
 import { de } from 'date-fns/locale';
 import { ChatSearch } from './ChatSearch';
-import { ConversationStats } from './ConversationStats';
 import { ComfyUIWidget } from '../ComfyUIWidget';
 import { OllamaStatus } from '../OllamaStatus';
 import { AppSettings } from '../../hooks/useSettings';
 import { TagDisplay, TagInput } from '../shared/TagInput';
-import { getTagColor, TAG_COLORS } from '@/types/chat';
+import { getTagColor } from '@/types/chat';
 
 interface ConversationSidebarProps {
-  conversations: Conversation[];
+  conversations: ConversationSummary[];
   currentConversationId: string | null;
-  onSelectConversation: (conversation: Conversation) => void;
+  onSelectConversation: (conversationId: string) => void;
   onDeleteConversation: (conversationId: string) => void;
   onNewConversation: () => void;
   onExportConversations?: () => void;
@@ -54,20 +52,16 @@ export function ConversationSidebar({
   onNewConversation,
   onExportConversations,
   onImportConversations,
-  onClearAllConversations,
   onUpdateConversationTags,
   settings,
-  onUpdateSettings,
   onPullModel,
   className = ''
 }: ConversationSidebarProps) {
-  const [showStats, setShowStats] = useState<string | null>(null);
-  
   // Tag filtering and editing
   const [selectedTagFilter, setSelectedTagFilter] = useState<string | null>(null);
   const [editingTagsFor, setEditingTagsFor] = useState<string | null>(null);
   const [showTagFilter, setShowTagFilter] = useState(false);
-  
+
   // Get all unique tags from conversations
   const allTags = React.useMemo(() => {
     const tagSet = new Set<string>();
@@ -76,73 +70,12 @@ export function ConversationSidebar({
     });
     return Array.from(tagSet).sort();
   }, [conversations]);
-  
+
   // Filter conversations by selected tag
   const filteredConversations = React.useMemo(() => {
     if (!selectedTagFilter) return conversations;
     return conversations.filter(c => c.tags?.includes(selectedTagFilter));
   }, [conversations, selectedTagFilter]);
-  
-  // Get the current conversation for stats
-  const currentConversation = conversations.find(c => c.id === showStats);
-  
-  // Helper function to extract preview text from message content
-  const getTextFromContent = (content: MessageContent): string => {
-    if (typeof content === 'string') {
-      return content;
-    }
-    
-    if (typeof content === 'object' && 'type' in content && content.type === 'image') {
-      return '[Bild]';
-    }
-    
-    if (Array.isArray(content)) {
-      const textItem = content.find(item => typeof item === 'string');
-      if (textItem && typeof textItem === 'string') {
-        return textItem;
-      }
-      if (content.some(item => typeof item === 'object' && 'type' in item && item.type === 'image')) {
-        return '[Bild]';
-      }
-    }
-    
-    return 'Inhalt';
-  };
-  
-  // Function to get conversation summary/preview
-  const getConversationPreview = (conversation: Conversation): string => {
-    const lastUserMessage = [...conversation.messages]
-      .reverse()
-      .find(msg => msg.role === 'user');
-      
-    if (lastUserMessage) {
-      const previewText = getTextFromContent(lastUserMessage.content);
-      return previewText.length > 50 
-        ? `${previewText.substring(0, 50)}...` 
-        : previewText;
-    }
-    
-    return typeof conversation.title === 'string' 
-      ? conversation.title 
-      : 'Konversation';
-  };
-  
-  // Function to check if a conversation contains images
-  const hasImages = (conversation: Conversation): boolean => {
-    return conversation.messages.some(msg => {
-      const content = msg.content;
-      
-      if (typeof content === 'object' && 'type' in content && content.type === 'image') {
-        return true;
-      }
-      
-      if (Array.isArray(content)) {
-        return content.some(item => typeof item === 'object' && 'type' in item && item.type === 'image');
-      }
-      
-      return false;
-    });
-  };
   
   return (
     <div className={`flex flex-col h-full bg-sidebar ${className}`}>
@@ -305,26 +238,6 @@ export function ConversationSidebar({
         )}
       </div>
       
-      {/* Stats Panel (slide-in) */}
-      {showStats && currentConversation && (
-        <div className="border-y border-border bg-background/95 backdrop-blur mx-2 rounded-lg mb-2">
-          <div className="flex items-center justify-between p-2 border-b border-border">
-            <span className="text-sm font-medium">Statistiken</span>
-            <Button 
-              variant="ghost" 
-              size="sm" 
-              className="h-6 w-6 p-0"
-              onClick={() => setShowStats(null)}
-            >
-              <X className="h-4 w-4" />
-            </Button>
-          </div>
-          <div className="p-2">
-            <ConversationStats conversation={currentConversation} />
-          </div>
-        </div>
-      )}
-      
       {/* Conversations List */}
       <ScrollArea className="flex-1 px-2">
         <div className="space-y-1 pb-4">
@@ -333,10 +246,10 @@ export function ConversationSidebar({
               <MessageSquare className="h-8 w-8 mx-auto mb-2 opacity-50" />
               {selectedTagFilter ? (
                 <>
-                  <p>Keine Chats mit Tag "{selectedTagFilter}"</p>
-                  <Button 
-                    variant="link" 
-                    size="sm" 
+                  <p>Keine Chats mit Tag &quot;{selectedTagFilter}&quot;</p>
+                  <Button
+                    variant="link"
+                    size="sm"
                     onClick={() => setSelectedTagFilter(null)}
                     className="mt-1"
                   >
@@ -352,29 +265,21 @@ export function ConversationSidebar({
             </div>
           ) : (
             filteredConversations.map(conversation => (
-              <div 
-                key={conversation.id} 
+              <div
+                key={conversation.id}
                 className={`p-2.5 rounded-lg cursor-pointer group transition-all duration-200 ${
-                  currentConversationId === conversation.id 
-                    ? 'bg-primary/10 border border-primary/20' 
+                  currentConversationId === conversation.id
+                    ? 'bg-primary/10 border border-primary/20'
                     : 'hover:bg-muted/50 border border-transparent'
                 }`}
-                onClick={() => onSelectConversation(conversation)}
+                onClick={() => onSelectConversation(conversation.id)}
               >
                 <div className="flex items-start gap-2">
                   <div className="flex-1 min-w-0">
-                    <div className="font-medium text-sm truncate flex items-center gap-1.5">
-                      {hasImages(conversation) && (
-                        <Image className="h-3.5 w-3.5 text-primary flex-shrink-0" />
-                      )}
-                      <span className="truncate">
-                        {typeof conversation.title === 'string' ? conversation.title : 'Bildkonversation'}
-                      </span>
+                    <div className="font-medium text-sm truncate">
+                      {typeof conversation.title === 'string' ? conversation.title : 'Bildkonversation'}
                     </div>
-                    <div className="text-xs text-muted-foreground truncate mt-0.5">
-                      {getConversationPreview(conversation)}
-                    </div>
-                    
+
                     {/* Tags Display/Edit */}
                     {editingTagsFor === conversation.id ? (
                       <div className="mt-1.5" onClick={(e) => e.stopPropagation()}>
@@ -404,24 +309,23 @@ export function ConversationSidebar({
                     ) : (
                       <div className="mt-1 flex items-center gap-1">
                         {conversation.tags && conversation.tags.length > 0 ? (
-                          <TagDisplay 
-                            tags={conversation.tags} 
+                          <TagDisplay
+                            tags={conversation.tags}
                             onClick={(tag) => setSelectedTagFilter(tag)}
                           />
                         ) : null}
                       </div>
                     )}
-                    
+
                     <div className="text-xs text-muted-foreground/70 mt-1 flex items-center gap-1">
-                      <span>{conversation.messages.filter(m => m.role !== 'system').length} Msg</span>
-                      <span>•</span>
+                      <span>{conversation.messageCount} Msg</span>
+                      <span>&middot;</span>
                       <span>{formatDistanceToNow(new Date(conversation.updatedAt), { addSuffix: false, locale: de })}</span>
                     </div>
                   </div>
-                  
-                  {/* Action Buttons - Always visible but subtle */}
+
+                  {/* Action Buttons */}
                   <div className="flex items-center gap-0.5 flex-shrink-0 opacity-50 group-hover:opacity-100 transition-opacity">
-                    {/* Tag Edit Button */}
                     {onUpdateConversationTags && (
                       <Button
                         size="icon"
@@ -436,18 +340,6 @@ export function ConversationSidebar({
                         <Tag className={`h-3 w-3 ${editingTagsFor === conversation.id ? 'text-primary' : 'text-muted-foreground hover:text-primary'}`} />
                       </Button>
                     )}
-                    <Button
-                      size="icon"
-                      variant="ghost"
-                      className="h-6 w-6"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setShowStats(showStats === conversation.id ? null : conversation.id);
-                      }}
-                      title="Statistiken"
-                    >
-                      <BarChart2 className="h-3 w-3 text-muted-foreground hover:text-primary" />
-                    </Button>
                     <Button
                       size="icon"
                       variant="ghost"

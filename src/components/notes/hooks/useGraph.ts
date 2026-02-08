@@ -3,30 +3,28 @@
 import { useState, useCallback, useEffect, useMemo } from 'react';
 import { NoteSummary, SemanticLink, GraphData, GraphSettings, defaultGraphSettings } from '../types';
 
-const KG_SETTINGS_KEY = 'locai-kg-settings';
-
-function loadPersistedSettings(): GraphSettings {
-  if (typeof window === 'undefined') return defaultGraphSettings;
+async function loadPersistedSettings(): Promise<GraphSettings> {
   try {
-    const stored = localStorage.getItem(KG_SETTINGS_KEY);
-    if (stored) {
-      const parsed = JSON.parse(stored);
-      // Merge with defaults so new keys are always present
-      return { ...defaultGraphSettings, ...parsed };
+    const res = await fetch('/api/preferences/graph');
+    if (!res.ok) return defaultGraphSettings;
+    const data = await res.json();
+    if (data.settings) {
+      return { ...defaultGraphSettings, ...data.settings };
     }
   } catch {
-    // Corrupted data — reset
+    // Server unavailable — use defaults
   }
   return defaultGraphSettings;
 }
 
 function persistSettings(settings: GraphSettings) {
-  if (typeof window === 'undefined') return;
-  try {
-    localStorage.setItem(KG_SETTINGS_KEY, JSON.stringify(settings));
-  } catch {
-    // localStorage full or unavailable — ignore
-  }
+  fetch('/api/preferences/graph', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ settings }),
+  }).catch(() => {
+    // Ignore save errors
+  });
 }
 
 interface UseGraphOptions {
@@ -65,7 +63,14 @@ export function useGraph({ basePath, notes, embeddingModel }: UseGraphOptions): 
   const [semanticThreshold, setSemanticThreshold] = useState(0.75);
   const [isGeneratingEmbeddings, setIsGeneratingEmbeddings] = useState(false);
   const [embeddingsStatus, setEmbeddingsStatus] = useState<string | null>(null);
-  const [graphSettings, setGraphSettings] = useState<GraphSettings>(loadPersistedSettings);
+  const [graphSettings, setGraphSettings] = useState<GraphSettings>(defaultGraphSettings);
+
+  // Load persisted settings from server on mount
+  useEffect(() => {
+    loadPersistedSettings().then(settings => {
+      setGraphSettings(settings);
+    });
+  }, []);
   const [graphExpanded, setGraphExpanded] = useState(false);
   const [hoveredNode, setHoveredNode] = useState<string | null>(null);
   const [selectedNode, setSelectedNode] = useState<string | null>(null);

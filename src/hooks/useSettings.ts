@@ -7,15 +7,15 @@ export interface AppSettings {
   comfyUIPath: string;
   comfyUIPort: number;
   comfyUIAutoStart: boolean;
-  comfyUIOutputPath: string; // Absolute path to output folder (for gallery)
-  
+  comfyUIOutputPath: string;
+
   // Ollama Settings
   ollamaHost: string;
-  
+
   // UI Settings
   sidebarWidth: number;
   theme: 'light' | 'dark' | 'system';
-  
+
   // Chat Settings
   autoSave: boolean;
   streamingEnabled: boolean;
@@ -24,30 +24,30 @@ export interface AppSettings {
   notesPath: string;
   notesEmbeddingModel: string;
   notesAllowAI: boolean;
-  
+
   // Web Search Settings (SearXNG)
-  searxngUrl: string; // URL to SearXNG instance (e.g., https://searx.example.com or http://localhost:8080)
+  searxngUrl: string;
   searxngEnabled: boolean;
-  
+
   // Chat Display Settings
-  chatLayout: 'linear' | 'bubbles'; // 'linear' = OpenClaw style (default), 'bubbles' = classic
-  fontSize: 'small' | 'medium' | 'large'; // Default: 'medium'
-  
+  chatLayout: 'linear' | 'bubbles';
+  fontSize: 'small' | 'medium' | 'large';
+
   // Avatar Settings
-  userAvatarType: 'icon' | 'image';    // Default: 'icon'
-  userAvatarUrl: string;                // URL or Data-URL for custom image
-  aiAvatarType: 'icon' | 'image';      // Default: 'icon' (LocAI Logo)
-  aiAvatarUrl: string;                  // URL or Data-URL for custom image
-  
+  userAvatarType: 'icon' | 'image';
+  userAvatarUrl: string;
+  aiAvatarType: 'icon' | 'image';
+  aiAvatarUrl: string;
+
   // Data Storage
-  dataPath: string; // Local path for storing chats, settings file, etc.
+  dataPath: string;
 }
 
 const DEFAULT_SETTINGS: AppSettings = {
   comfyUIPath: '',
   comfyUIPort: 8188,
   comfyUIAutoStart: false,
-  comfyUIOutputPath: '', // Empty = will use comfyUIPath/ComfyUI/output as default
+  comfyUIOutputPath: '',
   ollamaHost: 'http://localhost:11434',
   sidebarWidth: 400,
   theme: 'dark',
@@ -56,7 +56,7 @@ const DEFAULT_SETTINGS: AppSettings = {
   notesPath: '',
   notesEmbeddingModel: 'nomic-embed-text',
   notesAllowAI: true,
-  searxngUrl: 'http://localhost:8888', // Local SearXNG Docker instance
+  searxngUrl: 'http://localhost:8888',
   searxngEnabled: true,
   chatLayout: 'linear',
   fontSize: 'medium',
@@ -66,8 +66,6 @@ const DEFAULT_SETTINGS: AppSettings = {
   aiAvatarUrl: '',
   dataPath: '',
 };
-
-const STORAGE_KEY = 'locai-settings';
 
 export interface UseSettingsReturn {
   settings: AppSettings;
@@ -92,76 +90,50 @@ export function useSettings(): UseSettingsReturn {
   const settingsRef = useRef(settings);
   settingsRef.current = settings;
 
-  // Load settings from localStorage on mount
+  // Load settings from server on mount
   useEffect(() => {
     const loadSettings = async () => {
       try {
-        // First try localStorage
-        const stored = localStorage.getItem(STORAGE_KEY);
-        if (stored) {
-          const parsed = JSON.parse(stored);
-          const mergedSettings = { ...DEFAULT_SETTINGS, ...parsed };
-          setSettings(mergedSettings);
-          
-          // If dataPath is set, also try to load from file
-          if (mergedSettings.dataPath) {
-            try {
-              const response = await fetch(`/api/settings?dataPath=${encodeURIComponent(mergedSettings.dataPath)}`);
-              const data = await response.json();
-              if (data.success && data.source === 'file') {
-                setSettings(prev => ({ ...prev, ...data.settings }));
-                setSettingsPath(data.path);
-              }
-            } catch {
-              // Ignore file errors, use localStorage
-            }
-          }
+        const response = await fetch('/api/settings');
+        const data = await response.json();
+        if (data.success) {
+          const merged = { ...DEFAULT_SETTINGS, ...data.settings };
+          setSettings(merged);
+          setSettingsPath(data.path ?? null);
         }
       } catch (error) {
         console.error('Failed to load settings:', error);
       }
       setIsLoaded(true);
     };
-    
+
     loadSettings();
   }, []);
 
-  // Save settings to localStorage and optionally to file (debounced)
+  // Save settings to file (debounced)
   useEffect(() => {
     if (!isLoaded) return;
-    
-    // Clear existing timeout
+
     if (saveTimeoutRef.current) {
       clearTimeout(saveTimeoutRef.current);
     }
-    
-    // Debounce save
+
     saveTimeoutRef.current = setTimeout(async () => {
       try {
-        // Always save to localStorage
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(settings));
-        
-        // If dataPath is set, also save to file
-        if (settings.dataPath) {
-          try {
-            const response = await fetch('/api/settings', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ settings }),
-            });
-            const data = await response.json();
-            if (data.success) {
-              setSettingsPath(data.path);
-            }
-          } catch {
-            console.error('Failed to save settings to file');
-          }
+        const response = await fetch('/api/settings', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ settings }),
+        });
+        const data = await response.json();
+        if (data.success) {
+          setSettingsPath(data.path);
         }
       } catch (error) {
         console.error('Failed to save settings:', error);
       }
     }, 500);
-    
+
     return () => {
       if (saveTimeoutRef.current) {
         clearTimeout(saveTimeoutRef.current);
@@ -175,22 +147,15 @@ export function useSettings(): UseSettingsReturn {
 
   const resetSettings = useCallback(async () => {
     setSettings(DEFAULT_SETTINGS);
-    localStorage.removeItem(STORAGE_KEY);
     setSettingsPath(null);
-    
-    // Also delete file if exists
-    if (settings.dataPath) {
-      try {
-        await fetch(`/api/settings?dataPath=${encodeURIComponent(settings.dataPath)}`, {
-          method: 'DELETE',
-        });
-      } catch {
-        // Ignore
-      }
+
+    try {
+      await fetch('/api/settings', { method: 'DELETE' });
+    } catch {
+      // Ignore
     }
-  }, [settings]);
-  
-  // Manual save to file
+  }, []);
+
   const saveToFile = useCallback(async (): Promise<boolean> => {
     try {
       const response = await fetch('/api/settings', {
@@ -208,8 +173,7 @@ export function useSettings(): UseSettingsReturn {
       return false;
     }
   }, [settings]);
-  
-  // Load from specific file
+
   const loadFromFile = useCallback(async (dataPath?: string): Promise<{
     success: boolean;
     updatedSettings: AppSettings | null;
@@ -218,18 +182,18 @@ export function useSettings(): UseSettingsReturn {
   }> => {
     try {
       const currentSettings = settingsRef.current;
-      const path = dataPath || currentSettings.dataPath;
-      if (!path) return { success: false, updatedSettings: null };
-      
-      const response = await fetch(`/api/settings?dataPath=${encodeURIComponent(path)}`);
+      const effectivePath = dataPath || currentSettings.dataPath;
+      if (!effectivePath) return { success: false, updatedSettings: null };
+
+      const response = await fetch(`/api/settings?dataPath=${encodeURIComponent(effectivePath)}`);
       const data = await response.json();
-      
+
       if (data.success) {
-        setSettings(prev => ({ ...prev, ...data.settings, dataPath: path }));
+        setSettings(prev => ({ ...prev, ...data.settings, dataPath: effectivePath }));
         setSettingsPath(data.path);
         return {
           success: true,
-          updatedSettings: { ...currentSettings, ...data.settings, dataPath: path },
+          updatedSettings: { ...currentSettings, ...data.settings, dataPath: effectivePath },
           source: data.source,
           path: data.path,
         };
@@ -252,4 +216,3 @@ export function useSettings(): UseSettingsReturn {
 }
 
 export default useSettings;
-

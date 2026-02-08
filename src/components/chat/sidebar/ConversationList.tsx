@@ -1,19 +1,18 @@
 "use client";
 
 import React from 'react';
-import { Conversation } from '../../../types/chat';
+import { ConversationSummary } from '../../../lib/conversations/types';
 import { ScrollArea } from '../../ui/scroll-area';
 import { Button } from '../../ui/button';
-import { MessageSquare, X } from 'lucide-react';
+import { MessageSquare } from 'lucide-react';
 import { ConversationCard } from './ConversationCard';
-import { ConversationStats } from '../ConversationStats';
 
 interface ConversationListProps {
-  conversations: Conversation[];
+  conversations: ConversationSummary[];
   currentConversationId: string | null;
   selectedTagFilter: string | null;
   showStatsForId: string | null;
-  onSelectConversation: (conversation: Conversation) => void;
+  onSelectConversation: (conversationId: string) => void;
   onDeleteConversation: (conversationId: string) => void;
   onUpdateConversationTags?: (conversationId: string, tags: string[]) => void;
   onTagFilterSelect: (tag: string) => void;
@@ -25,7 +24,6 @@ export function ConversationList({
   conversations,
   currentConversationId,
   selectedTagFilter,
-  showStatsForId,
   onSelectConversation,
   onDeleteConversation,
   onUpdateConversationTags,
@@ -39,33 +37,8 @@ export function ConversationList({
     return conversations.filter((c) => c.tags?.includes(selectedTagFilter));
   }, [conversations, selectedTagFilter]);
 
-  // Resolve conversation for stats panel
-  const statsConversation = showStatsForId
-    ? conversations.find((c) => c.id === showStatsForId)
-    : null;
-
   return (
     <>
-      {/* Stats Panel (slide-in) */}
-      {statsConversation && (
-        <div className="border-y border-border bg-background/95 backdrop-blur mx-2 rounded-lg mb-2">
-          <div className="flex items-center justify-between p-2 border-b border-border">
-            <span className="text-sm font-medium">Statistiken</span>
-            <Button
-              variant="ghost"
-              size="sm"
-              className="h-6 w-6 p-0"
-              onClick={() => onToggleStats(statsConversation.id)}
-            >
-              <X className="h-4 w-4" />
-            </Button>
-          </div>
-          <div className="p-2">
-            <ConversationStats conversation={statsConversation} />
-          </div>
-        </div>
-      )}
-
       {/* Conversations List */}
       <ScrollArea className="flex-1 px-2">
         <div className="space-y-1 pb-4">
@@ -102,7 +75,6 @@ export function ConversationList({
                 onUpdateTags={onUpdateConversationTags}
                 onTagFilterSelect={onTagFilterSelect}
                 onToggleStats={onToggleStats}
-                showingStats={showStatsForId === conversation.id}
               />
             ))
           )}

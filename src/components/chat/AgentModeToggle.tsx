@@ -20,6 +20,8 @@ const AVAILABLE_TOOLS: ToolInfo[] = [
   { name: 'web_search', label: 'Web-Suche', emoji: '🌐' },
   { name: 'read_file', label: 'Datei lesen', emoji: '📖' },
   { name: 'create_note', label: 'Notiz erstellen', emoji: '📝' },
+  { name: 'save_memory', label: 'Merken', emoji: '🧠' },
+  { name: 'recall_memory', label: 'Erinnern', emoji: '💭' },
 ];
 
 // ---------------------------------------------------------------------------
