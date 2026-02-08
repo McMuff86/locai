@@ -2,6 +2,7 @@
 
 import { useState, useCallback, useRef } from 'react';
 import { AgentTurn, ToolCall, ToolResult } from '@/lib/agents/types';
+import type { AgentPreset } from '@/lib/agents/presets';
 
 // ---------------------------------------------------------------------------
 // Stream event types coming from /api/chat/agent (NDJSON)
@@ -41,13 +42,19 @@ interface StreamEventTurnEnd {
   turn: number;
 }
 
+interface StreamEventPlan {
+  type: 'plan';
+  content: string;
+}
+
 type StreamEvent =
   | StreamEventToolCall
   | StreamEventToolResult
   | StreamEventMessage
   | StreamEventError
   | StreamEventTurnStart
-  | StreamEventTurnEnd;
+  | StreamEventTurnEnd
+  | StreamEventPlan;
 
 // ---------------------------------------------------------------------------
 // Hook options & return type
@@ -61,6 +68,10 @@ export interface AgentSendOptions {
   model?: string;
   /** Ollama host override */
   host?: string;
+  /** Preset ID to use */
+  presetId?: string;
+  /** Whether to enable planning step */
+  enablePlanning?: boolean;
 }
 
 export interface UseAgentChatReturn {
@@ -98,6 +109,16 @@ export interface UseAgentChatReturn {
   cancelAgentRun: () => void;
   /** Reset agent state for a new run */
   resetAgentState: () => void;
+  /** Active preset ID */
+  activePreset: string | null;
+  /** Select a preset (sets enabledTools from preset) */
+  selectPreset: (preset: AgentPreset | null) => void;
+  /** Whether planning is enabled */
+  enablePlanning: boolean;
+  /** Toggle planning on/off */
+  togglePlanning: () => void;
+  /** Plan content from the planning step */
+  agentPlan: string | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -128,6 +149,9 @@ export function useAgentChat(): UseAgentChatReturn {
   const [currentTurnIndex, setCurrentTurnIndex] = useState(0);
   const [totalTurnsEstimate, setTotalTurnsEstimate] = useState<number | null>(null);
   const [agentError, setAgentError] = useState<string | null>(null);
+  const [activePreset, setActivePreset] = useState<string | null>(null);
+  const [enablePlanning, setEnablePlanning] = useState(false);
+  const [agentPlan, setAgentPlan] = useState<string | null>(null);
 
   const abortControllerRef = useRef<AbortController | null>(null);
 
@@ -141,6 +165,22 @@ export function useAgentChat(): UseAgentChatReturn {
         ? prev.filter(t => t !== toolName)
         : [...prev, toolName]
     );
+    // Deselect preset when tools are manually toggled
+    setActivePreset(null);
+  }, []);
+
+  const selectPreset = useCallback((preset: AgentPreset | null) => {
+    if (preset) {
+      setActivePreset(preset.id);
+      setEnabledTools(preset.enabledTools);
+    } else {
+      setActivePreset(null);
+      setEnabledTools(DEFAULT_TOOLS);
+    }
+  }, []);
+
+  const togglePlanning = useCallback(() => {
+    setEnablePlanning(prev => !prev);
   }, []);
 
   const resetAgentState = useCallback(() => {
@@ -151,6 +191,7 @@ export function useAgentChat(): UseAgentChatReturn {
     setCurrentTurnIndex(0);
     setTotalTurnsEstimate(null);
     setAgentError(null);
+    setAgentPlan(null);
   }, []);
 
   const cancelAgentRun = useCallback(() => {
@@ -183,6 +224,8 @@ export function useAgentChat(): UseAgentChatReturn {
           maxIterations: options?.maxIterations ?? 8,
           conversationHistory: options?.conversationHistory ?? [],
           host: options?.host,
+          presetId: activePreset ?? options?.presetId,
+          enablePlanning: options?.enablePlanning ?? enablePlanning,
         }),
         signal: controller.signal,
       });
@@ -289,6 +332,11 @@ export function useAgentChat(): UseAgentChatReturn {
               break;
             }
 
+            case 'plan': {
+              setAgentPlan(event.content);
+              break;
+            }
+
             case 'message': {
               finalContent += event.content;
               setAgentStreamingContent(finalContent);
@@ -335,7 +383,7 @@ export function useAgentChat(): UseAgentChatReturn {
       setIsExecutingTool(false);
       return null;
     }
-  }, [enabledTools, resetAgentState]);
+  }, [enabledTools, resetAgentState, activePreset, enablePlanning]);
 
   return {
     agentTurns,
@@ -355,6 +403,11 @@ export function useAgentChat(): UseAgentChatReturn {
     sendAgentMessage,
     cancelAgentRun,
     resetAgentState,
+    activePreset,
+    selectPreset,
+    enablePlanning,
+    togglePlanning,
+    agentPlan,
   };
 }
 

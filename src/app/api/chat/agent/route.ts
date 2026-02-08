@@ -10,6 +10,7 @@ import { executeAgentLoop } from '@/lib/agents/executor';
 import { ToolRegistry } from '@/lib/agents/registry';
 import { registerBuiltinTools } from '@/lib/agents/tools';
 import { getRelevantMemories, formatMemories } from '@/lib/memory/store';
+import { getPresetById } from '@/lib/agents/presets';
 import type { OllamaChatMessage } from '@/lib/ollama';
 import type { AgentOptions } from '@/lib/agents/types';
 
@@ -30,6 +31,10 @@ interface AgentRequestBody {
   conversationHistory?: Array<{ role: string; content: string }>;
   /** Ollama host override */
   host?: string;
+  /** Preset ID for agent configuration */
+  presetId?: string;
+  /** Whether to enable the planning step */
+  enablePlanning?: boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -47,6 +52,8 @@ export async function POST(request: NextRequest) {
       maxIterations = 8,
       conversationHistory = [],
       host,
+      presetId,
+      enablePlanning = false,
     } = body;
 
     if (!message?.trim()) {
@@ -66,6 +73,17 @@ export async function POST(request: NextRequest) {
       { role: 'user' as const, content: message },
     ];
 
+    // Inject preset system prompt if a preset is selected
+    if (presetId) {
+      const preset = getPresetById(presetId);
+      if (preset) {
+        messages.unshift({
+          role: 'system',
+          content: preset.systemPrompt,
+        });
+      }
+    }
+
     // Memory Auto-Inject: load relevant memories and prepend as system context
     try {
       const relevantMemories = await getRelevantMemories(message, 10);
@@ -82,6 +100,7 @@ export async function POST(request: NextRequest) {
     const options: AgentOptions = {
       maxIterations,
       enabledTools,
+      enablePlanning,
     };
 
     // Create a ReadableStream for NDJSON streaming
@@ -103,6 +122,12 @@ export async function POST(request: NextRequest) {
           });
 
           for await (const turn of generator) {
+            // Handle planning turn (index -1)
+            if (turn.index === -1 && turn.plan) {
+              emit({ type: 'plan', content: turn.plan });
+              continue;
+            }
+
             // Emit turn start
             emit({ type: 'turn_start', turn: turn.index });
 
