@@ -108,6 +108,9 @@ export async function loadConversation(id: string, basePath?: string): Promise<C
 
 /** Save a conversation (creates or updates) */
 export async function saveConversation(conversation: Conversation, basePath?: string): Promise<void> {
+  if (!conversation.id || /[\/\\]/.test(conversation.id)) {
+    throw new Error('Invalid conversation ID');
+  }
   const dir = basePath || defaultBasePath();
   await ensureDir(dir);
 
