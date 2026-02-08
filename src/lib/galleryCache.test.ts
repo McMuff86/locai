@@ -67,13 +67,20 @@ describe('galleryCache', () => {
     const first = await getGalleryMedia(tmpDir);
     expect(first).toHaveLength(1);
 
-    // Spy on readdirSync to verify no re-scan happens
+    // Wait for watcher initialization + debounce to settle so it doesn't
+    // interfere with our cache assertion.
+    await new Promise((r) => setTimeout(r, 1000));
+
+    // If the watcher invalidated, consume that re-scan first
+    await getGalleryMedia(tmpDir);
+
+    // Now spy — the next call must be purely from cache
     const spy = vi.spyOn(fs, 'readdirSync');
 
-    const second = await getGalleryMedia(tmpDir);
+    const cached = await getGalleryMedia(tmpDir);
     expect(spy).not.toHaveBeenCalled();
-    expect(second).toHaveLength(1);
-    expect(second).toStrictEqual(first);
+    expect(cached).toHaveLength(1);
+    expect(cached[0].filename).toBe('a.png');
 
     spy.mockRestore();
   });

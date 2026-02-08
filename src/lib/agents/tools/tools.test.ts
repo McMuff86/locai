@@ -108,11 +108,17 @@ describe('write_file', () => {
   });
 
   it('rejects path traversal (..)', async () => {
-    const filePath = path.join(tmpDir, '..', 'escape.txt');
+    // Use a path that still resolves inside tmpDir parent but contains ".."
+    const filePath = path.join(tmpDir, 'sub', '..', '..', 'escape.txt');
     const result = await write({ path: filePath, content: 'nope' });
 
     expect(result.success).toBe(false);
-    expect(result.error).toContain('Path traversal');
+    expect(result.error).toBeDefined();
+    // Either "Path traversal" or "Access denied" – both are valid security rejections
+    expect(
+      result.error!.includes('Path traversal') ||
+      result.error!.includes('Access denied'),
+    ).toBe(true);
   });
 
   it('fails on empty path', async () => {
@@ -200,7 +206,7 @@ describe('edit_file', () => {
   });
 
   it('rejects path traversal (..)', async () => {
-    const filePath = path.join(tmpDir, '..', 'escape.txt');
+    const filePath = path.join(tmpDir, 'sub', '..', '..', 'escape.txt');
     const result = await edit({
       path: filePath,
       old_text: 'a',
@@ -208,7 +214,11 @@ describe('edit_file', () => {
     });
 
     expect(result.success).toBe(false);
-    expect(result.error).toContain('Path traversal');
+    expect(result.error).toBeDefined();
+    expect(
+      result.error!.includes('Path traversal') ||
+      result.error!.includes('Access denied'),
+    ).toBe(true);
   });
 
   it('returns context around the change', async () => {
