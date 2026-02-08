@@ -52,7 +52,6 @@ export default function GalleryPage() {
       <ImageGallery
         outputPath={settings.comfyUIOutputPath}
         comfyUIPath={settings.comfyUIPath}
-        inputPath={settings.comfyUIPath ? `${settings.comfyUIPath}\\ComfyUI\\input` : undefined}
         standalone={true}
         onAnalyzeImage={(imageUrl, filename) => {
           // Store image info in sessionStorage for the chat page to pick up

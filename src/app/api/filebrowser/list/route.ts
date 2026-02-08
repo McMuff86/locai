@@ -7,6 +7,7 @@ export async function GET(req: NextRequest) {
   try {
     const rootId = req.nextUrl.searchParams.get('rootId');
     const relativePath = req.nextUrl.searchParams.get('path') || '';
+    const includeChildCount = req.nextUrl.searchParams.get('includeChildCount') === 'true';
 
     if (!rootId) {
       return NextResponse.json(
@@ -15,7 +16,7 @@ export async function GET(req: NextRequest) {
       );
     }
 
-    const entries = await listDirectory(rootId, relativePath);
+    const entries = await listDirectory(rootId, relativePath, { includeChildCount });
 
     return NextResponse.json({
       success: true,
@@ -25,9 +26,10 @@ export async function GET(req: NextRequest) {
     });
   } catch (err) {
     console.error('[FileBrowser] List error:', err);
-    const status = (err instanceof Error && err.message === 'Ungültiger Pfad') ? 400 : 500;
+    const message = err instanceof Error ? err.message : 'Fehler beim Auflisten';
+    const status = message === 'Ungültiger Pfad' ? 400 : 500;
     return NextResponse.json(
-      { success: false, error: err instanceof Error ? err.message : 'Fehler beim Auflisten' },
+      { success: false, error: message },
       { status },
     );
   }

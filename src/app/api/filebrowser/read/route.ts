@@ -23,9 +23,15 @@ export async function GET(req: NextRequest) {
     });
   } catch (err) {
     console.error('[FileBrowser] Read error:', err);
-    const status = (err instanceof Error && err.message.includes('Binär')) ? 415 : 500;
+    const message = err instanceof Error ? err.message : 'Fehler beim Lesen';
+    const status =
+      message.includes('Binär') ? 415
+      : message.includes('Ungültiger Pfad')
+        ? 400
+        : 500;
+
     return NextResponse.json(
-      { success: false, error: err instanceof Error ? err.message : 'Fehler beim Lesen' },
+      { success: false, error: message },
       { status },
     );
   }

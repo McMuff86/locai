@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Loader2 } from 'lucide-react';
+import { Loader2, Upload } from 'lucide-react';
 import { Button } from '../ui/button';
 import { ScrollArea } from '../ui/scroll-area';
 import { ImageGridSkeleton } from '../ui/skeleton';
@@ -18,7 +18,6 @@ import { EmptyState } from './EmptyState';
 interface ImageGalleryProps {
   comfyUIPath?: string;
   outputPath?: string;
-  inputPath?: string;
   isOpen?: boolean;
   onClose?: () => void;
   onAnalyzeImage?: (imageUrl: string, filename: string) => void;
@@ -30,7 +29,6 @@ interface ImageGalleryProps {
 export function ImageGallery({ 
   comfyUIPath, 
   outputPath,
-  inputPath,
   isOpen = true,
   onClose,
   onAnalyzeImage,
@@ -40,15 +38,13 @@ export function ImageGallery({
   // Config object for hooks
   const config: GalleryConfig = { comfyUIPath: comfyUIPath || '', outputPath };
   
-  // Use inputPath if provided, otherwise derive from comfyUIPath
-  const actualInputPath = inputPath || (comfyUIPath ? `${comfyUIPath}\\ComfyUI\\input` : undefined);
-  
   // State
   const [selectedImage, setSelectedImage] = useState<ImageInfo | null>(null);
   const [gridSize, setGridSize] = useState<GridSize>('medium');
   const [filterMode, setFilterMode] = useState<FilterMode>('all');
   const [showMetadata, setShowMetadata] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
+  const [isDragOver, setIsDragOver] = useState(false);
   
   // Hooks
   const { 
@@ -64,7 +60,6 @@ export function ImageGallery({
   } = useGalleryImages(config);
   
   const { 
-    favorites, 
     toggleFavorite, 
     isFavorite, 
     removeFavorite,
@@ -90,9 +85,11 @@ export function ImageGallery({
   const { 
     isDeleting, 
     isCopying, 
+    isUploading,
     deleteImage: performDelete, 
     copyToInput: performCopy, 
-    downloadImage 
+    downloadImage,
+    uploadToGallery,
   } = useImageActions(config, getImageUrl);
 
   // Filtered images
@@ -197,6 +194,40 @@ export function ImageGallery({
     }
   };
 
+  const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
+    const hasFiles = Array.from(e.dataTransfer.types).includes('Files');
+    if (!hasFiles) return;
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragOver(true);
+  };
+
+  const handleDragLeave = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragOver(false);
+  };
+
+  const handleDrop = async (e: React.DragEvent<HTMLDivElement>) => {
+    const files = Array.from(e.dataTransfer.files || []);
+    if (files.length === 0) return;
+
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragOver(false);
+
+    const result = await uploadToGallery(files);
+    if (result.success) {
+      await fetchImages(true);
+      onShowToast?.(
+        'Upload abgeschlossen',
+        `${result.uploaded} Datei(en) hochgeladen${result.rejected > 0 ? `, ${result.rejected} abgelehnt` : ''}.`,
+      );
+    } else {
+      onShowToast?.('Upload fehlgeschlagen', result.error || 'Dateien konnten nicht importiert werden.', 'destructive');
+    }
+  };
+
   if (!isOpen) return null;
 
   // Gallery content (shared between modal and standalone)
@@ -219,65 +250,87 @@ export function ImageGallery({
       />
       
       {/* Gallery Content */}
-      <ScrollArea className={standalone ? "h-[calc(100vh-140px)]" : "h-[calc(100vh-73px)]"}>
-        <div className="p-4">
-          {error ? (
-            <EmptyState 
-              type="error" 
-              errorMessage={error} 
-              onRetry={() => fetchImages(true)} 
-            />
-          ) : displayImages.length === 0 && !isLoading ? (
-            <EmptyState type="empty" filterMode={filterMode} />
-          ) : (
-            <>
-              {/* Image Grid */}
-              <div className={`grid ${GRID_CLASSES[gridSize]}`}>
-                {displayImages.map((image) => (
-                  <ImageCard
-                    key={image.id}
-                    image={image}
-                    imageUrl={getImageUrl(image)}
-                    gridSize={gridSize}
-                    isFavorite={isFavorite(image.id)}
-                    onSelect={() => setSelectedImage(image)}
-                    onToggleFavorite={(e) => toggleFavorite(image.id, e)}
-                    onDelete={(e) => {
-                      e.stopPropagation();
-                      setDeleteConfirm(image.id);
-                    }}
-                  />
-                ))}
+      <div
+        className="relative flex-1 min-h-0"
+        onDragOver={handleDragOver}
+        onDragLeave={handleDragLeave}
+        onDrop={handleDrop}
+      >
+        <ScrollArea className={standalone ? "h-[calc(100vh-140px)]" : "h-[calc(100vh-73px)]"}>
+          <div className="p-4">
+            {isUploading && (
+              <div className="mb-3 rounded-lg border border-primary/30 bg-primary/10 text-primary px-3 py-2 text-sm flex items-center gap-2">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Dateien werden importiert...
               </div>
-              
-              {/* Load More */}
-              {hasMore && filterMode === 'all' && (
-                <div className="flex justify-center mt-6">
-                  <Button
-                    variant="outline"
-                    onClick={() => fetchImages(false)}
-                    disabled={isLoading}
-                  >
-                    {isLoading ? (
-                      <>
-                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                        Laden...
-                      </>
-                    ) : (
-                      `Mehr laden (${images.length} von ${total})`
-                    )}
-                  </Button>
+            )}
+            {error ? (
+              <EmptyState 
+                type="error" 
+                errorMessage={error} 
+                onRetry={() => fetchImages(true)} 
+              />
+            ) : displayImages.length === 0 && !isLoading ? (
+              <EmptyState type="empty" filterMode={filterMode} />
+            ) : (
+              <>
+                {/* Image Grid */}
+                <div className={`grid ${GRID_CLASSES[gridSize]}`}>
+                  {displayImages.map((image) => (
+                    <ImageCard
+                      key={image.id}
+                      image={image}
+                      imageUrl={getImageUrl(image)}
+                      gridSize={gridSize}
+                      isFavorite={isFavorite(image.id)}
+                      onSelect={() => setSelectedImage(image)}
+                      onToggleFavorite={(e) => toggleFavorite(image.id, e)}
+                      onDelete={(e) => {
+                        e.stopPropagation();
+                        setDeleteConfirm(image.id);
+                      }}
+                    />
+                  ))}
                 </div>
-              )}
-              
-              {/* Loading skeleton */}
-              {isLoading && images.length === 0 && (
-                <ImageGridSkeleton count={24} />
-              )}
-            </>
-          )}
-        </div>
-      </ScrollArea>
+                
+                {/* Load More */}
+                {hasMore && filterMode === 'all' && (
+                  <div className="flex justify-center mt-6">
+                    <Button
+                      variant="outline"
+                      onClick={() => fetchImages(false)}
+                      disabled={isLoading}
+                    >
+                      {isLoading ? (
+                        <>
+                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                          Laden...
+                        </>
+                      ) : (
+                        `Mehr laden (${images.length} von ${total})`
+                      )}
+                    </Button>
+                  </div>
+                )}
+                
+                {/* Loading skeleton */}
+                {isLoading && images.length === 0 && (
+                  <ImageGridSkeleton count={24} />
+                )}
+              </>
+            )}
+          </div>
+        </ScrollArea>
+
+        {isDragOver && (
+          <div className="absolute inset-0 z-20 bg-primary/10 border-2 border-dashed border-primary rounded-lg flex items-center justify-center pointer-events-none">
+            <div className="flex items-center gap-2 text-primary bg-background/90 px-3 py-2 rounded-md border border-primary/30">
+              <Upload className="h-4 w-4" />
+              Dateien loslassen, um sie zur Galerie hinzuzufügen
+            </div>
+          </div>
+        )}
+      </div>
       
       {/* Delete Confirmation Dialog */}
       <AnimatePresence>
@@ -341,4 +394,3 @@ export function ImageGallery({
 }
 
 export default ImageGallery;
-
