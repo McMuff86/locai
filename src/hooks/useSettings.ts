@@ -92,31 +92,86 @@ export function useSettings(): UseSettingsReturn {
   const settingsRef = useRef(settings);
   settingsRef.current = settings;
 
-  // Load settings from localStorage on mount
+  // Load settings from localStorage and server defaults on mount
   useEffect(() => {
     const loadSettings = async () => {
       try {
-        // First try localStorage
+        // Step 1: Load localStorage settings as baseline
+        let localSettings: Partial<AppSettings> = {};
         const stored = localStorage.getItem(STORAGE_KEY);
         if (stored) {
-          const parsed = JSON.parse(stored);
-          const mergedSettings = { ...DEFAULT_SETTINGS, ...parsed };
-          setSettings(mergedSettings);
-          
-          // If dataPath is set, also try to load from file
-          if (mergedSettings.dataPath) {
-            try {
-              const response = await fetch(`/api/settings?dataPath=${encodeURIComponent(mergedSettings.dataPath)}`);
-              const data = await response.json();
-              if (data.success && data.source === 'file') {
-                setSettings(prev => ({ ...prev, ...data.settings }));
-                setSettingsPath(data.path);
-              }
-            } catch {
-              // Ignore file errors, use localStorage
+          try {
+            localSettings = JSON.parse(stored);
+          } catch {
+            // Corrupt localStorage, ignore
+          }
+        }
+        
+        // Step 2: Always fetch server defaults first (checks ~/.locai/settings.json)
+        // This ensures settings survive browser cache clears
+        let serverSettings: Partial<AppSettings> = {};
+        let serverSource: string | undefined;
+        let serverPath: string | null = null;
+        
+        try {
+          const defaultResponse = await fetch('/api/settings');
+          const defaultData = await defaultResponse.json();
+          if (defaultData.success && defaultData.source === 'file') {
+            serverSettings = defaultData.settings || {};
+            serverSource = defaultData.source;
+            serverPath = defaultData.path;
+          }
+        } catch {
+          // Server unreachable, continue with localStorage only
+        }
+        
+        // Step 3: If server default settings contain a dataPath, load from that path too
+        // (the default file at ~/.locai/settings.json might point to a custom data dir)
+        const effectiveDataPath = localSettings.dataPath || serverSettings.dataPath;
+        if (effectiveDataPath && effectiveDataPath !== '') {
+          try {
+            const pathResponse = await fetch(`/api/settings?dataPath=${encodeURIComponent(effectiveDataPath)}`);
+            const pathData = await pathResponse.json();
+            if (pathData.success && pathData.source === 'file') {
+              // Settings from the dataPath location take priority
+              serverSettings = { ...serverSettings, ...pathData.settings };
+              serverSource = pathData.source;
+              serverPath = pathData.path;
+            }
+          } catch {
+            // Ignore, use what we have
+          }
+        }
+        
+        // Step 4: Merge — server file settings win for paths and important config,
+        // localStorage wins for UI preferences that might have been changed locally
+        const merged = { ...DEFAULT_SETTINGS, ...serverSettings, ...localSettings };
+        
+        // But file-based paths should override empty localStorage values
+        // (this is the key fix: after cache clear, paths come from file)
+        if (serverSource === 'file') {
+          const pathKeys: (keyof AppSettings)[] = [
+            'dataPath', 'comfyUIPath', 'comfyUIOutputPath', 'notesPath',
+            'ollamaHost', 'searxngUrl',
+          ];
+          for (const key of pathKeys) {
+            const serverVal = serverSettings[key];
+            const localVal = localSettings[key];
+            // File wins if localStorage doesn't have a value for this key
+            if (serverVal && (localVal === undefined || localVal === '')) {
+              (merged as Record<string, unknown>)[key] = serverVal;
             }
           }
         }
+        
+        setSettings(merged);
+        if (serverPath) {
+          setSettingsPath(serverPath);
+        }
+        
+        // Persist merged result back to localStorage so future loads are fast
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(merged));
+        
       } catch (error) {
         console.error('Failed to load settings:', error);
       }
@@ -209,7 +264,7 @@ export function useSettings(): UseSettingsReturn {
     }
   }, [settings]);
   
-  // Load from specific file
+  // Load from specific file (or server default if no path given)
   const loadFromFile = useCallback(async (dataPath?: string): Promise<{
     success: boolean;
     updatedSettings: AppSettings | null;
@@ -218,18 +273,23 @@ export function useSettings(): UseSettingsReturn {
   }> => {
     try {
       const currentSettings = settingsRef.current;
-      const path = dataPath || currentSettings.dataPath;
-      if (!path) return { success: false, updatedSettings: null };
+      const targetPath = dataPath || currentSettings.dataPath;
       
-      const response = await fetch(`/api/settings?dataPath=${encodeURIComponent(path)}`);
+      // Build fetch URL — if no path, let the server use its default location
+      const fetchUrl = targetPath
+        ? `/api/settings?dataPath=${encodeURIComponent(targetPath)}`
+        : '/api/settings';
+      
+      const response = await fetch(fetchUrl);
       const data = await response.json();
       
       if (data.success) {
-        setSettings(prev => ({ ...prev, ...data.settings, dataPath: path }));
+        const effectivePath = targetPath || data.settings?.dataPath || '';
+        setSettings(prev => ({ ...prev, ...data.settings, dataPath: effectivePath }));
         setSettingsPath(data.path);
         return {
           success: true,
-          updatedSettings: { ...currentSettings, ...data.settings, dataPath: path },
+          updatedSettings: { ...currentSettings, ...data.settings, dataPath: effectivePath },
           source: data.source,
           path: data.path,
         };
