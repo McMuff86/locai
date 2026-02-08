@@ -99,7 +99,10 @@ const writeFileTool: RegisteredTool = {
       return {
         callId,
         content: '',
-        error: 'Parameter "path" is required and must be a non-empty string',
+        error:
+          'Parameter "path" is required and must be a non-empty string. ' +
+          'Expected: write_file(path: "dateiname.txt", content: "Inhalt der Datei"). ' +
+          'You provided: ' + JSON.stringify(args),
         success: false,
       };
     }
@@ -108,7 +111,10 @@ const writeFileTool: RegisteredTool = {
       return {
         callId,
         content: '',
-        error: 'Parameter "content" is required and must be a string',
+        error:
+          'Parameter "content" is required and must be a string. ' +
+          'Expected: write_file(path: "dateiname.txt", content: "Inhalt der Datei"). ' +
+          'You provided: ' + JSON.stringify(args),
         success: false,
       };
     }

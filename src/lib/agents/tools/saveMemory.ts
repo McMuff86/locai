@@ -61,7 +61,10 @@ const saveMemoryTool: RegisteredTool = {
       return {
         callId,
         content: '',
-        error: 'Parameters "key", "value", and "category" are required',
+        error:
+          'Parameters "key", "value", and "category" are required. ' +
+          'Expected: save_memory(key: "user_name", value: "Max", category: "fact"). ' +
+          'You provided: ' + JSON.stringify(args),
         success: false,
       };
     }

@@ -119,6 +119,8 @@ export interface AgentOptions {
   signal?: AbortSignal;
   /** Enable planning step before tool execution */
   enablePlanning?: boolean;
+  /** Ollama chat options (e.g. temperature, top_p) passed to the model */
+  chatOptions?: Record<string, unknown>;
 }
 
 /** Default agent execution limits */

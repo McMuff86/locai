@@ -82,7 +82,10 @@ const readFileTool: RegisteredTool = {
       return {
         callId,
         content: '',
-        error: 'Parameter "path" is required and must be a non-empty string',
+        error:
+          'Parameter "path" is required and must be a non-empty string. ' +
+          'Expected: read_file(path: "dateiname.txt"). ' +
+          'You provided: ' + JSON.stringify(args),
         success: false,
       };
     }

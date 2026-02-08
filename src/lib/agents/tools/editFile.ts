@@ -140,7 +140,10 @@ const editFileTool: RegisteredTool = {
       return {
         callId,
         content: '',
-        error: 'Parameter "path" is required and must be a non-empty string',
+        error:
+          'Parameter "path" is required and must be a non-empty string. ' +
+          'Expected: edit_file(path: "datei.txt", old_text: "alter Text", new_text: "neuer Text"). ' +
+          'You provided: ' + JSON.stringify(args),
         success: false,
       };
     }
@@ -149,7 +152,10 @@ const editFileTool: RegisteredTool = {
       return {
         callId,
         content: '',
-        error: 'Parameter "old_text" is required and must be a string',
+        error:
+          'Parameter "old_text" is required and must be a string. ' +
+          'Expected: edit_file(path: "datei.txt", old_text: "alter Text", new_text: "neuer Text"). ' +
+          'You provided: ' + JSON.stringify(args),
         success: false,
       };
     }
@@ -158,7 +164,10 @@ const editFileTool: RegisteredTool = {
       return {
         callId,
         content: '',
-        error: 'Parameter "old_text" must not be empty',
+        error:
+          'Parameter "old_text" must not be empty. ' +
+          'Expected: edit_file(path: "datei.txt", old_text: "alter Text", new_text: "neuer Text"). ' +
+          'You provided: ' + JSON.stringify(args),
         success: false,
       };
     }
@@ -167,7 +176,10 @@ const editFileTool: RegisteredTool = {
       return {
         callId,
         content: '',
-        error: 'Parameter "new_text" is required and must be a string',
+        error:
+          'Parameter "new_text" is required and must be a string. ' +
+          'Expected: edit_file(path: "datei.txt", old_text: "alter Text", new_text: "neuer Text"). ' +
+          'You provided: ' + JSON.stringify(args),
         success: false,
       };
     }

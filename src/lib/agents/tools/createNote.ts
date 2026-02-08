@@ -55,7 +55,10 @@ const createNoteTool: RegisteredTool = {
       return {
         callId,
         content: '',
-        error: 'Parameter "title" is required and must be a non-empty string',
+        error:
+          'Parameter "title" is required and must be a non-empty string. ' +
+          'Expected: create_note(title: "Meine Notiz", content: "Notizinhalt"). ' +
+          'You provided: ' + JSON.stringify(args),
         success: false,
       };
     }
@@ -64,7 +67,10 @@ const createNoteTool: RegisteredTool = {
       return {
         callId,
         content: '',
-        error: 'Parameter "content" is required and must be a string',
+        error:
+          'Parameter "content" is required and must be a string. ' +
+          'Expected: create_note(title: "Meine Notiz", content: "Notizinhalt"). ' +
+          'You provided: ' + JSON.stringify(args),
         success: false,
       };
     }

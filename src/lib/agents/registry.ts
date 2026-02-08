@@ -12,6 +12,7 @@ import {
   ToolResult,
   ToolCategory,
 } from './types';
+import { normalizeToolArgs } from './paramNormalizer';
 
 // ---------------------------------------------------------------------------
 // ToolRegistry Class
@@ -137,7 +138,8 @@ export class ToolRegistry {
     }
 
     try {
-      const result = await tool.handler(call.arguments, signal);
+      const normalizedArgs = normalizeToolArgs(call.name, call.arguments);
+      const result = await tool.handler(normalizedArgs, signal);
       // Ensure callId matches
       return { ...result, callId: call.id };
     } catch (err) {

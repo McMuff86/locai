@@ -161,7 +161,10 @@ const runCodeTool: RegisteredTool = {
       return {
         callId,
         content: '',
-        error: 'Parameter "code" is required and must be a non-empty string',
+        error:
+          'Parameter "code" is required and must be a non-empty string. ' +
+          'Expected: run_code(code: "console.log(42)", language: "javascript"). ' +
+          'You provided: ' + JSON.stringify(args),
         success: false,
       };
     }
@@ -170,7 +173,10 @@ const runCodeTool: RegisteredTool = {
       return {
         callId,
         content: '',
-        error: 'Parameter "language" must be "javascript" or "python"',
+        error:
+          'Parameter "language" must be "javascript" or "python". ' +
+          'Expected: run_code(code: "print(42)", language: "python"). ' +
+          'You provided: ' + JSON.stringify(args),
         success: false,
       };
     }

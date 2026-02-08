@@ -35,7 +35,17 @@ function buildDefaultAgentPrompt(enabledToolNames: string[]): string {
     '- Wenn du eine Notiz erstellen sollst, nutze create_note.\n' +
     '- Relative Dateipfade (z.B. "test.txt") werden automatisch im Workspace gespeichert: ' + workspace + '\n' +
     '- Fuehre die Werkzeuge Schritt fuer Schritt aus und erklaere kurz was du tust.\n' +
-    '- Antworte auf Deutsch, es sei denn der Benutzer schreibt in einer anderen Sprache.'
+    '- Antworte auf Deutsch, es sei denn der Benutzer schreibt in einer anderen Sprache.\n\n' +
+    'Beispiele fuer korrekte Werkzeug-Aufrufe:\n\n' +
+    'Datei erstellen → write_file(path: "bericht.txt", content: "Hier steht der Inhalt")\n' +
+    'Datei lesen → read_file(path: "bericht.txt")\n' +
+    'Notiz erstellen → create_note(title: "Meine Notiz", content: "Notizinhalt hier")\n' +
+    'Web-Suche → web_search(query: "Suchbegriff")\n' +
+    'Dokumente durchsuchen → search_documents(query: "Suchbegriff")\n\n' +
+    'WICHTIG:\n' +
+    '- write_file braucht "path" (NICHT "title" oder "filename") und "content" (NICHT leer)\n' +
+    '- read_file braucht "path" (NICHT "file" oder "filename")\n' +
+    '- Fuehre die Werkzeuge direkt aus. Schreibe KEINEN JSON-Code als Text.'
   );
 }
 
@@ -60,6 +70,8 @@ interface AgentRequestBody {
   presetId?: string;
   /** Whether to enable the planning step */
   enablePlanning?: boolean;
+  /** Ollama chat options (e.g. temperature) */
+  chatOptions?: Record<string, unknown>;
 }
 
 // ---------------------------------------------------------------------------
@@ -79,6 +91,7 @@ export async function POST(request: NextRequest) {
       host,
       presetId,
       enablePlanning = false,
+      chatOptions,
     } = body;
 
     if (!message?.trim()) {
@@ -132,10 +145,14 @@ export async function POST(request: NextRequest) {
       // Memory injection is best-effort
     }
 
+    // Default to temperature 0.3 for more reliable tool calling
+    const agentChatOptions = chatOptions ?? { temperature: 0.3 };
+
     const options: AgentOptions = {
       maxIterations,
       enabledTools,
       enablePlanning,
+      chatOptions: agentChatOptions,
     };
 
     // Create a ReadableStream for NDJSON streaming
