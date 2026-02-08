@@ -174,8 +174,7 @@ function ModelSelector({
         </button>
 
         {isOpen && (
-          <div className="absolute z-50 mt-1 w-full rounded-lg border border-border bg-popover shadow-lg">
-            <ScrollArea className="max-h-[300px]">
+          <div className="absolute z-50 mt-1 w-full rounded-lg border border-border bg-popover shadow-lg max-h-[300px] overflow-y-auto">
               <div className="p-1">
                 {models.map((model) => {
                   const sizeGB = model.size ? (model.size / 1024 / 1024 / 1024).toFixed(1) : null;
@@ -219,7 +218,6 @@ function ModelSelector({
                   );
                 })}
               </div>
-            </ScrollArea>
           </div>
         )}
       </div>
