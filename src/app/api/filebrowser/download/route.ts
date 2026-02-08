@@ -1,0 +1,36 @@
+import { NextRequest, NextResponse } from 'next/server';
+import { promises as fs } from 'fs';
+import { getFileStream } from '@/lib/filebrowser/scanner';
+
+export const runtime = 'nodejs';
+
+export async function GET(req: NextRequest) {
+  try {
+    const rootId = req.nextUrl.searchParams.get('rootId');
+    const relativePath = req.nextUrl.searchParams.get('path') || '';
+
+    if (!rootId || !relativePath) {
+      return NextResponse.json(
+        { success: false, error: 'rootId und path sind erforderlich' },
+        { status: 400 },
+      );
+    }
+
+    const { filePath, fileName, size } = await getFileStream(rootId, relativePath);
+    const fileBuffer = await fs.readFile(filePath);
+
+    return new NextResponse(fileBuffer, {
+      headers: {
+        'Content-Type': 'application/octet-stream',
+        'Content-Disposition': `attachment; filename="${encodeURIComponent(fileName)}"`,
+        'Content-Length': size.toString(),
+      },
+    });
+  } catch (err) {
+    console.error('[FileBrowser] Download error:', err);
+    return NextResponse.json(
+      { success: false, error: err instanceof Error ? err.message : 'Fehler beim Herunterladen' },
+      { status: 500 },
+    );
+  }
+}
