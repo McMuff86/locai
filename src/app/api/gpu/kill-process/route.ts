@@ -1,9 +1,9 @@
 import { NextResponse } from 'next/server';
-import { exec } from 'child_process';
+import { execFile } from 'child_process';
 import { promisify } from 'util';
 import { assertLocalRequest } from '../../_utils/security';
 
-const execAsync = promisify(exec);
+const execFileAsync = promisify(execFile);
 
 /**
  * API Route to kill a GPU process
@@ -51,20 +51,24 @@ export async function POST(request: Request) {
       }
     }
 
-    // Determine OS and kill command
-    const isWindows = process.platform === 'win32';
-    
-    let command: string;
-    if (isWindows) {
-      // Windows: taskkill with force flag
-      command = `taskkill /PID ${pid} /F`;
-    } else {
-      // Linux/Mac: kill -9 for force kill
-      command = `kill -9 ${pid}`;
+    // SEC-3: Validate PID is a positive integer (defense in depth)
+    if (!Number.isInteger(pid) || pid <= 0) {
+      return NextResponse.json(
+        { error: 'PID must be a positive integer' },
+        { status: 400 }
+      );
     }
 
+    // Determine OS and kill command
+    const isWindows = process.platform === 'win32';
+
     try {
-      await execAsync(command, { timeout: 5000 });
+      // SEC-3: Use execFile (no shell) to prevent command injection
+      if (isWindows) {
+        await execFileAsync('taskkill', ['/PID', String(pid), '/F'], { timeout: 5000 });
+      } else {
+        await execFileAsync('kill', ['-9', String(pid)], { timeout: 5000 });
+      }
       
       return NextResponse.json({
         success: true,

@@ -2,23 +2,9 @@ import { NextResponse } from 'next/server';
 import fs from 'fs';
 import path from 'path';
 import { sanitizeBasePath } from '../../_utils/security';
+import { getGalleryMedia, type MediaInfo } from '@/lib/galleryCache';
 
 export const dynamic = 'force-dynamic';
-
-interface MediaInfo {
-  id: string;
-  filename: string;
-  path: string;
-  size: number;
-  createdAt: string;
-  modifiedAt: string;
-  type: 'image' | 'video';
-  dimensions?: { width: number; height: number };
-}
-
-const IMAGE_EXTENSIONS = ['.png', '.jpg', '.jpeg', '.webp', '.gif'];
-const VIDEO_EXTENSIONS = ['.mp4', '.webm', '.mov', '.avi', '.mkv'];
-const SUPPORTED_EXTENSIONS = [...IMAGE_EXTENSIONS, ...VIDEO_EXTENSIONS];
 
 export async function GET(request: Request) {
   try {
@@ -66,49 +52,11 @@ export async function GET(request: Request) {
       });
     }
     
-    // Read directory recursively (include subfolders)
-    const media: MediaInfo[] = [];
-    
-    function scanDirectory(dirPath: string, relativePath: string = '') {
-      const entries = fs.readdirSync(dirPath, { withFileTypes: true });
-      
-      for (const entry of entries) {
-        const fullPath = path.join(dirPath, entry.name);
-        const relPath = relativePath ? `${relativePath}/${entry.name}` : entry.name;
-        
-        if (entry.isDirectory()) {
-          // Recursively scan subdirectories
-          scanDirectory(fullPath, relPath);
-        } else if (entry.isFile()) {
-          const ext = path.extname(entry.name).toLowerCase();
-          
-          if (SUPPORTED_EXTENSIONS.includes(ext)) {
-            try {
-              const stats = fs.statSync(fullPath);
-              const isVideo = VIDEO_EXTENSIONS.includes(ext);
-              
-              media.push({
-                id: Buffer.from(relPath).toString('base64url'),
-                filename: entry.name,
-                path: relPath,
-                size: stats.size,
-                createdAt: stats.birthtime.toISOString(),
-                modifiedAt: stats.mtime.toISOString(),
-                type: isVideo ? 'video' : 'image',
-              });
-            } catch (err) {
-              // Skip files we can't read
-              console.error(`Error reading file ${fullPath}:`, err);
-            }
-          }
-        }
-      }
-    }
-    
-    scanDirectory(finalOutputPath);
-    
-    // Sort media
-    media.sort((a, b) => {
+    // PERF-1: Use cached gallery scan with file watcher invalidation
+    const media: MediaInfo[] = await getGalleryMedia(finalOutputPath);
+
+    // Sort media (cache stores unsorted for flexibility)
+    const sorted = [...media].sort((a, b) => {
       let comparison = 0;
       
       switch (sortBy) {
@@ -128,12 +76,12 @@ export async function GET(request: Request) {
     });
     
     // Apply pagination
-    const total = media.length;
-    const paginatedMedia = media.slice(offset, offset + limit);
+    const total = sorted.length;
+    const paginatedMedia = sorted.slice(offset, offset + limit);
     
     // Count images and videos
-    const imageCount = media.filter(m => m.type === 'image').length;
-    const videoCount = media.filter(m => m.type === 'video').length;
+    const imageCount = sorted.filter(m => m.type === 'image').length;
+    const videoCount = sorted.filter(m => m.type === 'video').length;
     
     return NextResponse.json({
       success: true,

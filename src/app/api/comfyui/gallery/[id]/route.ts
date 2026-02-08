@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import fs from 'fs';
 import path from 'path';
-import { sanitizeBasePath } from '../../../_utils/security';
+import { sanitizeBasePath, validatePath } from '../../../_utils/security';
 
 export const dynamic = 'force-dynamic';
 
@@ -62,11 +62,8 @@ export async function GET(
     // Construct full path
     const fullPath = path.join(finalOutputPath, relativePath);
     
-    // Security check - ensure path is within output folder
-    const normalizedFullPath = path.normalize(fullPath);
-    const normalizedOutputPath = path.normalize(finalOutputPath);
-    
-    if (!normalizedFullPath.startsWith(normalizedOutputPath)) {
+    // SEC-2: Validate resolved path stays within output folder
+    if (!validatePath(fullPath, finalOutputPath)) {
       return NextResponse.json(
         { error: 'Access denied' },
         { status: 403 }
