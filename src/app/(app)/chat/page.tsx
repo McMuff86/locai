@@ -41,7 +41,7 @@ function ChatPageContent() {
   const searchParams = useSearchParams();
   
   // Settings hook
-  const { settings } = useSettings();
+  const { settings, updateSettings } = useSettings();
   
   // Custom hooks
   const {
@@ -103,11 +103,16 @@ function ChatPageContent() {
     agentError,
     sendAgentMessage,
     cancelAgentRun,
+    activePreset,
+    selectPreset,
+    enablePlanning,
+    togglePlanning,
+    agentPlan,
   } = useAgentChat();
 
   // ── Local UI state ────────────────────────────────────────────
   const [showSidebar, setShowSidebar] = useState(true);
-  const [sidebarWidth, setSidebarWidth] = useState(320);
+  const [sidebarWidth, setSidebarWidth] = useState(settings?.sidebarWidth ?? 320);
   const [isResizing, setIsResizing] = useState(false);
   const [showModelPull, setShowModelPull] = useState(false);
   const [showGpuFloat, setShowGpuFloat] = useState(false);
@@ -122,11 +127,12 @@ function ChatPageContent() {
 
   const stopResizing = useCallback(() => {
     setIsResizing(false);
-  }, []);
+    updateSettings({ sidebarWidth });
+  }, [sidebarWidth, updateSettings]);
 
   const resize = useCallback((e: MouseEvent) => {
     if (isResizing && sidebarRef.current) {
-      const newWidth = e.clientX - sidebarRef.current.getBoundingClientRect().left + sidebarRef.current.offsetLeft;
+      const newWidth = e.clientX - sidebarRef.current.getBoundingClientRect().left;
       if (newWidth >= 200 && newWidth <= 450) {
         setSidebarWidth(newWidth);
       }
@@ -369,6 +375,8 @@ function ChatPageContent() {
         enabledTools,
         model: selectedModel,
         host: settings?.ollamaHost,
+        presetId: activePreset ?? undefined,
+        enablePlanning,
       });
 
       // Add the final bot message to conversation
@@ -401,7 +409,7 @@ function ChatPageContent() {
       undefined, // useStreaming - use default
       { ragEnabled }
     );
-  }, [sendMessage, conversation, selectedModel, addMessage, setSelectedModel, visionModels, toast, isAgentMode, sendAgentMessage, enabledTools, ragEnabled, settings?.ollamaHost]);
+  }, [sendMessage, conversation, selectedModel, addMessage, setSelectedModel, visionModels, toast, isAgentMode, sendAgentMessage, enabledTools, ragEnabled, settings?.ollamaHost, activePreset, enablePlanning]);
 
   // ── Load conversation from URL ────────────────────────────────
 
@@ -536,13 +544,13 @@ function ChatPageContent() {
   // ── Render ────────────────────────────────────────────────────
 
   return (
-    <div className="flex h-full overflow-hidden">
+    <div className={`flex h-full overflow-hidden ${isResizing ? 'cursor-col-resize select-none' : ''}`}>
       {/* ── Conversation Sidebar ─────────────────────────────────── */}
       {showSidebar && (
         <div 
           ref={sidebarRef}
           style={{ width: `${sidebarWidth}px` }}
-          className={`relative border-r border-border/60 bg-sidebar/50 ${isResizing ? 'select-none' : ''}`}
+          className={`relative border-r border-border/60 bg-sidebar/50 ${isResizing ? 'select-none cursor-col-resize' : ''}`}
         >
           <ConversationSidebar 
             conversations={savedConversations}
@@ -556,7 +564,7 @@ function ChatPageContent() {
           
           {/* Resize Handle */}
           <div
-            className="absolute top-0 right-0 w-1 h-full cursor-col-resize bg-transparent hover:bg-primary/30 transition-colors group flex items-center justify-center"
+            className={`absolute top-0 right-0 w-1 h-full cursor-col-resize hover:bg-primary/30 transition-colors group flex items-center justify-center ${isResizing ? 'bg-primary/50' : 'bg-transparent'}`}
             onMouseDown={startResizing}
           >
             <div className="absolute right-0 w-4 h-full" />
@@ -624,6 +632,7 @@ function ChatPageContent() {
                     totalTurnsEstimate={totalTurnsEstimate}
                     modelName={selectedModel}
                     error={agentError}
+                    plan={agentPlan}
                   />
                 </div>
               )}
@@ -664,9 +673,9 @@ function ChatPageContent() {
                     disabled={isChatLoading || isAgentLoading}
                   />
                 </div>
-                <ChatInput 
-                  onSend={handleSendMessage} 
-                  disabled={isChatLoading || isAgentLoading} 
+                <ChatInput
+                  onSend={handleSendMessage}
+                  disabled={isChatLoading || isAgentLoading}
                   inputRef={chatInputRef}
                   searxngUrl={settings?.searxngUrl}
                   searxngEnabled={settings?.searxngEnabled}
@@ -676,6 +685,10 @@ function ChatPageContent() {
                   onToggleAgentMode={toggleAgentMode}
                   enabledTools={enabledTools}
                   onToggleTool={toggleTool}
+                  activePreset={activePreset}
+                  onSelectPreset={selectPreset}
+                  enablePlanning={enablePlanning}
+                  onTogglePlanning={togglePlanning}
                 />
               </div>
             </>

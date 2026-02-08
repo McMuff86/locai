@@ -66,6 +66,40 @@ function ollamaToolCallsToToolCalls(
 }
 
 // ---------------------------------------------------------------------------
+// Planning Step
+// ---------------------------------------------------------------------------
+
+const PLANNING_PROMPT =
+  'Bevor du mit der Ausfuehrung beginnst, erstelle einen kurzen Plan mit 2-5 Schritten. ' +
+  'Beschreibe knapp, welche Werkzeuge du nutzen wirst und in welcher Reihenfolge. ' +
+  'Antworte NUR mit dem Plan als nummerierte Liste, ohne weitere Erklaerung.';
+
+async function executePlanningStep(
+  messages: OllamaChatMessage[],
+  model: string,
+  host?: string,
+  signal?: AbortSignal,
+): Promise<string | null> {
+  const planningMessages: OllamaChatMessage[] = [
+    ...messages,
+    { role: 'user', content: PLANNING_PROMPT },
+  ];
+
+  try {
+    const response = await sendAgentChatMessage(
+      model,
+      planningMessages,
+      [], // No tools for planning
+      { host, signal },
+    );
+    return response.content || null;
+  } catch {
+    // Planning is best-effort; if it fails, just proceed without a plan
+    return null;
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Agent Loop (AsyncGenerator)
 // ---------------------------------------------------------------------------
 
@@ -91,6 +125,29 @@ export async function* executeAgentLoop(
 
   const maxIterations = options.maxIterations ?? AGENT_DEFAULTS.maxIterations;
   const signal = options.signal;
+
+  // Optional planning step
+  if (options.enablePlanning) {
+    const plan = await executePlanningStep(messages, model, host, signal);
+    if (plan) {
+      // Yield a special planning turn with index -1
+      const planTurn: AgentFinalTurn = {
+        index: -1,
+        toolCalls: [],
+        toolResults: [],
+        startedAt: new Date().toISOString(),
+        completedAt: new Date().toISOString(),
+        plan,
+      };
+      yield planTurn;
+
+      // Add the plan to the conversation context so the model can follow it
+      messages.push(
+        { role: 'assistant', content: plan },
+        { role: 'user', content: 'Gut, fuehre den Plan jetzt Schritt fuer Schritt aus.' },
+      );
+    }
+  }
 
   // Build the OllamaTool[] from the registry
   const ollamaTools: OllamaTool[] = registry.list(options.enabledTools);

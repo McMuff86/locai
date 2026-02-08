@@ -14,9 +14,14 @@ const TOOL_LABELS: Record<string, string> = {
   search_documents: 'Suche Dokumente',
   web_search: 'Web-Suche',
   read_file: 'Datei lesen',
+  write_file: 'Datei schreiben',
+  edit_file: 'Datei bearbeiten',
   create_note: 'Notiz erstellen',
   save_memory: 'Merken',
   recall_memory: 'Erinnern',
+  run_command: 'Befehl ausführen',
+  run_code: 'Code ausführen',
+  generate_image: 'Bild generieren',
 };
 
 function getToolLabel(name: string): string {

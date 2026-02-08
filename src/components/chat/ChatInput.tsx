@@ -7,12 +7,17 @@ import { Send, Image, X } from "lucide-react";
 import { WebSearchButton } from "./WebSearchButton";
 import { AgentModeToggle } from "./AgentModeToggle";
 import { cn } from "../../lib/utils";
+import type { AgentPreset } from "@/lib/agents/presets";
 
 interface ChatInputExtendedProps extends ChatInputProps {
   agentMode?: boolean;
   onToggleAgentMode?: () => void;
   enabledTools?: string[];
   onToggleTool?: (toolName: string) => void;
+  activePreset?: string | null;
+  onSelectPreset?: (preset: AgentPreset | null) => void;
+  enablePlanning?: boolean;
+  onTogglePlanning?: () => void;
 }
 
 export function ChatInput({ 
@@ -28,6 +33,10 @@ export function ChatInput({
   onToggleAgentMode,
   enabledTools = [],
   onToggleTool,
+  activePreset,
+  onSelectPreset,
+  enablePlanning = false,
+  onTogglePlanning,
 }: ChatInputExtendedProps) {
   const [message, setMessage] = useState("");
   const [selectedImages, setSelectedImages] = useState<File[]>([]);
@@ -179,6 +188,11 @@ export function ChatInput({
             enabledTools={enabledTools}
             onToggleTool={onToggleTool}
             disabled={disabled}
+            modelName={selectedModel}
+            activePreset={activePreset}
+            onSelectPreset={onSelectPreset}
+            enablePlanning={enablePlanning}
+            onTogglePlanning={onTogglePlanning}
           />
         )}
         <Button 

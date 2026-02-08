@@ -1,9 +1,11 @@
 "use client";
 
 import React, { useState, useRef, useEffect } from 'react';
-import { Zap, Check } from 'lucide-react';
+import { Zap, Check, AlertTriangle, Lightbulb } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
+import { getModelAgentCapability } from '@/lib/agents/modelCapabilities';
+import { AGENT_PRESETS, type AgentPreset } from '@/lib/agents/presets';
 
 // ---------------------------------------------------------------------------
 // Tool metadata for the UI
@@ -19,9 +21,14 @@ const AVAILABLE_TOOLS: ToolInfo[] = [
   { name: 'search_documents', label: 'Suche Dokumente', emoji: '📄' },
   { name: 'web_search', label: 'Web-Suche', emoji: '🌐' },
   { name: 'read_file', label: 'Datei lesen', emoji: '📖' },
+  { name: 'write_file', label: 'Datei schreiben', emoji: '✏️' },
+  { name: 'edit_file', label: 'Datei bearbeiten', emoji: '🔧' },
   { name: 'create_note', label: 'Notiz erstellen', emoji: '📝' },
   { name: 'save_memory', label: 'Merken', emoji: '🧠' },
   { name: 'recall_memory', label: 'Erinnern', emoji: '💭' },
+  { name: 'run_command', label: 'Befehl ausführen', emoji: '⚡' },
+  { name: 'run_code', label: 'Code ausführen', emoji: '▶️' },
+  { name: 'generate_image', label: 'Bild generieren', emoji: '🎨' },
 ];
 
 // ---------------------------------------------------------------------------
@@ -34,6 +41,11 @@ interface AgentModeToggleProps {
   enabledTools: string[];
   onToggleTool: (toolName: string) => void;
   disabled?: boolean;
+  modelName?: string;
+  activePreset?: string | null;
+  onSelectPreset?: (preset: AgentPreset | null) => void;
+  enablePlanning?: boolean;
+  onTogglePlanning?: () => void;
 }
 
 export function AgentModeToggle({
@@ -42,10 +54,19 @@ export function AgentModeToggle({
   enabledTools,
   onToggleTool,
   disabled = false,
+  modelName,
+  activePreset,
+  onSelectPreset,
+  enablePlanning = false,
+  onTogglePlanning,
 }: AgentModeToggleProps) {
   const [showPopover, setShowPopover] = useState(false);
   const popoverRef = useRef<HTMLDivElement>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
+
+  // Model capability check
+  const capability = modelName ? getModelAgentCapability(modelName) : null;
+  const showWarning = capability && (capability.tier === 'none' || capability.tier === 'basic');
 
   // Close popover on outside click
   useEffect(() => {
@@ -125,17 +146,99 @@ export function AgentModeToggle({
         </button>
       )}
 
-      {/* Popover: Tool list */}
+      {/* Popover: Presets + Tool list + Planning */}
       {showPopover && (
         <div
           ref={popoverRef}
           className={cn(
             'absolute bottom-full mb-2 right-0 z-50',
-            'min-w-[220px] rounded-lg border border-border/60',
+            'min-w-[260px] max-w-[320px] rounded-lg border border-border/60',
             'bg-popover/95 backdrop-blur-md shadow-xl',
-            'p-2 space-y-0.5',
+            'p-2 space-y-1',
           )}
         >
+          {/* Model warning */}
+          {showWarning && isActive && (
+            <div className={cn(
+              'flex items-start gap-2 px-2 py-2 rounded-md text-xs mb-1',
+              capability.tier === 'none'
+                ? 'bg-red-500/10 text-red-400 border border-red-500/20'
+                : 'bg-yellow-500/10 text-yellow-400 border border-yellow-500/20'
+            )}>
+              <AlertTriangle className="h-3.5 w-3.5 shrink-0 mt-0.5" />
+              <div>
+                <p className="font-medium">{capability.label}</p>
+                <p className="text-[10px] opacity-80 mt-0.5">{capability.description}</p>
+                <p className="text-[10px] opacity-60 mt-1">Empfohlen: Qwen 2.5, Llama 3.1+, Hermes</p>
+              </div>
+            </div>
+          )}
+
+          {/* Presets section */}
+          {onSelectPreset && (
+            <>
+              <p className="text-xs font-semibold text-muted-foreground px-2 py-1 select-none flex items-center gap-1">
+                <Lightbulb className="h-3 w-3" />
+                Presets
+              </p>
+              {AGENT_PRESETS.map(preset => {
+                const isActivePreset = activePreset === preset.id;
+                return (
+                  <button
+                    key={preset.id}
+                    type="button"
+                    onClick={() => onSelectPreset(isActivePreset ? null : preset)}
+                    className={cn(
+                      'flex items-center gap-2 w-full rounded-md px-2 py-1.5 text-sm transition-colors',
+                      'hover:bg-muted/60',
+                      isActivePreset
+                        ? 'bg-primary/10 text-primary border border-primary/20'
+                        : 'text-foreground',
+                    )}
+                  >
+                    <span className="text-base shrink-0">{preset.icon}</span>
+                    <div className="flex-1 text-left min-w-0">
+                      <span className="block truncate font-medium text-xs">{preset.name}</span>
+                      <span className="block truncate text-[10px] text-muted-foreground">{preset.description}</span>
+                    </div>
+                    {isActivePreset && (
+                      <Check className="h-3.5 w-3.5 text-primary shrink-0" />
+                    )}
+                  </button>
+                );
+              })}
+              <div className="border-t border-border/40 my-1" />
+            </>
+          )}
+
+          {/* Planning toggle */}
+          {onTogglePlanning && (
+            <>
+              <button
+                type="button"
+                onClick={onTogglePlanning}
+                className={cn(
+                  'flex items-center gap-2 w-full rounded-md px-2 py-1.5 text-sm transition-colors',
+                  'hover:bg-muted/60',
+                  enablePlanning ? 'text-foreground' : 'text-muted-foreground',
+                )}
+              >
+                <span className="text-base shrink-0">📋</span>
+                <span className="flex-1 text-left truncate">Planning</span>
+                <span className={cn(
+                  'text-[10px] px-1.5 py-0.5 rounded-full',
+                  enablePlanning
+                    ? 'bg-primary/15 text-primary'
+                    : 'bg-muted text-muted-foreground'
+                )}>
+                  {enablePlanning ? 'An' : 'Aus'}
+                </span>
+              </button>
+              <div className="border-t border-border/40 my-1" />
+            </>
+          )}
+
+          {/* Tools section */}
           <p className="text-xs font-semibold text-muted-foreground px-2 py-1 select-none">
             Werkzeuge
           </p>

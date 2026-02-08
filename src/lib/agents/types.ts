@@ -99,6 +99,8 @@ export interface AgentTurn {
   startedAt: string;
   /** Timestamp when this turn completed */
   completedAt?: string;
+  /** Plan content (only set on the planning turn, index -1) */
+  plan?: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -115,6 +117,8 @@ export interface AgentOptions {
   enabledTools?: string[];
   /** Abort signal for cancellation */
   signal?: AbortSignal;
+  /** Enable planning step before tool execution */
+  enablePlanning?: boolean;
 }
 
 /** Default agent execution limits */
