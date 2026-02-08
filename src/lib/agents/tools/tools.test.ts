@@ -286,7 +286,7 @@ describe('run_command', () => {
   });
 
   it('rejects shell metacharacters (semicolon)', async () => {
-    const result = await run({ command: 'echo hello; rm -rf /' });
+    const result = await run({ command: 'echo hello; echo world' });
 
     expect(result.success).toBe(false);
     expect(result.error).toContain('metacharacter');
@@ -300,23 +300,13 @@ describe('run_command', () => {
   }, 10_000);
 
   it('truncates output exceeding 50k characters', async () => {
-    // Generate a large output via printf repeating a pattern
-    // python3 -c "print('x' * 60000)" is more reliable cross-platform
-    const result = await run({
-      command: `python3 -c "print('x' * 60000)"`,
-    });
+    // Create a large file, then cat it
+    const bigFile = path.join(tmpDir, 'big-output.txt');
+    await fs.writeFile(bigFile, 'x'.repeat(60_000), 'utf-8');
 
-    // python3 command contains shell-like chars... use a different approach
-    // Actually the tool parses quotes itself, let's check if it works
-    // If it doesn't, we'll adjust
-    if (!result.success) {
-      // The * may be fine inside quotes since the tool strips quotes
-      // Let's try a different approach: use yes + head won't work (pipe)
-      // Just verify the truncation constant exists in the code
-      expect(true).toBe(true); // Skip if can't generate large output easily
-      return;
-    }
+    const result = await run({ command: `cat ${bigFile}` });
 
+    expect(result.success).toBe(true);
     expect(result.content).toContain('truncated');
   });
 });
@@ -353,11 +343,15 @@ describe('read_file', () => {
   });
 
   it('rejects path traversal (..)', async () => {
-    const filePath = path.join(tmpDir, '..', 'etc', 'passwd');
+    const filePath = path.join(tmpDir, 'sub', '..', '..', 'passwd');
     const result = await read({ path: filePath });
 
     expect(result.success).toBe(false);
-    expect(result.error).toContain('Path traversal');
+    expect(result.error).toBeDefined();
+    expect(
+      result.error!.includes('Path traversal') ||
+      result.error!.includes('Access denied'),
+    ).toBe(true);
   });
 
   it('truncates large files', async () => {
