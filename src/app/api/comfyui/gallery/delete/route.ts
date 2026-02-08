@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import fs from 'fs';
 import path from 'path';
 import { assertLocalRequest, sanitizeBasePath, validatePath } from '../../../_utils/security';
+import { invalidateGalleryCache } from '@/lib/galleryCache';
 
 export const dynamic = 'force-dynamic';
 
@@ -76,6 +77,9 @@ export async function DELETE(request: Request) {
     
     // Delete the file
     fs.unlinkSync(fullPath);
+
+    // PERF-1: Eagerly invalidate gallery cache (watcher will also catch it)
+    invalidateGalleryCache(finalOutputPath);
     
     return NextResponse.json({
       success: true,
