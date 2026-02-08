@@ -71,6 +71,22 @@ export class ToolRegistry {
   }
 
   /**
+   * Return all registered tool names (for system prompt building).
+   */
+  listNames(enabledNames?: string[]): string[] {
+    const entries = enabledNames
+      ? Array.from(this.tools.values()).filter(
+          (t) =>
+            enabledNames.includes(t.definition.name) &&
+            t.definition.enabled !== false
+        )
+      : Array.from(this.tools.values()).filter(
+          (t) => t.definition.enabled !== false
+        );
+    return entries.map((t) => t.definition.name);
+  }
+
+  /**
    * List tools filtered by category, formatted as OllamaTool[].
    */
   listByCategory(category: ToolCategory): OllamaTool[] {

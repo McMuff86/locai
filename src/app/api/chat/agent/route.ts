@@ -11,8 +11,33 @@ import { ToolRegistry } from '@/lib/agents/registry';
 import { registerBuiltinTools } from '@/lib/agents/tools';
 import { getRelevantMemories, formatMemories } from '@/lib/memory/store';
 import { getPresetById } from '@/lib/agents/presets';
+import { resolveWorkspacePath } from '@/lib/settings/store';
 import type { OllamaChatMessage } from '@/lib/ollama';
 import type { AgentOptions } from '@/lib/agents/types';
+
+// ---------------------------------------------------------------------------
+// Default agent system prompt (always injected in agent mode)
+// ---------------------------------------------------------------------------
+
+function buildDefaultAgentPrompt(enabledToolNames: string[]): string {
+  const toolList = enabledToolNames.join(', ');
+  const workspace = resolveWorkspacePath() || '~/.locai/workspace/';
+
+  return (
+    'Du bist ein hilfreicher KI-Agent mit Zugriff auf Werkzeuge (Tools). ' +
+    'Du MUSST die bereitgestellten Werkzeuge verwenden, um Aufgaben zu erledigen. ' +
+    'Schreibe KEINEN Code fuer den Benutzer zum Ausfuehren — fuehre die Aktionen selbst mit deinen Werkzeugen aus.\n\n' +
+    'Verfuegbare Werkzeuge: ' + toolList + '\n\n' +
+    'Wichtige Regeln:\n' +
+    '- Wenn du eine Datei erstellen sollst, nutze write_file direkt. Schreibe KEINEN Python/JS-Code der Dateien erstellt.\n' +
+    '- Wenn du eine Datei lesen sollst, nutze read_file direkt.\n' +
+    '- Wenn du etwas suchen sollst, nutze search_documents oder web_search.\n' +
+    '- Wenn du eine Notiz erstellen sollst, nutze create_note.\n' +
+    '- Relative Dateipfade (z.B. "test.txt") werden automatisch im Workspace gespeichert: ' + workspace + '\n' +
+    '- Fuehre die Werkzeuge Schritt fuer Schritt aus und erklaere kurz was du tust.\n' +
+    '- Antworte auf Deutsch, es sei denn der Benutzer schreibt in einer anderen Sprache.'
+  );
+}
 
 // ---------------------------------------------------------------------------
 // Request body type
@@ -64,6 +89,9 @@ export async function POST(request: NextRequest) {
     const registry = new ToolRegistry();
     registerBuiltinTools(registry);
 
+    // Determine which tools will be available
+    const resolvedTools = enabledTools ?? registry.listNames();
+
     // Build conversation messages
     const messages: OllamaChatMessage[] = [
       ...conversationHistory.map((m) => ({
@@ -73,7 +101,14 @@ export async function POST(request: NextRequest) {
       { role: 'user' as const, content: message },
     ];
 
-    // Inject preset system prompt if a preset is selected
+    // Always inject default agent system prompt
+    const defaultPrompt = buildDefaultAgentPrompt(resolvedTools);
+    messages.unshift({
+      role: 'system',
+      content: defaultPrompt,
+    });
+
+    // Layer preset system prompt on top if a preset is selected
     if (presetId) {
       const preset = getPresetById(presetId);
       if (preset) {
