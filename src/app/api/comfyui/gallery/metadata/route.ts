@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import fs from 'fs';
 import path from 'path';
-import { sanitizeBasePath } from '../../../_utils/security';
+import { sanitizeBasePath, validatePath } from '../../../_utils/security';
 
 export const dynamic = 'force-dynamic';
 
