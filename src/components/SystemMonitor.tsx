@@ -114,7 +114,7 @@ const StatCard = ({
   isActive,
   color = "primary"
 }: { 
-  icon: React.ElementType;
+  icon: React.ElementType<{ className?: string }>;
   label: string;
   value: string;
   subValue?: string;
