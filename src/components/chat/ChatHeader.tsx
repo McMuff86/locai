@@ -17,7 +17,7 @@ import {
   DropdownMenuTrigger,
 } from '../ui/dropdown-menu';
 import { cn } from '../../lib/utils';
-import { Conversation } from '../../types/chat';
+import { ConversationSummary } from '../../lib/conversations/types';
 import { OllamaModel } from '../../lib/ollama';
 
 // ── Types ──────────────────────────────────────────────────────────
@@ -46,9 +46,9 @@ interface ChatHeaderProps {
   
   // Conversation props
   conversationTitle?: string;
-  savedConversations: Conversation[];
+  savedConversations: ConversationSummary[];
   onSaveConversation: () => void;
-  onSelectConversation: (conv: Conversation) => void;
+  onSelectConversation: (conversationId: string) => void;
   onImportConversations: () => void;
   onExportConversations: () => void;
   onClearAllConversations: () => void;
@@ -234,9 +234,9 @@ export function ChatHeader({
           <DropdownMenuItem disabled>Keine gespeicherten Konversationen</DropdownMenuItem>
         ) : (
           savedConversations.map(conv => (
-            <DropdownMenuItem 
+            <DropdownMenuItem
               key={conv.id}
-              onClick={() => onSelectConversation(conv)}
+              onClick={() => onSelectConversation(conv.id)}
             >
               {typeof conv.title === 'string' ? conv.title : 'Bildkonversation'}
             </DropdownMenuItem>

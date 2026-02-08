@@ -9,6 +9,8 @@ import searchDocumentsTool from './searchDocuments';
 import webSearchTool from './webSearch';
 import readFileTool from './readFile';
 import createNoteTool from './createNote';
+import saveMemoryTool from './saveMemory';
+import recallMemoryTool from './recallMemory';
 
 /** All built-in tools in registration order */
 export const builtinTools = [
@@ -16,6 +18,8 @@ export const builtinTools = [
   webSearchTool,
   readFileTool,
   createNoteTool,
+  saveMemoryTool,
+  recallMemoryTool,
 ] as const;
 
 /**
@@ -31,4 +35,4 @@ export function registerBuiltinTools(registry: ToolRegistry = defaultRegistry): 
 }
 
 // Re-export individual tools for selective registration
-export { searchDocumentsTool, webSearchTool, readFileTool, createNoteTool };
+export { searchDocumentsTool, webSearchTool, readFileTool, createNoteTool, saveMemoryTool, recallMemoryTool };

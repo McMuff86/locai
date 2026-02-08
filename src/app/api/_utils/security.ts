@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import path from 'path';
+import { promises as fs } from 'fs';
 
 /**
  * SEC-2: Validate that a user-supplied path doesn't contain traversal sequences.
@@ -64,6 +65,18 @@ function getBearerToken(authorizationHeader: string | null) {
 
 function forbidden(error: string, details?: Record<string, unknown>) {
   return NextResponse.json({ success: false, error, ...details }, { status: 403 });
+}
+
+/**
+ * Get the base path for a LocAI subdirectory (e.g. 'conversations', 'memory').
+ * Creates the directory if it doesn't exist.
+ * Returns the absolute path to `~/.locai/{subdir}`.
+ */
+export async function getLocaiBasePath(subdir?: string): Promise<string> {
+  const home = process.env.USERPROFILE || process.env.HOME || '/tmp';
+  const base = subdir ? path.join(home, '.locai', subdir) : path.join(home, '.locai');
+  await fs.mkdir(base, { recursive: true });
+  return base;
 }
 
 export function assertLocalRequest(request: Request) {

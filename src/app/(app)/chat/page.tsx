@@ -32,7 +32,6 @@ import { AgentMessage } from "@/components/chat/AgentMessage";
 // Types & Utils
 import { Message } from "@/types/chat";
 import { getModelSystemContent, deleteOllamaModel } from "@/lib/ollama";
-import { getSavedConversations } from "@/lib/storage";
 import { useToast } from "@/components/ui/use-toast";
 import { IMAGE_ANALYSIS_PROMPT } from "@/lib/prompt-templates";
 
@@ -237,29 +236,34 @@ function ChatPageContent() {
 
   // ── Conversation handlers ─────────────────────────────────────
 
-  const handleSaveConversation = useCallback(() => {
+  const handleSaveConversation = useCallback(async () => {
     if (conversation.messages.length <= 1) {
       toast({ title: "Cannot save empty conversation", description: "Add at least one message before saving.", variant: "destructive" });
       return;
     }
-    if (saveCurrentConversation(generateTitle)) {
-      toast({ title: "Conversation saved", description: "Your conversation has been saved successfully." });
-    } else {
-      toast({ title: "Save failed", description: "Failed to save conversation. Please try again.", variant: "destructive" });
-    }
+    await saveCurrentConversation(generateTitle);
+    toast({ title: "Conversation saved", description: "Your conversation has been saved successfully." });
   }, [conversation.messages.length, saveCurrentConversation, generateTitle, toast]);
 
-  const handleDeleteConversation = useCallback((id: string) => {
-    if (deleteConversation(id)) {
-      toast({ title: "Conversation deleted", description: "The conversation has been deleted." });
-    } else {
-      toast({ title: "Delete failed", description: "Failed to delete conversation. Please try again.", variant: "destructive" });
-    }
+  const handleDeleteConversation = useCallback(async (id: string) => {
+    await deleteConversation(id);
+    toast({ title: "Conversation deleted", description: "The conversation has been deleted." });
   }, [deleteConversation, toast]);
 
-  const handleSelectConversation = useCallback((conv: typeof conversation) => {
-    loadConversation(conv);
-    const systemMsg = conv.messages.find(m => m.role === 'system');
+  const handleSelectConversation = useCallback(async (conversationId: string) => {
+    await loadConversation(conversationId);
+  }, [loadConversation]);
+
+  // After loadConversation sets the conversation state, update model/prompt
+  const prevConversationIdRef = useRef<string | null>(null);
+  useEffect(() => {
+    // Only run when conversation changes and has loaded messages
+    if (conversation.id === prevConversationIdRef.current) return;
+    prevConversationIdRef.current = conversation.id;
+
+    if (!conversation.messages.some(m => m.isLoaded)) return;
+
+    const systemMsg = conversation.messages.find(m => m.role === 'system');
     if (systemMsg && systemMsg.modelName && models.some(m => m.name === systemMsg.modelName)) {
       setSelectedModel(systemMsg.modelName);
       const defaultSystemContent = getModelSystemContent(systemMsg.modelName);
@@ -273,11 +277,12 @@ function ChatPageContent() {
         }
       }
     }
+
     toast({
       title: "Konversation geladen",
-      description: `"${typeof conv.title === 'string' ? conv.title : 'Bildkonversation'}" wurde erfolgreich geladen.`,
+      description: `"${typeof conversation.title === 'string' ? conversation.title : 'Bildkonversation'}" wurde erfolgreich geladen.`,
     });
-  }, [loadConversation, models, setSelectedModel, toast]);
+  }, [conversation, models, setSelectedModel, toast]);
 
   const handleNewConversation = useCallback(() => {
     createNewConversation();
@@ -406,22 +411,14 @@ function ChatPageContent() {
     if (!loadId) return;
     if (loadedConversationFromUrlRef.current === loadId) return;
 
-    const all = getSavedConversations();
-    const match = all.find((c) => c.id === loadId);
-    if (!match) {
-      toast({ title: "Chat nicht gefunden", description: "Die gespeicherte Konversation konnte nicht geladen werden.", variant: "destructive" });
-      loadedConversationFromUrlRef.current = loadId;
-      return;
-    }
-
     loadedConversationFromUrlRef.current = loadId;
-    handleSelectConversation(match);
+    handleSelectConversation(loadId);
 
     const nextParams = new URLSearchParams(searchParams.toString());
     nextParams.delete('load');
     const qs = nextParams.toString();
     router.replace(qs ? `/chat?${qs}` : '/chat', { scroll: false });
-  }, [searchParams, router, toast, handleSelectConversation]);
+  }, [searchParams, router, handleSelectConversation]);
 
   // ── Image analysis from gallery ───────────────────────────────
 
@@ -493,9 +490,10 @@ function ChatPageContent() {
     });
   }, [importConversations, toast]);
 
-  const handleClearAllConversations = useCallback(() => {
+  const handleClearAllConversations = useCallback(async () => {
     if (window.confirm("Sind Sie sicher, dass Sie ALLE gespeicherten Konversationen löschen möchten?")) {
-      if (clearAllConversations()) {
+      const success = await clearAllConversations();
+      if (success) {
         toast({ title: "Konversationen gelöscht", description: "Alle gespeicherten Konversationen wurden gelöscht." });
       }
     }

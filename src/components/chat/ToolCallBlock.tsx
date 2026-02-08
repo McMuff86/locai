@@ -15,6 +15,8 @@ const TOOL_LABELS: Record<string, string> = {
   web_search: 'Web-Suche',
   read_file: 'Datei lesen',
   create_note: 'Notiz erstellen',
+  save_memory: 'Merken',
+  recall_memory: 'Erinnern',
 };
 
 function getToolLabel(name: string): string {

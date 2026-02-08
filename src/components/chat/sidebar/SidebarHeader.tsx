@@ -4,11 +4,11 @@ import React from 'react';
 import { Button } from '../../ui/button';
 import { PlusCircle } from 'lucide-react';
 import { ChatSearch } from '../ChatSearch';
-import { Conversation } from '../../../types/chat';
+import { ConversationSummary } from '../../../lib/conversations/types';
 
 interface SidebarHeaderProps {
-  conversations: Conversation[];
-  onSelectConversation: (conversation: Conversation) => void;
+  conversations: ConversationSummary[];
+  onSelectConversation: (conversationId: string) => void;
   onNewConversation: () => void;
 }
 

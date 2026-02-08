@@ -3,44 +3,37 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { v4 as uuidv4 } from 'uuid';
 import { Conversation, Message } from '../types/chat';
-import { 
-  getSavedConversations, 
-  saveConversation as saveToStorage, 
-  deleteConversation as deleteFromStorage,
-  exportConversationsToFile,
-  importConversationsFromFile,
-  clearAllConversations as clearAllFromStorage
-} from '../lib/storage';
+import { ConversationSummary } from '../lib/conversations/types';
 
 export interface UseConversationsOptions {
   autoSave?: boolean;
-  autoSaveDelay?: number; // Delay in ms before auto-saving (debounce)
+  autoSaveDelay?: number;
 }
 
 export interface UseConversationsReturn {
   // Current conversation
   conversation: Conversation;
   setConversation: React.Dispatch<React.SetStateAction<Conversation>>;
-  
-  // Saved conversations
-  savedConversations: Conversation[];
-  
+
+  // Saved conversations (lightweight summaries)
+  savedConversations: ConversationSummary[];
+
   // Actions
   createNewConversation: () => void;
-  saveCurrentConversation: (generateTitle?: (conv: Conversation) => string) => boolean;
-  deleteConversation: (id: string) => boolean;
-  loadConversation: (conv: Conversation) => void;
-  
-  // Import/Export
+  saveCurrentConversation: (generateTitle?: (conv: Conversation) => string) => void;
+  deleteConversation: (id: string) => void;
+  loadConversation: (id: string) => Promise<void>;
+
+  // Import/Export (client-side file dialogs, backed by server storage)
   exportConversations: () => Promise<boolean>;
   importConversations: () => Promise<{ success: boolean; count: number }>;
-  clearAllConversations: () => boolean;
-  
+  clearAllConversations: () => Promise<boolean>;
+
   // Helpers
   addMessage: (message: Message) => void;
   updateConversationTitle: (title: string) => void;
-  updateConversationTags: (conversationId: string, tags: string[]) => boolean;
-  
+  updateConversationTags: (conversationId: string, tags: string[]) => Promise<boolean>;
+
   // Auto-save status
   isAutoSaveEnabled: boolean;
   lastAutoSave: Date | null;
@@ -56,16 +49,15 @@ function createEmptyConversation(): Conversation {
   };
 }
 
-// Generate title from first user message
 function generateTitleFromConversation(conv: Conversation): string {
   if (conv.title !== "New Conversation" && !conv.title.startsWith("Chat with")) {
     return conv.title;
   }
-  
+
   const firstUserMessage = conv.messages.find(msg => msg.role === 'user');
   if (firstUserMessage) {
     const content = firstUserMessage.content;
-    
+
     if (typeof content === 'string') {
       return content.length > 40 ? `${content.substring(0, 40)}...` : content;
     } else if (Array.isArray(content)) {
@@ -80,49 +72,131 @@ function generateTitleFromConversation(conv: Conversation): string {
   return conv.title;
 }
 
+// ---------------------------------------------------------------------------
+// API helpers
+// ---------------------------------------------------------------------------
+
+async function fetchIndex(): Promise<ConversationSummary[]> {
+  try {
+    const res = await fetch('/api/conversations');
+    if (!res.ok) return [];
+    const data = await res.json();
+    return data.conversations ?? [];
+  } catch {
+    return [];
+  }
+}
+
+async function fetchConversation(id: string): Promise<Conversation | null> {
+  try {
+    const res = await fetch(`/api/conversations/${encodeURIComponent(id)}`);
+    if (!res.ok) return null;
+    const conv = await res.json();
+    // Re-hydrate dates
+    return {
+      ...conv,
+      createdAt: new Date(conv.createdAt),
+      updatedAt: new Date(conv.updatedAt),
+      messages: (conv.messages ?? []).map((m: Message) => ({
+        ...m,
+        timestamp: new Date(m.timestamp),
+      })),
+    };
+  } catch {
+    return null;
+  }
+}
+
+async function apiSaveConversation(conversation: Conversation): Promise<boolean> {
+  try {
+    const res = await fetch('/api/conversations', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ conversation }),
+    });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
+async function apiDeleteConversation(id: string): Promise<boolean> {
+  try {
+    const res = await fetch(`/api/conversations?id=${encodeURIComponent(id)}`, {
+      method: 'DELETE',
+    });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
+async function apiClearAll(): Promise<boolean> {
+  try {
+    const res = await fetch('/api/conversations?all=true', { method: 'DELETE' });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
+async function apiUpdateMetadata(id: string, updates: { title?: string; tags?: string[] }): Promise<boolean> {
+  try {
+    const res = await fetch(`/api/conversations/${encodeURIComponent(id)}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(updates),
+    });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Hook implementation
+// ---------------------------------------------------------------------------
+
 export function useConversations(options: UseConversationsOptions = {}): UseConversationsReturn {
   const { autoSave = true, autoSaveDelay = 1000 } = options;
-  
+
   const [conversation, setConversation] = useState<Conversation>(createEmptyConversation);
-  const [savedConversations, setSavedConversations] = useState<Conversation[]>([]);
+  const [savedConversations, setSavedConversations] = useState<ConversationSummary[]>([]);
   const [lastAutoSave, setLastAutoSave] = useState<Date | null>(null);
-  
+
   const autoSaveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Load saved conversations on mount
+  // Load conversation index on mount
   useEffect(() => {
-    setSavedConversations(getSavedConversations());
+    fetchIndex().then(setSavedConversations);
   }, []);
-  
-  // Auto-save effect - triggers when conversation changes
+
+  // Auto-save effect
   useEffect(() => {
     if (!autoSave) return;
-    
-    // Don't auto-save empty conversations or conversations with only system message
+
     const hasUserContent = conversation.messages.some(m => m.role === 'user' || m.role === 'assistant');
     if (!hasUserContent) return;
-    
-    // Clear previous timeout
+
     if (autoSaveTimeoutRef.current) {
       clearTimeout(autoSaveTimeoutRef.current);
     }
-    
-    // Set new timeout for debounced auto-save
-    autoSaveTimeoutRef.current = setTimeout(() => {
+
+    autoSaveTimeoutRef.current = setTimeout(async () => {
       const conversationToSave = {
         ...conversation,
         updatedAt: new Date(),
         title: generateTitleFromConversation(conversation)
       };
-      
-      const success = saveToStorage(conversationToSave);
+
+      const success = await apiSaveConversation(conversationToSave);
       if (success) {
-        setSavedConversations(getSavedConversations());
+        const newIndex = await fetchIndex();
+        setSavedConversations(newIndex);
         setLastAutoSave(new Date());
       }
     }, autoSaveDelay);
-    
-    // Cleanup
+
     return () => {
       if (autoSaveTimeoutRef.current) {
         clearTimeout(autoSaveTimeoutRef.current);
@@ -134,10 +208,8 @@ export function useConversations(options: UseConversationsOptions = {}): UseConv
     setConversation(createEmptyConversation());
   }, []);
 
-  const saveCurrentConversation = useCallback((generateTitle?: (conv: Conversation) => string): boolean => {
-    if (conversation.messages.length <= 1) {
-      return false;
-    }
+  const saveCurrentConversation = useCallback(async (generateTitle?: (conv: Conversation) => string) => {
+    if (conversation.messages.length <= 1) return;
 
     const conversationToSave = {
       ...conversation,
@@ -145,28 +217,29 @@ export function useConversations(options: UseConversationsOptions = {}): UseConv
       title: generateTitle ? generateTitle(conversation) : conversation.title
     };
 
-    const success = saveToStorage(conversationToSave);
+    const success = await apiSaveConversation(conversationToSave);
     if (success) {
-      setSavedConversations(getSavedConversations());
+      const newIndex = await fetchIndex();
+      setSavedConversations(newIndex);
     }
-    return success;
   }, [conversation]);
 
-  const deleteConversation = useCallback((id: string): boolean => {
-    const success = deleteFromStorage(id);
+  const deleteConversation = useCallback(async (id: string) => {
+    const success = await apiDeleteConversation(id);
     if (success) {
-      setSavedConversations(getSavedConversations());
-      
-      // If deleting current conversation, create a new one
+      const newIndex = await fetchIndex();
+      setSavedConversations(newIndex);
+
       if (conversation.id === id) {
         setConversation(createEmptyConversation());
       }
     }
-    return success;
   }, [conversation.id]);
 
-  const loadConversation = useCallback((conv: Conversation) => {
-    // Deep copy with isLoaded flag
+  const loadConversation = useCallback(async (id: string) => {
+    const conv = await fetchConversation(id);
+    if (!conv) return;
+
     const loadedConversation: Conversation = {
       ...conv,
       messages: conv.messages.map(msg => ({
@@ -178,32 +251,139 @@ export function useConversations(options: UseConversationsOptions = {}): UseConv
   }, []);
 
   const exportConversations = useCallback(async (): Promise<boolean> => {
-    return exportConversationsToFile();
+    try {
+      // Fetch all full conversations
+      const index = await fetchIndex();
+      const conversations: Conversation[] = [];
+
+      for (const summary of index) {
+        const conv = await fetchConversation(summary.id);
+        if (conv) conversations.push(conv);
+      }
+
+      if (conversations.length === 0) return false;
+
+      const data = JSON.stringify(conversations, null, 2);
+      const blob = new Blob([data], { type: 'application/json' });
+      const date = new Date().toISOString().split('T')[0];
+      const filename = `locai-conversations-${date}.json`;
+
+      if ('showSaveFilePicker' in window) {
+        try {
+          const opts = {
+            suggestedName: filename,
+            types: [{ description: 'JSON Files', accept: { 'application/json': ['.json'] } }],
+          };
+          // @ts-expect-error - File System Access API not yet in TypeScript lib
+          const handle = await window.showSaveFilePicker(opts);
+          const writable = await handle.createWritable();
+          await writable.write(blob);
+          await writable.close();
+          return true;
+        } catch (err) {
+          if (err instanceof Error && err.name === 'AbortError') return false;
+        }
+      }
+
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      setTimeout(() => {
+        URL.revokeObjectURL(url);
+        document.body.removeChild(a);
+      }, 100);
+      return true;
+    } catch (error) {
+      console.error("Error exporting conversations:", error);
+      return false;
+    }
   }, []);
 
   const importConversations = useCallback(async (): Promise<{ success: boolean; count: number }> => {
-    const result = await importConversationsFromFile();
-    if (result.success) {
-      setSavedConversations(getSavedConversations());
+    try {
+      if ('showOpenFilePicker' in window) {
+        try {
+          const opts = {
+            types: [{ description: 'JSON Files', accept: { 'application/json': ['.json'] } }],
+            multiple: false,
+          };
+          // @ts-expect-error - File System Access API not yet in TypeScript lib
+          const [handle] = await window.showOpenFilePicker(opts);
+          const file = await handle.getFile();
+          const text = await file.text();
+          const imported = JSON.parse(text) as Conversation[];
+
+          if (!Array.isArray(imported)) throw new Error("Invalid file format");
+
+          let importCount = 0;
+          for (const conv of imported) {
+            if (!conv.id || !conv.title || !Array.isArray(conv.messages)) continue;
+            await apiSaveConversation(conv);
+            importCount++;
+          }
+
+          const newIndex = await fetchIndex();
+          setSavedConversations(newIndex);
+          return { success: true, count: importCount };
+        } catch (err) {
+          if (err instanceof Error && err.name !== 'AbortError') throw err;
+        }
+      }
+
+      return new Promise((resolve) => {
+        const input = document.createElement('input');
+        input.type = 'file';
+        input.accept = '.json';
+
+        input.onchange = async (event) => {
+          try {
+            const target = event.target as HTMLInputElement;
+            const file = target.files?.[0];
+            if (!file) { resolve({ success: false, count: 0 }); return; }
+
+            const text = await file.text();
+            const imported = JSON.parse(text) as Conversation[];
+            if (!Array.isArray(imported)) throw new Error("Invalid file format");
+
+            let importCount = 0;
+            for (const conv of imported) {
+              if (!conv.id || !conv.title || !Array.isArray(conv.messages)) continue;
+              await apiSaveConversation(conv);
+              importCount++;
+            }
+
+            const newIndex = await fetchIndex();
+            setSavedConversations(newIndex);
+            resolve({ success: true, count: importCount });
+          } catch {
+            resolve({ success: false, count: 0 });
+          }
+        };
+
+        input.click();
+      });
+    } catch (error) {
+      console.error("Error importing conversations:", error);
+      return { success: false, count: 0 };
     }
-    return result;
   }, []);
 
-  const clearAllConversations = useCallback((): boolean => {
-    const success = clearAllFromStorage();
+  const clearAllConversations = useCallback(async (): Promise<boolean> => {
+    const success = await apiClearAll();
     if (success) {
       setSavedConversations([]);
     }
     return success;
   }, []);
 
-  // Add or update a message (upsert) - if message with same ID exists, update it
   const addMessage = useCallback((message: Message) => {
     setConversation(prev => {
       const existingIndex = prev.messages.findIndex(m => m.id === message.id);
-      
+
       if (existingIndex >= 0) {
-        // Update existing message
         const updatedMessages = [...prev.messages];
         updatedMessages[existingIndex] = message;
         return {
@@ -212,7 +392,6 @@ export function useConversations(options: UseConversationsOptions = {}): UseConv
           updatedAt: new Date()
         };
       } else {
-        // Add new message
         return {
           ...prev,
           messages: [...prev.messages, message],
@@ -230,30 +409,18 @@ export function useConversations(options: UseConversationsOptions = {}): UseConv
     }));
   }, []);
 
-  const updateConversationTags = useCallback((conversationId: string, tags: string[]): boolean => {
-    // Find the conversation
-    const convIndex = savedConversations.findIndex(c => c.id === conversationId);
-    if (convIndex === -1) return false;
-    
-    // Update the conversation
-    const updatedConversation = {
-      ...savedConversations[convIndex],
-      tags,
-      updatedAt: new Date()
-    };
-    
-    // Save to storage
-    const success = saveToStorage(updatedConversation);
+  const updateConversationTags = useCallback(async (conversationId: string, tags: string[]): Promise<boolean> => {
+    const success = await apiUpdateMetadata(conversationId, { tags });
     if (success) {
-      setSavedConversations(getSavedConversations());
-      
-      // Also update current conversation if it's the same
+      const newIndex = await fetchIndex();
+      setSavedConversations(newIndex);
+
       if (conversation.id === conversationId) {
         setConversation(prev => ({ ...prev, tags }));
       }
     }
     return success;
-  }, [savedConversations, conversation.id]);
+  }, [conversation.id]);
 
   return {
     conversation,
@@ -275,4 +442,3 @@ export function useConversations(options: UseConversationsOptions = {}): UseConv
 }
 
 export default useConversations;
-

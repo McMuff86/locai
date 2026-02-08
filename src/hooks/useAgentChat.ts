@@ -109,6 +109,8 @@ const DEFAULT_TOOLS = [
   'web_search',
   'read_file',
   'create_note',
+  'save_memory',
+  'recall_memory',
 ];
 
 // ---------------------------------------------------------------------------

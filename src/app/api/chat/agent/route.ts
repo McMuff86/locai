@@ -9,6 +9,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { executeAgentLoop } from '@/lib/agents/executor';
 import { ToolRegistry } from '@/lib/agents/registry';
 import { registerBuiltinTools } from '@/lib/agents/tools';
+import { getRelevantMemories, formatMemories } from '@/lib/memory/store';
 import type { OllamaChatMessage } from '@/lib/ollama';
 import type { AgentOptions } from '@/lib/agents/types';
 
@@ -64,6 +65,19 @@ export async function POST(request: NextRequest) {
       })),
       { role: 'user' as const, content: message },
     ];
+
+    // Memory Auto-Inject: load relevant memories and prepend as system context
+    try {
+      const relevantMemories = await getRelevantMemories(message, 10);
+      if (relevantMemories.length > 0) {
+        messages.unshift({
+          role: 'system',
+          content: `Bekannte Informationen über den Benutzer:\n${formatMemories(relevantMemories)}`,
+        });
+      }
+    } catch {
+      // Memory injection is best-effort
+    }
 
     const options: AgentOptions = {
       maxIterations,

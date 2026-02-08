@@ -1,19 +1,20 @@
 "use client";
 
-import React from 'react';
+import React, { useState, useEffect } from 'react';
+import { ConversationSummary } from '../../../lib/conversations/types';
 import { Conversation } from '../../../types/chat';
 import { ScrollArea } from '../../ui/scroll-area';
 import { Button } from '../../ui/button';
-import { MessageSquare, X } from 'lucide-react';
+import { MessageSquare, X, Loader2 } from 'lucide-react';
 import { ConversationCard } from './ConversationCard';
 import { ConversationStats } from '../ConversationStats';
 
 interface ConversationListProps {
-  conversations: Conversation[];
+  conversations: ConversationSummary[];
   currentConversationId: string | null;
   selectedTagFilter: string | null;
   showStatsForId: string | null;
-  onSelectConversation: (conversation: Conversation) => void;
+  onSelectConversation: (conversationId: string) => void;
   onDeleteConversation: (conversationId: string) => void;
   onUpdateConversationTags?: (conversationId: string, tags: string[]) => void;
   onTagFilterSelect: (tag: string) => void;
@@ -33,36 +34,72 @@ export function ConversationList({
   onToggleStats,
   onClearTagFilter,
 }: ConversationListProps) {
+  const [statsConversation, setStatsConversation] = useState<Conversation | null>(null);
+  const [statsLoading, setStatsLoading] = useState(false);
+
+  // Fetch full conversation when showStatsForId changes
+  useEffect(() => {
+    if (!showStatsForId) {
+      setStatsConversation(null);
+      return;
+    }
+
+    let cancelled = false;
+    setStatsLoading(true);
+
+    fetch(`/api/conversations/${showStatsForId}`)
+      .then(res => res.ok ? res.json() : null)
+      .then(data => {
+        if (!cancelled && data) {
+          setStatsConversation(data as Conversation);
+        }
+      })
+      .catch(() => {
+        // Silently fail
+      })
+      .finally(() => {
+        if (!cancelled) setStatsLoading(false);
+      });
+
+    return () => { cancelled = true; };
+  }, [showStatsForId]);
+
   // Filter conversations by selected tag
   const filteredConversations = React.useMemo(() => {
     if (!selectedTagFilter) return conversations;
     return conversations.filter((c) => c.tags?.includes(selectedTagFilter));
   }, [conversations, selectedTagFilter]);
 
-  // Resolve conversation for stats panel
-  const statsConversation = showStatsForId
-    ? conversations.find((c) => c.id === showStatsForId)
-    : null;
-
   return (
     <>
-      {/* Stats Panel (slide-in) */}
-      {statsConversation && (
-        <div className="border-y border-border bg-background/95 backdrop-blur mx-2 rounded-lg mb-2">
-          <div className="flex items-center justify-between p-2 border-b border-border">
-            <span className="text-sm font-medium">Statistiken</span>
+      {/* Stats Panel (slide-in above conversation list) */}
+      {showStatsForId && (
+        <div className="px-2 pb-2 border-b border-border">
+          <div className="flex items-center justify-between mb-1">
+            <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+              Statistiken
+            </span>
             <Button
               variant="ghost"
-              size="sm"
-              className="h-6 w-6 p-0"
-              onClick={() => onToggleStats(statsConversation.id)}
+              size="icon"
+              className="h-5 w-5"
+              onClick={() => onToggleStats(showStatsForId)}
+              title="Schliessen"
             >
-              <X className="h-4 w-4" />
+              <X className="h-3 w-3" />
             </Button>
           </div>
-          <div className="p-2">
-            <ConversationStats conversation={statsConversation} />
-          </div>
+          {statsLoading ? (
+            <div className="flex items-center justify-center py-4">
+              <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+            </div>
+          ) : statsConversation ? (
+            <ConversationStats conversation={statsConversation} compact={false} />
+          ) : (
+            <p className="text-xs text-muted-foreground text-center py-2">
+              Statistiken konnten nicht geladen werden.
+            </p>
+          )}
         </div>
       )}
 
@@ -97,12 +134,12 @@ export function ConversationList({
                 key={conversation.id}
                 conversation={conversation}
                 isActive={currentConversationId === conversation.id}
+                showingStats={showStatsForId === conversation.id}
                 onSelect={onSelectConversation}
                 onDelete={onDeleteConversation}
                 onUpdateTags={onUpdateConversationTags}
                 onTagFilterSelect={onTagFilterSelect}
                 onToggleStats={onToggleStats}
-                showingStats={showStatsForId === conversation.id}
               />
             ))
           )}
