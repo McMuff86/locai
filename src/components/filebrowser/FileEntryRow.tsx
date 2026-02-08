@@ -1,7 +1,17 @@
 "use client";
 
-import React, { useState } from 'react';
-import { Folder, FileText, FileCode, FileJson, File, Download, Trash2 } from 'lucide-react';
+import React, { useMemo, useState } from 'react';
+import {
+  Folder,
+  FileText,
+  FileCode,
+  FileJson,
+  File,
+  Download,
+  Trash2,
+  Pencil,
+  Move,
+} from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import type { FileEntry } from '@/lib/filebrowser/types';
 
@@ -37,13 +47,43 @@ function getFileIcon(entry: FileEntry) {
 
 interface FileEntryRowProps {
   entry: FileEntry;
+  canMutate: boolean;
   onNavigate: (relativePath: string) => void;
   onPreview: (entry: FileEntry) => void;
   onDelete: (entry: FileEntry) => Promise<void>;
+  onRename: (entry: FileEntry) => void;
+  onMove: (entry: FileEntry) => void;
+  onDragStart: (entry: FileEntry) => void;
+  onDragEnd: () => void;
+  onDropOnDirectory: (targetDirectoryPath: string) => void;
+  onDropFilesOnDirectory: (targetDirectoryPath: string, files: File[]) => void;
 }
 
-export function FileEntryRow({ entry, onNavigate, onPreview, onDelete }: FileEntryRowProps) {
+export function FileEntryRow({
+  entry,
+  canMutate,
+  onNavigate,
+  onPreview,
+  onDelete,
+  onRename,
+  onMove,
+  onDragStart,
+  onDragEnd,
+  onDropOnDirectory,
+  onDropFilesOnDirectory,
+}: FileEntryRowProps) {
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [isDropTarget, setIsDropTarget] = useState(false);
+
+  const isWorkspaceEntry = canMutate && entry.rootId === 'workspace';
+
+  const metaText = useMemo(() => {
+    if (entry.type === 'directory') {
+      if (entry.childCount === undefined) return 'Ordner';
+      return `${entry.childCount} Einträge`;
+    }
+    return formatFileSize(entry.size);
+  }, [entry]);
 
   const handleClick = () => {
     if (entry.type === 'directory') {
@@ -70,30 +110,85 @@ export function FileEntryRow({ entry, onNavigate, onPreview, onDelete }: FileEnt
     setConfirmDelete(false);
   };
 
+  const handleRename = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    onRename(entry);
+  };
+
+  const handleMove = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    onMove(entry);
+  };
+
+  const handleDragStart = (e: React.DragEvent<HTMLDivElement>) => {
+    if (!isWorkspaceEntry) return;
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', entry.relativePath);
+    onDragStart(entry);
+  };
+
+  const handleDragEnd = () => {
+    setIsDropTarget(false);
+    onDragEnd();
+  };
+
+  const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
+    if (!isWorkspaceEntry || entry.type !== 'directory') return;
+    e.preventDefault();
+    e.stopPropagation();
+    e.dataTransfer.dropEffect = 'move';
+    setIsDropTarget(true);
+  };
+
+  const handleDragLeave = () => {
+    setIsDropTarget(false);
+  };
+
+  const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
+    if (!isWorkspaceEntry || entry.type !== 'directory') return;
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDropTarget(false);
+
+    const files = Array.from(e.dataTransfer.files || []);
+    if (files.length > 0) {
+      onDropFilesOnDirectory(entry.relativePath, files);
+      return;
+    }
+
+    onDropOnDirectory(entry.relativePath);
+  };
+
   return (
     <div
-      className="group flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-muted/50 cursor-pointer transition-colors"
+      className={`group flex items-center gap-3 px-3 py-2 rounded-lg cursor-pointer transition-colors border ${
+        isDropTarget
+          ? 'bg-primary/10 border-primary/40'
+          : 'border-transparent hover:bg-muted/50'
+      }`}
       onClick={handleClick}
+      draggable={isWorkspaceEntry}
+      onDragStart={handleDragStart}
+      onDragEnd={handleDragEnd}
+      onDragOver={handleDragOver}
+      onDragLeave={handleDragLeave}
+      onDrop={handleDrop}
+      title={entry.type === 'directory' ? 'Doppelklick/Tippen zum Öffnen' : 'Zum Anzeigen klicken'}
     >
-      {/* Icon */}
       <div className="flex-shrink-0">
         {getFileIcon(entry)}
       </div>
 
-      {/* Name & Meta */}
       <div className="flex-1 min-w-0">
         <p className="text-sm font-medium truncate">{entry.name}</p>
         <p className="text-xs text-muted-foreground">
-          {entry.type === 'directory'
-            ? `${entry.childCount ?? 0} Einträge`
-            : formatFileSize(entry.size)}
+          {metaText}
           {' · '}
           {formatDate(entry.modifiedAt)}
         </p>
       </div>
 
-      {/* Actions */}
-      <div className="flex-shrink-0 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+      <div className="flex-shrink-0 flex items-center gap-1 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
         {entry.type === 'file' && (
           <Button
             variant="ghost"
@@ -105,7 +200,29 @@ export function FileEntryRow({ entry, onNavigate, onPreview, onDelete }: FileEnt
             <Download className="h-3.5 w-3.5" />
           </Button>
         )}
-        {entry.rootId === 'workspace' && entry.type === 'file' && (
+        {isWorkspaceEntry && (
+          <>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7"
+              onClick={handleRename}
+              title="Umbenennen"
+            >
+              <Pencil className="h-3.5 w-3.5" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7"
+              onClick={handleMove}
+              title="Verschieben"
+            >
+              <Move className="h-3.5 w-3.5" />
+            </Button>
+          </>
+        )}
+        {isWorkspaceEntry && entry.type === 'file' && (
           <Button
             variant="ghost"
             size="icon"

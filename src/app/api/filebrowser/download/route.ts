@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { promises as fs } from 'fs';
+import { createReadStream } from 'fs';
+import { Readable } from 'stream';
 import { getFileStream } from '@/lib/filebrowser/scanner';
 
 export const runtime = 'nodejs';
@@ -17,9 +18,9 @@ export async function GET(req: NextRequest) {
     }
 
     const { filePath, fileName, size } = await getFileStream(rootId, relativePath);
-    const fileBuffer = await fs.readFile(filePath);
+    const stream = createReadStream(filePath);
 
-    return new NextResponse(fileBuffer, {
+    return new NextResponse(Readable.toWeb(stream) as ReadableStream, {
       headers: {
         'Content-Type': 'application/octet-stream',
         'Content-Disposition': `attachment; filename="${encodeURIComponent(fileName)}"`,

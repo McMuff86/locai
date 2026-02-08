@@ -1,7 +1,7 @@
 "use client";
 
-import React from 'react';
-import { Download, Loader2 } from 'lucide-react';
+import React, { useState, CSSProperties } from 'react';
+import { Download, Loader2, Copy, Check, AlertTriangle } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -15,6 +15,8 @@ import { MarkdownRenderer } from '@/components/chat/MarkdownRenderer';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { oneDark } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import type { FilePreviewType } from '@/lib/filebrowser/types';
+
+const syntaxTheme = oneDark as { [key: string]: CSSProperties };
 
 function formatFileSize(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
@@ -31,6 +33,7 @@ interface FilePreviewDialogProps {
     type: FilePreviewType;
     language: string;
     size: number;
+    truncated: boolean;
   } | null;
   isLoading: boolean;
   rootId?: string;
@@ -45,29 +48,61 @@ export function FilePreviewDialog({
   rootId,
   relativePath,
 }: FilePreviewDialogProps) {
+  const [copied, setCopied] = useState(false);
+
   const handleDownload = () => {
     if (!rootId || !relativePath) return;
     const params = new URLSearchParams({ rootId, path: relativePath });
     window.open(`/api/filebrowser/download?${params}`, '_blank');
   };
 
+  const handleCopy = async () => {
+    if (!preview) return;
+    try {
+      await navigator.clipboard.writeText(preview.content);
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 1500);
+    } catch {
+      setCopied(false);
+    }
+  };
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-3xl max-h-[80vh] flex flex-col">
+      <DialogContent className="max-w-4xl max-h-[85vh] flex flex-col">
         <DialogHeader>
-          <div className="flex items-center justify-between pr-8">
+          <div className="flex items-center justify-between pr-8 gap-2">
             <div>
               <DialogTitle className="text-base">{preview?.filename ?? 'Datei'}</DialogTitle>
               <DialogDescription>
-                {preview ? formatFileSize(preview.size) : ''}
+                {preview
+                  ? `${formatFileSize(preview.size)}${preview.truncated ? ' • Vorschau gekürzt' : ''}`
+                  : ''}
               </DialogDescription>
             </div>
-            {rootId && relativePath && (
-              <Button variant="outline" size="sm" onClick={handleDownload}>
-                <Download className="h-3.5 w-3.5 mr-1.5" />
-                Download
-              </Button>
-            )}
+            <div className="flex items-center gap-2">
+              {preview && (
+                <Button variant="outline" size="sm" onClick={handleCopy}>
+                  {copied ? (
+                    <>
+                      <Check className="h-3.5 w-3.5 mr-1.5" />
+                      Kopiert
+                    </>
+                  ) : (
+                    <>
+                      <Copy className="h-3.5 w-3.5 mr-1.5" />
+                      Kopieren
+                    </>
+                  )}
+                </Button>
+              )}
+              {rootId && relativePath && (
+                <Button variant="outline" size="sm" onClick={handleDownload}>
+                  <Download className="h-3.5 w-3.5 mr-1.5" />
+                  Download
+                </Button>
+              )}
+            </div>
           </div>
         </DialogHeader>
 
@@ -77,11 +112,19 @@ export function FilePreviewDialog({
               <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
             </div>
           ) : preview ? (
-            <PreviewContent
-              content={preview.content}
-              type={preview.type}
-              language={preview.language}
-            />
+            <div className="space-y-3">
+              {preview.truncated && (
+                <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-300 p-3 text-xs flex items-start gap-2">
+                  <AlertTriangle className="h-4 w-4 mt-0.5 flex-shrink-0" />
+                  <span>Die Vorschau wurde auf die ersten 100KB begrenzt. Für den vollständigen Inhalt bitte herunterladen.</span>
+                </div>
+              )}
+              <PreviewContent
+                content={preview.content}
+                type={preview.type}
+                language={preview.language}
+              />
+            </div>
           ) : null}
         </ScrollArea>
       </DialogContent>
@@ -111,7 +154,7 @@ function PreviewContent({
         const formatted = JSON.stringify(JSON.parse(content), null, 2);
         return (
           <SyntaxHighlighter
-            style={oneDark as any}
+            style={syntaxTheme}
             language="json"
             PreTag="div"
             customStyle={{
@@ -132,7 +175,7 @@ function PreviewContent({
     case 'code':
       return (
         <SyntaxHighlighter
-          style={oneDark as any}
+          style={syntaxTheme}
           language={language}
           PreTag="div"
           customStyle={{
