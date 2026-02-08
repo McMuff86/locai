@@ -1,303 +1,448 @@
-# LocAI - AI Agent Documentation
+# LocAI - Project Documentation
 
-> Last Updated: 2025-12-08
+> Last Updated: 2026-02-08
+> Branch: main
 > Status: Active Development
 
 ---
 
 ## Project Overview
 
-**LocAI** is a modern local AI chat application that runs AI models directly on local hardware using Ollama. The project emphasizes privacy, data control, and cloud-independence.
+**LocAI** is a modern local AI application that runs AI models directly on local hardware using Ollama. The project emphasizes privacy, data control, and cloud-independence. All data is stored locally under `~/.locai/`.
 
 ### Key Features
-- 💬 Local chat with multiple AI models (Llama3, Gemma, Mistral, DeepSeek, Granite, Qwen)
-- 🖼️ Image analysis with vision models (Granite Vision, Llama3.2 Vision)
-- 💾 Local data storage (LocalStorage + Filesystem) with Auto-Save
-- 🎨 Dark/Light theme support (Grok-style dark theme)
-- 📱 Responsive design with resizable sidebar (400px default)
-- 🔍 Chat search across conversations
-- 📊 Conversation statistics
-- 🎨 **ComfyUI Integration** - Launch, monitor & image gallery
-- ⭐ **Image Gallery** - Favorites, metadata, delete, analyze, use as input
-- 📥 **Model Pull UI** - Download 60+ models directly from LocAI
-- ✨ **Prompt Templates** - 12 specialized templates in 5 categories
-- 🖥️ **GPU Monitor** - Real-time NVIDIA GPU stats, VRAM, temp, processes
-- 📊 **Right Sidebar** - Dockable tools panel with widgets
-- ⚡ **Process Kill** - Terminate GPU processes with safety warnings
-- 📝 **Notes System** - Markdown notes with tags, wiki-links, AI completion
-- 🔮 **3D Knowledge Graph** - Interactive visualization of note connections
-- 🧠 **Semantic Embeddings** - Local embeddings with nomic-embed-text via Ollama
-- 🎨 **Graph Themes** - Cyber, Neon, Obsidian, Minimal with full customization
-- 🌐 **Web Search** - SearXNG integration with AI-optimized queries
-- 🔄 **Context Optimizer** - LLM-powered multi-source synthesis (5 presets + custom)
+- 💬 **Chat** — Local chat with multiple AI models (streaming, markdown, code highlighting)
+- 🤖 **Agent Mode** — Tool-calling agent with 11 built-in tools, presets, and planning
+- 📄 **RAG Documents** — Upload, embed, and search documents for context-aware chat
+- 📁 **File Browser** — Browse workspace, .locai, and Documents directories
+- 🖼️ **Image Gallery** — ComfyUI integration with metadata, favorites, lightbox
+- 📝 **Notes System** — Markdown notes with tags, wiki-links, AI completion
+- 🔮 **3D Knowledge Graph** — Interactive visualization of note connections
+- 🌐 **Web Search** — SearXNG integration with context optimization
+- 🖥️ **GPU Monitor** — Real-time NVIDIA GPU stats, VRAM, temperature
+- 🎨 **ComfyUI Integration** — Launch, monitor, and image generation
+- 🧠 **Agent Memory** — Persistent key-value memory across conversations
+- ⚙️ **Settings** — Configurable workspace paths, Ollama host, ComfyUI port
 
 ---
 
 ## Tech Stack
 
-| Technology | Version | Status |
-|------------|---------|--------|
-| Next.js | 15.5.7 | ✅ Current (Security patched) |
-| React | 19.2.1 | ✅ Current |
-| TypeScript | 5.9.3 | ✅ Current |
-| Tailwind CSS | 4.1.17 | ✅ Current |
-| Framer Motion | 12.23.25 | ✅ Current |
-| react-markdown | 10.x | ✅ GFM support |
-| react-syntax-highlighter | 15.x | ✅ Code highlighting |
-| Shadcn/UI | - | ✅ Current |
-| date-fns | 4.x | ✅ Date formatting |
+| Technology | Purpose |
+|------------|---------|
+| Next.js 15 | App Router, API routes, SSR |
+| React 19 | UI framework |
+| TypeScript 5 | Type safety |
+| Tailwind CSS 4 | Styling |
+| Shadcn/UI + Radix | UI components |
+| Framer Motion | Animations |
+| react-markdown + remark-gfm | Markdown rendering |
+| react-syntax-highlighter | Code highlighting |
+| Ollama API | Local LLM inference + embeddings |
+| date-fns | Date formatting |
 
 ---
 
-## Current Architecture
+## Architecture
 
 ```
 src/
-├── app/                          # Next.js App Router
+├── app/                              # Next.js App Router
+│   ├── (app)/                        # Route group with shared layout
+│   │   ├── layout.tsx                # Shared nav sidebar
+│   │   ├── chat/page.tsx             # Chat + Agent Mode
+│   │   ├── documents/page.tsx        # File Browser + RAG Documents (Tabs)
+│   │   ├── gallery/page.tsx          # Image Gallery
+│   │   ├── notes/                    # Notes System
+│   │   │   ├── page.tsx              # Notes editor
+│   │   │   └── graph/page.tsx        # 3D Knowledge Graph
+│   │   ├── search/page.tsx           # Web Search
+│   │   └── settings/page.tsx         # Application settings
 │   ├── api/
-│   │   ├── comfyui/
-│   │   │   ├── gallery/
-│   │   │   │   ├── route.ts            # List images
-│   │   │   │   ├── [id]/route.ts       # Serve single image
-│   │   │   │   ├── metadata/route.ts   # PNG metadata extraction
-│   │   │   │   ├── delete/route.ts     # Delete image
-│   │   │   │   └── copy-to-input/route.ts  # Copy to ComfyUI input
-│   │   │   ├── launch/route.ts         # Start ComfyUI
-│   │   │   └── status/route.ts         # Check if running
-│   │   ├── ollama/
-│   │   │   └── pull/route.ts           # Pull models (streaming, 60+ models)
-│   │   ├── folder-picker/route.ts      # Native folder dialog
-│   │   ├── notes/                      # Notes CRUD/search/embed
-│   │   │   ├── route.ts                # CRUD list/create/delete
-│   │   │   ├── search/route.ts         # Lexical + semantic search
-│   │   │   └── embed/route.ts          # Build embeddings for notes
-│   │   └── system-stats/route.ts       # CPU/RAM/VRAM monitoring
-│   ├── (app)/                          # ✅ Route group with shared layout
-│   │   ├── layout.tsx                  # Shared nav sidebar (Chat/Gallery/Notes)
-│   │   ├── chat/page.tsx               # Chat with ConversationSidebar (~400 lines)
-│   │   ├── gallery/page.tsx            # Image Gallery (dedicated route)
-│   │   └── notes/                      # ✅ REFACTORED: Notes with tab navigation
-│   │       ├── layout.tsx              # Tab navigation (Notizen | Graph) + Context
-│   │       ├── page.tsx                # Notes editor page (~200 lines)
-│   │       └── graph/page.tsx          # 3D Knowledge Graph page (~120 lines)
-│   ├── page.tsx                        # Landing page
-│   ├── layout.tsx                      # Root layout
-│   └── globals.css                     # Grok/Ollama-style dark theme
+│   │   ├── _utils/security.ts        # Path validation, local-only guards
+│   │   ├── chat/agent/route.ts       # Agent Mode streaming endpoint
+│   │   ├── documents/                # RAG document CRUD + search
+│   │   │   ├── route.ts              # GET list, DELETE remove
+│   │   │   ├── upload/route.ts       # POST upload + index
+│   │   │   ├── search/route.ts       # POST semantic search
+│   │   │   └── [id]/route.ts         # GET document details
+│   │   ├── filebrowser/              # File Browser API
+│   │   │   ├── route.ts              # GET browseable roots
+│   │   │   ├── list/route.ts         # GET directory listing
+│   │   │   ├── read/route.ts         # GET file content (preview)
+│   │   │   ├── download/route.ts     # GET file download
+│   │   │   └── delete/route.ts       # DELETE file (workspace only)
+│   │   ├── conversations/            # Chat conversation CRUD
+│   │   │   ├── route.ts              # GET list, POST create
+│   │   │   ├── [id]/route.ts         # GET/PUT/DELETE
+│   │   │   └── search/route.ts       # GET full-text search
+│   │   ├── memory/                   # Agent persistent memory
+│   │   │   ├── route.ts              # GET/POST/DELETE
+│   │   │   └── relevant/route.ts     # POST semantic recall
+│   │   ├── notes/                    # Notes CRUD + AI + search
+│   │   │   ├── route.ts              # CRUD
+│   │   │   ├── search/route.ts       # Lexical + semantic search
+│   │   │   ├── embed/route.ts        # Build embeddings
+│   │   │   ├── ai/route.ts           # AI completion/summarization
+│   │   │   └── semantic-links/       # Cosine similarity links
+│   │   ├── comfyui/                  # ComfyUI integration
+│   │   │   ├── launch/route.ts       # Start ComfyUI
+│   │   │   ├── status/route.ts       # Check if running
+│   │   │   └── gallery/              # Image management
+│   │   ├── ollama/pull/route.ts      # Model download (streaming)
+│   │   ├── search/                   # Web search
+│   │   │   ├── route.ts              # SearXNG proxy
+│   │   │   └── optimize/route.ts     # LLM context optimization
+│   │   ├── settings/route.ts         # App settings CRUD
+│   │   ├── system-stats/route.ts     # CPU/RAM/VRAM monitoring
+│   │   ├── gpu/kill-process/route.ts # Terminate GPU processes
+│   │   ├── folder-picker/route.ts    # Native OS folder dialog
+│   │   └── migrate/route.ts          # LocalStorage → filesystem migration
+│   ├── page.tsx                      # Landing page
+│   └── globals.css                   # Theme styles
 ├── components/
-│   ├── chat/                           # Chat-specific components
+│   ├── chat/                         # Chat components
 │   │   ├── ChatContainer.tsx
-│   │   ├── ChatHeader.tsx              # 172 lines
-│   │   ├── ChatInput.tsx               # 134 lines
-│   │   ├── ChatMessage.tsx             # 216 lines
-│   │   ├── ChatSearch.tsx              # 226 lines
-│   │   ├── ConversationSidebar.tsx     # 543 lines ⚠️
-│   │   ├── ConversationStats.tsx       # 261 lines
-│   │   ├── MarkdownRenderer.tsx        # 234 lines
-│   │   ├── SetupCard.tsx               # ~280 lines (with Template Picker)
-│   │   ├── ThinkingProcess.tsx         # 85 lines
-│   │   └── TokenCounter.tsx            # 107 lines
-│   ├── gallery/                        # ✅ NEW: Refactored Image Gallery
-│   │   ├── types.ts                    # Type definitions
-│   │   ├── hooks/
-│   │   │   ├── index.ts
-│   │   │   ├── useGalleryImages.ts     # Image fetching (~80 lines)
-│   │   │   ├── useFavorites.ts         # Favorites management (~70 lines)
-│   │   │   ├── useImageMetadata.ts     # PNG metadata (~45 lines)
-│   │   │   └── useImageActions.ts      # Delete/copy/download (~75 lines)
-│   │   ├── GalleryHeader.tsx           # Header with controls (~120 lines)
-│   │   ├── ImageCard.tsx               # Image thumbnail (~75 lines)
-│   │   ├── Lightbox.tsx                # Full-screen viewer (~175 lines)
-│   │   ├── MetadataPanel.tsx           # Metadata display (~120 lines)
-│   │   ├── DeleteConfirmDialog.tsx     # Confirmation dialog (~55 lines)
-│   │   ├── EmptyState.tsx              # Empty/error states (~45 lines)
-│   │   ├── ImageGallery.tsx            # Main component (~230 lines)
-│   │   └── index.ts                    # Exports
-│   ├── notes/                          # ✅ REFACTORED: Notes components
-│   │   ├── types.ts                    # Shared types (~90 lines)
-│   │   ├── graphUtils.ts               # Theme colors, node colors (~70 lines)
-│   │   ├── hooks/
-│   │   │   ├── index.ts
-│   │   │   ├── useNotes.ts             # Notes CRUD (~160 lines)
-│   │   │   ├── useNoteSearch.ts        # Debounced search (~90 lines)
-│   │   │   └── useGraph.ts             # Graph data & embeddings (~200 lines)
-│   │   ├── NotesList.tsx               # Notes list (~75 lines)
-│   │   ├── NoteEditor.tsx              # Editor + Markdown toolbar (~250 lines)
-│   │   ├── NoteSearch.tsx              # Search dropdown (~130 lines)
-│   │   ├── NoteAIActions.tsx           # AI Complete/Summarize (~230 lines)
-│   │   ├── KnowledgeGraph.tsx          # 3D ForceGraph (~330 lines)
-│   │   ├── GraphControls.tsx           # Theme, Labels, Glow settings (~380 lines)
-│   │   ├── GraphTextView.tsx           # Text link view (~130 lines)
-│   │   └── index.ts                    # Exports
-│   ├── ui/                             # Shadcn UI components
-│   ├── ComfyUIWidget.tsx               # 238 lines
-│   ├── ErrorBoundary.tsx               # Error handling
-│   ├── ClientErrorBoundary.tsx         # Client wrapper
-│   ├── ImageGallery.tsx                # Legacy wrapper → gallery/
-│   ├── ModelPullDialog.tsx             # Download models (~400 lines)
-│   ├── OllamaStatus.tsx                # Connection indicator
-│   ├── SystemMonitor.tsx               # 246 lines
-│   └── ThemeProvider.tsx
+│   │   ├── ChatHeader.tsx
+│   │   ├── ChatInput.tsx
+│   │   ├── ChatMessage.tsx
+│   │   ├── ChatSearch.tsx
+│   │   ├── ConversationSidebar.tsx
+│   │   ├── ConversationStats.tsx
+│   │   ├── MarkdownRenderer.tsx
+│   │   ├── SetupCard.tsx             # Model selection + templates
+│   │   ├── ThinkingProcess.tsx       # DeepSeek <think> rendering
+│   │   ├── TokenCounter.tsx
+│   │   ├── AgentMessage.tsx          # Agent turn/tool-call rendering
+│   │   ├── AgentModeToggle.tsx       # Agent mode UI toggle + presets
+│   │   └── ToolCallBlock.tsx         # Individual tool call display
+│   ├── documents/                    # RAG document management
+│   │   ├── DocumentManager.tsx
+│   │   ├── DocumentCard.tsx
+│   │   └── DocumentUpload.tsx
+│   ├── filebrowser/                  # File Browser
+│   │   ├── FileBrowser.tsx           # Main container with root selector
+│   │   ├── FileEntryRow.tsx          # File/folder row component
+│   │   └── FilePreviewDialog.tsx     # File preview modal
+│   ├── gallery/                      # Image Gallery (refactored)
+│   │   ├── ImageGallery.tsx
+│   │   ├── ImageCard.tsx
+│   │   ├── Lightbox.tsx
+│   │   ├── MetadataPanel.tsx
+│   │   ├── GalleryHeader.tsx
+│   │   ├── DeleteConfirmDialog.tsx
+│   │   ├── EmptyState.tsx
+│   │   └── hooks/                    # Gallery-specific hooks
+│   ├── notes/                        # Notes System (refactored)
+│   │   ├── NotesList.tsx
+│   │   ├── NoteEditor.tsx
+│   │   ├── NoteSearch.tsx
+│   │   ├── NoteAIActions.tsx
+│   │   ├── KnowledgeGraph.tsx        # 3D ForceGraph
+│   │   ├── GraphControls.tsx
+│   │   ├── GraphTextView.tsx
+│   │   └── hooks/                    # Notes-specific hooks
+│   ├── ui/                           # Shadcn UI primitives
+│   └── ...                           # SystemMonitor, ThemeProvider, etc.
 ├── hooks/
-│   ├── index.ts
-│   ├── useChat.ts                      # 228 lines
-│   ├── useConversations.ts             # 231 lines
-│   ├── useModels.ts                    # 108 lines
-│   ├── useKeyboardShortcuts.ts         # 70 lines
-│   ├── useOllamaStatus.ts              # Connection monitoring
-│   └── useSettings.ts                  # ComfyUI paths, etc.
+│   ├── useChat.ts                    # Chat state management
+│   ├── useAgentChat.ts               # Agent mode execution
+│   ├── useConversations.ts           # Conversation CRUD
+│   ├── useDocuments.ts               # RAG document management
+│   ├── useFileBrowser.ts             # File browser state
+│   ├── useModels.ts                  # Ollama model listing
+│   ├── useOllamaStatus.ts            # Connection monitoring
+│   ├── useSettings.ts                # App settings
+│   ├── useWebSearch.ts               # Web search
+│   ├── useKeyboardShortcuts.ts       # Keyboard shortcuts
+│   └── useMigration.ts               # LocalStorage migration
 ├── lib/
-│   ├── ollama.ts                       # 550 lines
-│   ├── storage.ts                      # 389 lines
-│   ├── notes/                          # Notes domain (storage, parsing, embeddings)
-│   │   ├── types.ts
-│   │   ├── noteStorage.ts
-│   │   ├── fileNoteStorage.ts
-│   │   ├── parser.ts
-│   │   ├── graph.ts
-│   │   ├── embeddings.ts
-│   │   ├── search.ts
-│   │   └── index.ts
-│   ├── templates/                      # Model prompts
-│   │   ├── index.ts
-│   │   ├── deepseek.ts                 # <think> reasoning support
-│   │   ├── gemma.ts
-│   │   ├── granite-vision.ts
-│   │   ├── llama3.ts
-│   │   ├── llama3-vision.ts
-│   │   ├── mistral.ts
-│   │   └── qwen-coder.ts               # Qwen3-Coder template
-│   ├── prompt-templates.ts             # ✅ NEW: 12 Prompt Templates
-│   └── utils.ts
+│   ├── agents/                       # Agent Mode infrastructure
+│   │   ├── executor.ts               # Agent loop: messages → LLM → tools → repeat
+│   │   ├── types.ts                  # ToolDefinition, ToolCall, AgentTurn, etc.
+│   │   ├── registry.ts               # ToolRegistry: register/execute tools
+│   │   ├── presets.ts                # 4 agent presets
+│   │   ├── modelCapabilities.ts      # Model compatibility tiers
+│   │   ├── textToolParser.ts         # Fallback: extract tool calls from plain text
+│   │   ├── paramNormalizer.ts        # Fix common LLM parameter mistakes
+│   │   └── tools/                    # 11 built-in tools
+│   │       ├── index.ts              # Tool registration
+│   │       ├── readFile.ts
+│   │       ├── writeFile.ts
+│   │       ├── editFile.ts
+│   │       ├── webSearch.ts
+│   │       ├── searchDocuments.ts
+│   │       ├── createNote.ts
+│   │       ├── saveMemory.ts
+│   │       ├── recallMemory.ts
+│   │       ├── runCommand.ts
+│   │       ├── runCode.ts
+│   │       └── generateImage.ts
+│   ├── documents/                    # RAG pipeline
+│   │   ├── types.ts                  # Document, IndexStatus
+│   │   ├── constants.ts              # Chunk sizes, limits
+│   │   ├── store.ts                  # Document CRUD
+│   │   ├── chunker.ts                # Text chunking
+│   │   ├── embeddings.ts             # Ollama embeddings
+│   │   └── search.ts                 # Semantic search
+│   ├── filebrowser/                  # File browser utilities
+│   │   ├── types.ts                  # FileEntry, BrowseableRoot
+│   │   └── scanner.ts               # Directory listing, file read/delete
+│   ├── settings/store.ts             # Server-side settings reader
+│   ├── memory/                       # Agent persistent memory
+│   ├── notes/                        # Notes domain logic
+│   ├── webSearch/                    # Web search utilities
+│   ├── templates/                    # Model prompt templates
+│   ├── ollama.ts                     # Ollama API client
+│   ├── storage.ts                    # Conversation storage
+│   └── prompt-templates.ts           # 12 prompt templates
 └── types/
-    ├── chat.ts
+    ├── chat.ts                       # Chat message types
     └── index.ts
 ```
 
 ---
 
-## File Size Overview (Files > 200 lines)
+## Agent Mode
 
-| File | Lines | Status |
-|------|-------|--------|
-| ~~`ImageGallery.tsx`~~ | ~~958~~ | ✅ Refactored into gallery/ |
-| ~~`NotesPanel.tsx`~~ | ~~2278~~ | ✅ Refactored into notes/ (12 files) |
-| `page.tsx` | 680 | ✅ Acceptable |
-| `ollama.ts` | 550 | ✅ Utility file |
-| `ConversationSidebar.tsx` | 543 | ⚠️ Could be split |
-| `ModelPullDialog.tsx` | 400 | ✅ Standalone feature |
-| `notes/GraphControls.tsx` | 380 | ✅ Refactored |
-| `storage.ts` | 389 | ✅ OK |
-| `notes/KnowledgeGraph.tsx` | 330 | ✅ Refactored |
-| `ConversationStats.tsx` | 261 | ✅ OK |
-| `metadata/route.ts` | 259 | ✅ OK |
-| `notes/NoteEditor.tsx` | 250 | ✅ Refactored |
-| `SystemMonitor.tsx` | 246 | ✅ OK |
-| `ComfyUIWidget.tsx` | 238 | ✅ OK |
-| `notes/NoteAIActions.tsx` | 230 | ✅ Refactored |
-| `MarkdownRenderer.tsx` | 234 | ✅ OK |
-| `gallery/ImageGallery.tsx` | 230 | ✅ Refactored |
-| `useConversations.ts` | 231 | ✅ OK |
-| `useChat.ts` | 228 | ✅ OK |
-| `ChatSearch.tsx` | 226 | ✅ OK |
-| `ChatMessage.tsx` | 216 | ✅ OK |
-| `SetupCard.tsx` | 210 | ✅ OK |
-| `notes/hooks/useGraph.ts` | 200 | ✅ Refactored |
+### Overview
+
+Agent Mode enables the LLM to use tools autonomously in a loop: the model receives a message, decides which tool(s) to call, receives results, and repeats until it has a final answer. This runs entirely locally via Ollama's tool-calling API.
+
+**Endpoint:** `POST /api/chat/agent` (streaming)
+
+### Agent Loop
+
+```
+User Message → LLM → Tool Calls? → Execute Tools → Results → LLM → ... → Final Answer
+```
+
+- Max 8 iterations per message (configurable)
+- 2 minute timeout
+- Optional planning step before execution
+- Temperature 0.3 for deterministic tool calling
+
+### Built-in Tools (11)
+
+| Tool | Category | Description |
+|------|----------|-------------|
+| `read_file` | files | Read file content (max 50KB, path validation) |
+| `write_file` | files | Write/create files in workspace |
+| `edit_file` | files | Find-and-replace editing in existing files |
+| `web_search` | web | Search via SearXNG/DuckDuckGo |
+| `search_documents` | search | Semantic search in RAG documents |
+| `create_note` | notes | Create markdown notes |
+| `save_memory` | notes | Save key-value to persistent memory |
+| `recall_memory` | notes | Retrieve from persistent memory |
+| `run_command` | code | Execute shell commands (sandboxed) |
+| `run_code` | code | Execute Python/JavaScript (sandboxed) |
+| `generate_image` | media | Queue image generation via ComfyUI |
+
+### Agent Presets
+
+| Preset | Icon | Tools | Use Case |
+|--------|------|-------|----------|
+| Recherche Agent | 🔍 | web_search, search_documents, read_file, save_memory | Web & document research |
+| Coding Agent | 💻 | read_file, write_file, run_code, search_documents | Programming assistance |
+| Schreib-Agent | ✍️ | web_search, create_note, search_documents, recall_memory | Writing & content creation |
+| Wissens-Agent | 🧠 | save_memory, recall_memory, create_note, search_documents, read_file | Knowledge management |
+
+### Model Compatibility
+
+Not all Ollama models support tool-calling. LocAI detects model capabilities automatically:
+
+| Tier | Models | Agent Support |
+|------|--------|---------------|
+| Excellent | Qwen2.5, Qwen3, Llama3.1+, Command-R, Hermes, Mistral-Large, Nemotron | Full, recommended |
+| Good | Mistral, Mixtral, Llama3 | Solid, works well |
+| Basic | Gemma, DeepSeek, CodeLlama, Yi | Limited, may hallucinate tool calls |
+| None | Phi, TinyLlama, Falcon, Vicuna | Not supported |
+
+### Reliability Features
+
+- **Text Tool Parser** — Fallback parser extracts tool calls from plain text/JSON when model doesn't use structured tool calling
+- **Parameter Normalizer** — Automatically maps common LLM parameter mistakes (e.g. `title` → `path` for write_file)
+- **Enhanced Error Messages** — Provides schema + actual args on errors so the model can self-correct
+- **Few-shot Examples** — System prompt includes examples of correct tool call format
+
+### Workspace
+
+Agent file operations use `~/.locai/workspace/` as the default working directory. This is configurable in Settings.
+
+- Relative paths resolve to workspace
+- Absolute paths allowed if within permitted directories
+- Path traversal (`..`, `\0`) is rejected
+- All file operations validate paths with `validatePath()`
 
 ---
 
-## Feature Status
+## RAG Documents
 
-### ✅ Implemented Features
+Upload documents to make them searchable as context in chat.
 
-| Feature | Status | Notes |
-|---------|--------|-------|
-| Chat with Ollama | ✅ | Multiple models |
-| Streaming Responses | ✅ | Token-by-token |
-| Vision Model Support | ✅ | Granite, Llama3.2 |
-| Token Counter | ✅ | Input/output/speed |
-| Context Window Display | ✅ | Shows usage |
-| Dark/Light Theme | ✅ | Grok-style |
-| Conversation History | ✅ | LocalStorage |
-| Auto-Save | ✅ | After each message |
-| Chat Search | ✅ | Full-text |
-| Conversation Stats | ✅ | Words, tokens, time |
-| Markdown Rendering | ✅ | GFM + syntax highlight |
-| Code Copy Button | ✅ | One-click copy |
-| Keyboard Shortcuts | ✅ | Ctrl+N/S, Escape, / |
-| Resizable Sidebar | ✅ | 240-500px, default 400px |
-| System Monitor | ✅ | CPU/RAM/VRAM |
-| ComfyUI Launch | ✅ | Start from LocAI |
-| ComfyUI Status | ✅ | Running indicator |
-| Image Gallery | ✅ | Grid view, lightbox |
-| Gallery Grid Sizes | ✅ | XS/S/M/L |
-| Image Favorites | ✅ | LocalStorage |
-| Image Delete | ✅ | With confirmation |
-| PNG Metadata | ✅ | Prompt/Seed/Sampler |
-| Copy Prompt | ✅ | From metadata |
-| Analyze with Vision | ✅ | Granite preferred |
-| Use as ComfyUI Input | ✅ | Copy to input folder |
-| Native Folder Picker | ✅ | OS dialogs |
-| Error Boundaries | ✅ | Graceful error handling |
-| Ollama Status | ✅ | Real-time connection indicator |
-| Loading Skeletons | ✅ | All loading states |
-| Model Pull UI | ✅ | Download 60+ models in-app |
-| Qwen3-Coder Template | ✅ | Optimized for code models |
-| Prompt Templates | ✅ | 12 templates in 5 categories |
-| GPU Monitor | ✅ | nvidia-smi: VRAM, Temp, Utilization, Processes |
-| **Real Routing** | ✅ | Separate /chat, /gallery, /notes routes |
-| **Conversation Tags** | ✅ | Tag-based organization and filtering |
-| **Unified Navigation** | ✅ | Vertical icon nav bar |
-| Notes System | ✅ | Markdown, tags, wiki-links |
-| Notes AI Completion | ✅ | Streaming with model selection |
-| Notes AI Summarization | ✅ | With preview & accept/reject |
-| Notes Search | ✅ | Full-text with highlighting |
-| Markdown Toolbar | ✅ | Headers, bold, italic, lists |
-| Notes Embeddings | ✅ | Local via nomic-embed-text |
-| 3D Knowledge Graph | ✅ | Force-directed with Three.js |
-| Semantic Links | ✅ | Cosine similarity visualization |
-| Graph Themes | ✅ | Cyber, Neon, Obsidian, Minimal |
-| Graph Controls | ✅ | Zoom, Pan, Rotate, Export PNG |
-| Graph Customization | ✅ | Node size, label color, glow, etc. |
+### Pipeline
+1. **Upload** — Supports PDF, TXT, MD, code files (max 20MB)
+2. **Chunking** — Splits into chunks (500 chars, 80 overlap)
+3. **Embedding** — Local embeddings via `nomic-embed-text` (768 dimensions)
+4. **Search** — Cosine similarity with configurable threshold (default 0.3)
 
-### ✅ Recently Completed (2025-12-08)
+### API Routes
+| Route | Method | Description |
+|-------|--------|-------------|
+| `/api/documents` | GET | List all documents |
+| `/api/documents` | DELETE | Delete document by `?id=` |
+| `/api/documents/upload` | POST | Upload + index (multipart) |
+| `/api/documents/search` | POST | Semantic search |
+| `/api/documents/[id]` | GET | Document details + chunks |
 
-| # | Feature | Status |
-|---|---------|--------|
-| 1 | Error Boundaries | ✅ Global error catching with recovery UI |
-| 2 | Ollama Connection Status | ✅ Real-time indicator in sidebar |
-| 3 | Loading Skeletons | ✅ Skeleton components for all loading states |
-| 4 | Model Pull UI | ✅ 60+ models in 6 categories, custom model support |
-| 5 | ImageGallery Refactoring | ✅ 992 lines → 11 files (~200 lines each) |
-| 6 | Qwen3-Coder Template | ✅ Optimized system prompt for code models |
-| 7 | Prompt Templates | ✅ 12 templates: Code Review, Debugging, Translation, etc. |
-| 8 | Template Picker UI | ✅ Integrated into SetupCard with categories |
-| 9 | GPU Monitor | ✅ nvidia-smi integration, VRAM, Temp, GPU Processes |
-| 10 | **Notes Refactoring** | ✅ 2278 lines → 12 files with separate routes |
-| 11 | **Notes Tab Navigation** | ✅ /notes (Editor) + /notes/graph (3D Graph) |
-| 12 | **Notes Context Provider** | ✅ Shared state between notes pages |
-| 13 | **Web Search Multi-Select** | ✅ Select up to 5 results for context synthesis |
-| 14 | **Context Optimizer** | ✅ LLM-powered multi-source synthesis with streaming |
-| 15 | **5 Optimization Presets** | ✅ Bullets, Detailed, Steps, Risks, Compare + Custom |
+---
 
-### 🟡 TODO: Medium Priority
+## File Browser
 
-| # | Feature | Effort | Description |
-|---|---------|--------|-------------|
-| 1 | ConversationSidebar Refactoring | 3h | Split 543 lines |
-| 2 | Export Chat | 2h | Markdown/JSON/PDF |
-| 3 | Image Drag & Drop | 3h | Gallery → Chat |
-| 4 | Conversation Tags | 4h | Categorization |
-| 5 | Keyboard Shortcuts Modal | 2h | Show all (? key) |
+Browse files on disk from the Documents page (tab "Dateibrowser").
 
-### 🟢 TODO: Low Priority (Future)
+### Browseable Roots
+| Root | Path | Description |
+|------|------|-------------|
+| Agent Workspace | `~/.locai/workspace/` | Files created by the agent |
+| LocAI Daten | `~/.locai/` | Configuration & data |
+| Dokumente | `~/Documents/` | Personal documents |
 
-| # | Feature | Effort | Description |
-|---|---------|--------|-------------|
-| 7 | Supabase Integration | 8h | Cloud sync |
-| 8 | Multi-Model Chat | 6h | Different models in one chat |
-| 9 | RAG Integration | 12h | Document upload |
-| 10 | ComfyUI Workflow Editor | 20h | Edit workflows in LocAI |
-| 11 | Voice Input | 6h | Whisper integration |
+### Features
+- Directory navigation with breadcrumbs
+- File preview (Markdown rendered, code highlighted, JSON formatted)
+- File download
+- File delete (workspace only)
+
+### Security
+- Path validation via `validatePath()` on all routes
+- `..` and `\0` traversal rejected
+- Delete restricted to workspace root
+- `assertLocalRequest()` on mutation endpoints
+
+### API Routes
+| Route | Method | Description |
+|-------|--------|-------------|
+| `/api/filebrowser` | GET | List available roots |
+| `/api/filebrowser/list` | GET | Directory listing (`?rootId=&path=`) |
+| `/api/filebrowser/read` | GET | File content for preview |
+| `/api/filebrowser/download` | GET | Download file |
+| `/api/filebrowser/delete` | DELETE | Delete file (workspace only) |
+
+---
+
+## Data Storage
+
+All data is stored under `~/.locai/`:
+
+```
+~/.locai/
+├── settings.json           # Application settings
+├── workspace/              # Agent workspace (file operations)
+├── conversations/          # Chat conversation files
+├── memory/                 # Agent persistent memory
+├── notes/                  # Markdown notes
+├── documents/              # RAG document metadata
+│   ├── metadata/           # Document metadata JSON
+│   ├── uploads/            # Original uploaded files
+│   └── embeddings/         # Embedding vectors
+└── preferences/            # UI preferences (favorites, graph settings)
+```
+
+---
+
+## API Routes (Complete)
+
+### Chat & Agent
+| Route | Method | Description |
+|-------|--------|-------------|
+| `/api/chat/agent` | POST | Agent mode streaming endpoint |
+
+### Conversations
+| Route | Method | Description |
+|-------|--------|-------------|
+| `/api/conversations` | GET/POST | List / create conversations |
+| `/api/conversations/[id]` | GET/PUT/DELETE | Read / update / delete |
+| `/api/conversations/search` | GET | Full-text search |
+
+### Documents (RAG)
+| Route | Method | Description |
+|-------|--------|-------------|
+| `/api/documents` | GET/DELETE | List / delete documents |
+| `/api/documents/upload` | POST | Upload + index |
+| `/api/documents/search` | POST | Semantic search |
+| `/api/documents/[id]` | GET | Document details |
+
+### File Browser
+| Route | Method | Description |
+|-------|--------|-------------|
+| `/api/filebrowser` | GET | Browseable roots |
+| `/api/filebrowser/list` | GET | Directory listing |
+| `/api/filebrowser/read` | GET | File content preview |
+| `/api/filebrowser/download` | GET | File download |
+| `/api/filebrowser/delete` | DELETE | Delete (workspace only) |
+
+### Memory
+| Route | Method | Description |
+|-------|--------|-------------|
+| `/api/memory` | GET/POST/DELETE | Agent memory CRUD |
+| `/api/memory/relevant` | POST | Semantic memory recall |
+
+### Notes
+| Route | Method | Description |
+|-------|--------|-------------|
+| `/api/notes` | GET/POST/PUT/DELETE | Notes CRUD |
+| `/api/notes/search` | GET | Lexical + semantic search |
+| `/api/notes/embed` | POST | Build note embeddings |
+| `/api/notes/ai` | POST | AI completion/summarization |
+| `/api/notes/semantic-links` | GET | Cosine similarity links |
+
+### Search
+| Route | Method | Description |
+|-------|--------|-------------|
+| `/api/search` | GET/POST/PUT | Web search via SearXNG |
+| `/api/search/optimize` | POST | LLM context optimization (streaming) |
+
+### System
+| Route | Method | Description |
+|-------|--------|-------------|
+| `/api/system-stats` | GET | CPU/RAM/VRAM stats |
+| `/api/gpu/kill-process` | POST | Terminate GPU process |
+| `/api/settings` | GET/POST | App settings |
+| `/api/folder-picker` | GET | Native folder dialog |
+| `/api/migrate` | POST | LocalStorage migration |
+| `/api/ollama/pull` | GET/POST | Model list / download (streaming) |
+
+### ComfyUI
+| Route | Method | Description |
+|-------|--------|-------------|
+| `/api/comfyui/status` | GET | ComfyUI running check |
+| `/api/comfyui/launch` | POST | Start ComfyUI |
+| `/api/comfyui/gallery` | GET | List images |
+| `/api/comfyui/gallery/[id]` | GET | Serve image |
+| `/api/comfyui/gallery/metadata` | GET | PNG metadata |
+| `/api/comfyui/gallery/delete` | DELETE | Delete image |
+| `/api/comfyui/gallery/copy-to-input` | POST | Copy to ComfyUI input |
+
+---
+
+## Security
+
+### Path Traversal Protection
+- `validatePath(userPath, allowedPrefix)` — ensures resolved path stays within allowed directory
+- `sanitizeBasePath(path)` — rejects paths containing `..`
+- All file operations (agent tools, file browser, documents) use these checks
+
+### Local-Only Mutations
+- `assertLocalRequest(request)` — checks origin/host headers for localhost
+- Applied to: file delete, GPU process kill, settings mutations
+- Configurable: `LOCAI_API_TOKEN` for token auth, `LOCAI_ALLOW_REMOTE` to bypass
+
+### Agent Sandboxing
+- `run_command` — restricted to workspace directory, timeout-limited
+- `run_code` — sandboxed Python/JS execution
+- `write_file` / `edit_file` — workspace-only with path validation
+- `read_file` — 50KB limit, path traversal protection
 
 ---
 
@@ -311,39 +456,7 @@ src/
 | Gemma 2 | `gemma.ts` | Google style |
 | DeepSeek R1 | `deepseek.ts` | `<think>` reasoning tags |
 | Granite Vision | `granite-vision.ts` | IBM format, image analysis |
-| **Qwen3 Coder** | `qwen-coder.ts` | **NEW**: ChatML, code-focused |
-
-### Qwen3-Coder Recommended Settings
-```typescript
-{
-  temperature: 0.7,
-  top_p: 0.8,
-  top_k: 20,
-  repeat_penalty: 1.05,
-  num_predict: 8192
-}
-```
-
----
-
-## API Routes
-
-| Route | Method | Description |
-|-------|--------|-------------|
-| `/api/system-stats` | GET | CPU, RAM, VRAM, active models |
-| `/api/folder-picker` | GET | Native OS folder dialog |
-| `/api/ollama/pull` | GET | List 60+ suggested models |
-| `/api/ollama/pull` | POST | Pull/download a model (streaming) |
-| `/api/comfyui/status` | GET | Check if ComfyUI running |
-| `/api/comfyui/launch` | POST | Start ComfyUI |
-| `/api/comfyui/gallery` | GET | List images |
-| `/api/comfyui/gallery/[id]` | GET | Serve single image |
-| `/api/comfyui/gallery/metadata` | GET | Extract PNG metadata |
-| `/api/comfyui/gallery/delete` | DELETE | Delete image |
-| `/api/comfyui/gallery/copy-to-input` | POST | Copy to input folder |
-| `/api/search` | GET/POST/PUT | Web search via SearXNG (simple/AI-optimized) |
-| `/api/search/optimize` | POST | **NEW:** LLM-based multi-source context optimization (streaming) |
-| `/api/notes/ai` | POST | Notes AI completion/summarization with optional web search |
+| Qwen3 Coder | `qwen-coder.ts` | ChatML, code-focused |
 
 ---
 
@@ -365,80 +478,83 @@ src/
 
 ## Changelog
 
-### 2025-12-08 (Current Session)
-- ✅ **Web Search Multi-Select** - Select up to 5 search results for context
-- ✅ **Context Optimizer API** - `/api/search/optimize` with LLM-powered synthesis
-- ✅ **5 Optimization Presets** - Bullets, Detailed, Steps, Risks, Compare + Custom
-- ✅ **Streaming Optimization** - Real-time token streaming during context synthesis
-- ✅ **Notes + Web Search** - Integrated web search context in Notes AI actions
-- ✅ **Custom Prompts** - Editable AI prompts in Notes and Web Search
-- ✅ **Context Window Slider** - Adjustable num_ctx with model-aware defaults
+### 2026-02-08
+- ✅ **File Browser** — Browse workspace, .locai, and Documents from Documents page
+- ✅ **File Preview** — Markdown rendering, syntax highlighting, JSON formatting
+- ✅ **File Download/Delete** — Download any file, delete workspace files
+- ✅ **Documents Page Tabs** — "Dateibrowser" and "RAG Dokumente" tabs
+- ✅ **Agent Tool Reliability** — Text tool parser fallback, parameter normalizer
+- ✅ **Agent System Prompt** — Default German system prompt with tool examples
+- ✅ **Agent Workspace Path** — Configurable workspace with path validation
+- ✅ **write_file & edit_file** — Added to default enabled tools
+
+### 2026-02-07
+- ✅ **Agent System Expansion** — Presets, model capability warnings, new tools
+- ✅ **run_code Tool** — Sandboxed Python/JavaScript execution
+- ✅ **generate_image Tool** — ComfyUI image generation from agent
+- ✅ **edit_file Tool** — Find-and-replace file editing
+- ✅ **Model Capability Tiers** — Automatic model compatibility detection
+- ✅ **Agent Presets** — 4 pre-configured agent profiles
+- ✅ **Planning Step** — Optional planning before tool execution
+
+### 2026-02-06
+- ✅ **Security Hardening** — Path traversal validation on all API routes
+- ✅ **Test Suites** — Agent tools, gallery cache, security utils tests
+- ✅ **Gallery File Cache** — Chokidar-based file watcher for gallery
+- ✅ **write_file & edit_file Tools** — File creation and editing agent tools
+- ✅ **run_command Tool** — Sandboxed shell command execution
+
+### 2026-02-05
+- ✅ **Agent Mode** — Full tool-calling infrastructure with executor, registry, and 8 tools
+- ✅ **RAG Pipeline** — Document upload, chunking, embedding, and semantic search
+- ✅ **RAG Chat Integration** — Document context in chat messages
+
+### 2026-02-04
+- ✅ **Persistent Storage** — Migration from LocalStorage to `~/.locai/` filesystem
+- ✅ **Settings Auto-Load** — Server-side settings from `~/.locai/settings.json`
+- ✅ **Agent Memory** — Persistent key-value memory for agent
+- ✅ **Conversation Search** — Full-text search across conversations restored
+
+### 2026-02-03
+- ✅ **Landing Page Upgrade** — Animated particle background, logo glow effects
+
+### 2025-12-08
+- ✅ Web Search Multi-Select, Context Optimizer, Notes + Web Search
+- ✅ Custom AI prompts, Context Window Slider
 
 ### 2025-12-07
-- ✅ **Real Routing** - Separate routes for Chat, Gallery, Notes
-- ✅ **App Layout** - Shared vertical navigation bar (icons)
-- ✅ **Conversation Tags** - Tag-based organization and filtering
-- ✅ **Unified Navigation** - Direct links between sections
-- ✅ **Code Cleanup** - Removed overlay patterns, simplified chat page
-- ✅ **Notes Refactoring** - 2278 lines → 12 modular files
-- ✅ **Notes Tab Navigation** - Separate routes for /notes and /notes/graph
-- ✅ **Notes Context Provider** - Shared state via React Context
-- ✅ **Graph Page** - Dedicated route for 3D Knowledge Graph visualization
+- ✅ Real routing (Chat/Gallery/Notes), Notes refactoring, Tab navigation
+- ✅ Conversation tags, Unified navigation
 
 ### 2025-12-06
-- ✅ Resumed development
-- ✅ Updated all safe dependencies
-- ✅ Security patch (Next.js 15.5.7)
-- ✅ Optimized all model templates
-- ✅ New Grok-style dark theme
-- ✅ System Monitor (CPU/RAM/VRAM)
-- ✅ Major refactoring (968 → 622 lines in page.tsx)
-- ✅ Streaming responses
-- ✅ Token counter & context window
-- ✅ Keyboard shortcuts
-- ✅ Code copy button
-- ✅ Chat search
-- ✅ Markdown rendering (GFM + syntax highlight)
-- ✅ Conversation statistics
-- ✅ Auto-save
-- ✅ Resizable sidebar (400px default)
-- ✅ ComfyUI integration (launch, status)
-- ✅ Image Gallery with all features
-- ✅ Native folder picker
-- ✅ Toast notifications
-- ✅ Error Boundaries + Ollama Status
-- ✅ Loading Skeletons
-- ✅ **Model Pull UI** (60+ models, categories, custom names)
-- ✅ **ImageGallery Refactoring** (992 → 11 files)
-- ✅ **Qwen3-Coder Template** (optimized system prompt)
-- ✅ **Prompt Templates** (12 templates in 5 categories)
-- ✅ **Template Picker UI** (SetupCard with category filter & preview)
-- ✅ **GPU Monitor** (nvidia-smi: VRAM, Temp, Utilization, Processes)
-- ✅ **Right Sidebar** (Tools Panel with GPU Monitor widget)
-- ✅ **Process Kill** (Kill GPU processes with safety confirmation)
-- ✅ **Notes scaffold** (filesystem storage, parsing, graph, embeddings helpers, API stubs)
-- ✅ **Notes UI** (Separate page, list, create, 3D graph, open via sidebar)
+- ✅ Initial development: Chat, Gallery, Notes, GPU Monitor, Model Pull UI
+- ✅ ComfyUI integration, Prompt Templates, Knowledge Graph
 
 ### 2025-03-08
-- Initial project structure
-- Basic chat functionality
-- Vision model support
+- ✅ Initial project structure
 
 ---
 
-## Next Steps (In Order)
+## Development
 
-1. ~~Error Boundaries + Ollama Status~~ ✅
-2. ~~Loading Skeletons~~ ✅
-3. ~~Model Pull UI~~ ✅
-4. ~~ImageGallery Refactoring~~ ✅
-5. ~~Qwen3-Coder Template~~ ✅
-6. ~~Prompt Templates~~ ✅ (12 templates in 5 categories)
-7. ~~Template Picker UI~~ ✅ (integrated into SetupCard)
-8. ~~GPU Monitor~~ ✅ (nvidia-smi integration)
-9. ~~Real Routing~~ ✅ (Chat/Gallery/Notes as separate routes)
-10. ~~Conversation Tags~~ ✅ (implemented)
-11. ~~Notes Refactoring~~ ✅ (2278 lines → 12 files with tab navigation)
-12. **Unified Search** ← NEXT (search across chat + notes)
-13. **Chat Export** (Markdown/JSON/PDF)
-14. ConversationSidebar Refactoring (optional)
+```bash
+# Install dependencies
+npm install
+
+# Start dev server
+npm run dev
+
+# Build
+npm run build
+
+# Lint
+npm run lint
+```
+
+### Environment Variables
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `LOCAI_API_TOKEN` | — | API token for authentication |
+| `LOCAI_ALLOW_REMOTE` | `false` | Allow non-localhost requests |
+| `LOCAL_NOTES_PATH` | `~/.locai/notes/` | Override notes directory |
+| `SEARXNG_URL` | — | SearXNG instance URL for web search |
