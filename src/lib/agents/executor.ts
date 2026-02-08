@@ -175,7 +175,9 @@ export async function* executeAgentLoop(
 
     // No tool_calls → check for tool calls embedded in text (fallback)
     if (!response.tool_calls || response.tool_calls.length === 0) {
-      const toolNames = registry.listNames(options.enabledTools);
+      // Use ALL registered tool names for detection (not just enabled ones),
+      // so the parser can catch tool calls the model knows from the system prompt.
+      const toolNames = registry.listNames();
       const parsedCalls = parseToolCallsFromText(response.content, toolNames);
 
       if (parsedCalls.length === 0) {
