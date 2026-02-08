@@ -18,7 +18,6 @@ import {
   Image,
   FileText,
   Monitor,
-  HardDrive,
   Upload,
   Download,
   CheckCircle2,
@@ -55,7 +54,7 @@ interface SystemStats {
 // ─── Page ────────────────────────────────────────────────────────────────────
 
 export default function SettingsPage() {
-  const { settings, updateSettings, resetSettings, saveToFile, loadFromFile, settingsPath } = useSettings();
+  const { settings, updateSettings, resetSettings } = useSettings();
   const { theme, setTheme } = useTheme();
   const [isPickingFolder, setIsPickingFolder] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
@@ -146,7 +145,7 @@ export default function SettingsPage() {
 
   // ── Helpers ────────────────────────────────────────────────────────────
 
-  const pickFolder = async (type: 'comfyPath' | 'outputPath' | 'notesPath' | 'dataPath') => {
+  const pickFolder = async (type: 'comfyPath' | 'outputPath' | 'notesPath') => {
     setIsPickingFolder(type);
     try {
       const response = await fetch('/api/folder-picker', {
@@ -162,9 +161,6 @@ export default function SettingsPage() {
             updateSettings({ comfyUIPath: path });
           } else if (type === 'outputPath') {
             updateSettings({ comfyUIOutputPath: path });
-          } else if (type === 'dataPath') {
-            updateSettings({ dataPath: path });
-            await loadFromFile(path);
           } else {
             updateSettings({ notesPath: path });
           }
@@ -767,99 +763,7 @@ export default function SettingsPage() {
           </div>
         </section>
 
-        {/* ────────────── Data Storage ────────────── */}
-        <section className="space-y-4">
-          <div className="flex items-center gap-2 text-lg font-semibold">
-            <HardDrive className="h-5 w-5 text-primary" />
-            Datenspeicher
-          </div>
-          <div className="bg-card border border-border rounded-lg p-4 space-y-4">
-            <div>
-              <label className="block font-medium mb-1">Lokaler Datenpfad</label>
-              <p className="text-sm text-muted-foreground mb-2">
-                Optionaler Pfad für persistente Einstellungen. Wenn gesetzt, werden Settings in einer Datei gespeichert und können nach Rebuilds wiederhergestellt werden.
-              </p>
-              <div className="flex gap-2">
-                <Input
-                  value={settings?.dataPath || ''}
-                  onChange={(e) => handleInputChange('dataPath', e.target.value)}
-                  placeholder="C:\LocAI-Data"
-                  className="flex-1"
-                />
-                <Button
-                  variant="outline"
-                  onClick={() => pickFolder('dataPath')}
-                  disabled={isPickingFolder === 'dataPath'}
-                >
-                  {isPickingFolder === 'dataPath' ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <FolderOpen className="h-4 w-4" />
-                  )}
-                </Button>
-              </div>
-              {settingsPath && (
-                <p className="text-xs text-muted-foreground mt-2 flex items-center gap-1">
-                  <CheckCircle2 className="h-3 w-3 text-emerald-500" />
-                  Gespeichert in: {settingsPath}
-                </p>
-              )}
-            </div>
-
-            <div className="flex gap-2 pt-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={async () => {
-                  const success = await saveToFile();
-                  if (success) {
-                    showSaved();
-                    showStatus('success', 'Einstellungen wurden gespeichert.');
-                  } else {
-                    showStatus('error', 'Speichern in Datei fehlgeschlagen.');
-                  }
-                }}
-                disabled={!settings?.dataPath}
-                className="gap-2"
-              >
-                <Upload className="h-4 w-4" />
-                In Datei speichern
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={async () => {
-                  const before = JSON.stringify(settings);
-                  const result = await loadFromFile();
-                  if (result.success) {
-                    showSaved();
-                    const after = JSON.stringify(result.updatedSettings ?? settings);
-                    const changed = before !== after;
-                    const loadedNotesPath = result.updatedSettings?.notesPath;
-                    const noteInfo = loadedNotesPath
-                      ? `notesPath: ${loadedNotesPath}`
-                      : 'notesPath nicht gesetzt';
-                    showStatus(
-                      'success',
-                      changed
-                        ? `Einstellungen aus Datei geladen (${noteInfo}).`
-                        : `Keine Änderungen (Datei entspricht aktuellem Stand, ${noteInfo}).`
-                    );
-                  } else {
-                    showStatus('error', 'Konnte Datei nicht laden (Pfad/JSON prüfen).');
-                  }
-                }}
-                disabled={!settings?.dataPath}
-                className="gap-2"
-              >
-                <Download className="h-4 w-4" />
-                Aus Datei laden
-              </Button>
-            </div>
-          </div>
-        </section>
-
-        {/* ────────────── System Info (NEW) ────────────── */}
+        {/* ────────────── System Info ────────────── */}
         <section className="space-y-4">
           <div className="flex items-center gap-2 text-lg font-semibold">
             <Activity className="h-5 w-5 text-primary" />

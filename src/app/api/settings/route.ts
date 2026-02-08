@@ -18,15 +18,10 @@ const DEFAULT_SETTINGS = {
   notesPath: '',
   notesEmbeddingModel: 'nomic-embed-text',
   notesAllowAI: true,
-  dataPath: '', // Local data path for chats, etc.
 };
 
-// Get settings file path - either from query param or default location
-function getSettingsPath(dataPath?: string | null): string {
-  if (dataPath) {
-    return path.join(dataPath, 'locai-settings.json');
-  }
-  // Default to user's home directory
+// Get settings file path - always under ~/.locai/
+function getSettingsPath(): string {
   const homeDir = process.env.USERPROFILE || process.env.HOME || '.';
   return path.join(homeDir, '.locai', 'settings.json');
 }
@@ -40,12 +35,9 @@ function ensureDir(filePath: string): void {
 }
 
 // GET - Load settings from file
-export async function GET(request: Request) {
+export async function GET() {
   try {
-    const { searchParams } = new URL(request.url);
-    const dataPath = searchParams.get('dataPath');
-    
-    const settingsPath = getSettingsPath(dataPath);
+    const settingsPath = getSettingsPath();
     
     if (!fs.existsSync(settingsPath)) {
       return NextResponse.json({
@@ -80,18 +72,16 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const { settings, dataPath } = body;
-    
+    const { settings } = body;
+
     if (!settings) {
       return NextResponse.json(
         { success: false, error: 'No settings provided' },
         { status: 400 }
       );
     }
-    
-    // Use dataPath from settings if provided, otherwise from body
-    const effectiveDataPath = settings.dataPath || dataPath;
-    const settingsPath = getSettingsPath(effectiveDataPath);
+
+    const settingsPath = getSettingsPath();
     
     // Ensure directory exists
     ensureDir(settingsPath);
@@ -118,12 +108,9 @@ export async function POST(request: Request) {
 }
 
 // DELETE - Reset settings
-export async function DELETE(request: Request) {
+export async function DELETE() {
   try {
-    const { searchParams } = new URL(request.url);
-    const dataPath = searchParams.get('dataPath');
-    
-    const settingsPath = getSettingsPath(dataPath);
+    const settingsPath = getSettingsPath();
     
     if (fs.existsSync(settingsPath)) {
       fs.unlinkSync(settingsPath);

@@ -38,9 +38,6 @@ export interface AppSettings {
   userAvatarUrl: string;
   aiAvatarType: 'icon' | 'image';
   aiAvatarUrl: string;
-
-  // Data Storage
-  dataPath: string;
 }
 
 const DEFAULT_SETTINGS: AppSettings = {
@@ -64,7 +61,6 @@ const DEFAULT_SETTINGS: AppSettings = {
   userAvatarUrl: '',
   aiAvatarType: 'icon',
   aiAvatarUrl: '',
-  dataPath: '',
 };
 
 export interface UseSettingsReturn {
@@ -73,7 +69,7 @@ export interface UseSettingsReturn {
   resetSettings: () => void;
   isLoaded: boolean;
   saveToFile: () => Promise<boolean>;
-  loadFromFile: (dataPath?: string) => Promise<{
+  loadFromFile: () => Promise<{
     success: boolean;
     updatedSettings: AppSettings | null;
     source?: 'file' | 'default';
@@ -87,8 +83,6 @@ export function useSettings(): UseSettingsReturn {
   const [isLoaded, setIsLoaded] = useState(false);
   const [settingsPath, setSettingsPath] = useState<string | null>(null);
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const settingsRef = useRef(settings);
-  settingsRef.current = settings;
 
   // Load settings from server on mount
   useEffect(() => {
@@ -174,26 +168,23 @@ export function useSettings(): UseSettingsReturn {
     }
   }, [settings]);
 
-  const loadFromFile = useCallback(async (dataPath?: string): Promise<{
+  const loadFromFile = useCallback(async (): Promise<{
     success: boolean;
     updatedSettings: AppSettings | null;
     source?: 'file' | 'default';
     path?: string | null;
   }> => {
     try {
-      const currentSettings = settingsRef.current;
-      const effectivePath = dataPath || currentSettings.dataPath;
-      if (!effectivePath) return { success: false, updatedSettings: null };
-
-      const response = await fetch(`/api/settings?dataPath=${encodeURIComponent(effectivePath)}`);
+      const response = await fetch('/api/settings');
       const data = await response.json();
 
       if (data.success) {
-        setSettings(prev => ({ ...prev, ...data.settings, dataPath: effectivePath }));
+        const merged = { ...DEFAULT_SETTINGS, ...data.settings };
+        setSettings(merged);
         setSettingsPath(data.path);
         return {
           success: true,
-          updatedSettings: { ...currentSettings, ...data.settings, dataPath: effectivePath },
+          updatedSettings: merged,
           source: data.source,
           path: data.path,
         };
