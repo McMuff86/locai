@@ -12,6 +12,7 @@ import {
   ToolResult,
   ToolCategory,
 } from './types';
+import { normalizeToolArgs } from './paramNormalizer';
 
 // ---------------------------------------------------------------------------
 // ToolRegistry Class
@@ -71,6 +72,22 @@ export class ToolRegistry {
   }
 
   /**
+   * Return all registered tool names (for system prompt building).
+   */
+  listNames(enabledNames?: string[]): string[] {
+    const entries = enabledNames
+      ? Array.from(this.tools.values()).filter(
+          (t) =>
+            enabledNames.includes(t.definition.name) &&
+            t.definition.enabled !== false
+        )
+      : Array.from(this.tools.values()).filter(
+          (t) => t.definition.enabled !== false
+        );
+    return entries.map((t) => t.definition.name);
+  }
+
+  /**
    * List tools filtered by category, formatted as OllamaTool[].
    */
   listByCategory(category: ToolCategory): OllamaTool[] {
@@ -121,7 +138,8 @@ export class ToolRegistry {
     }
 
     try {
-      const result = await tool.handler(call.arguments, signal);
+      const normalizedArgs = normalizeToolArgs(call.name, call.arguments);
+      const result = await tool.handler(normalizedArgs, signal);
       // Ensure callId matches
       return { ...result, callId: call.id };
     } catch (err) {

@@ -43,7 +43,10 @@ const searchDocumentsTool: RegisteredTool = {
       return {
         callId,
         content: '',
-        error: 'Parameter "query" is required and must be a non-empty string',
+        error:
+          'Parameter "query" is required and must be a non-empty string. ' +
+          'Expected: search_documents(query: "Suchbegriff"). ' +
+          'You provided: ' + JSON.stringify(args),
         success: false,
       };
     }

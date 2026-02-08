@@ -181,7 +181,10 @@ const runCommandTool: RegisteredTool = {
       return {
         callId,
         content: '',
-        error: 'Parameter "command" is required and must be a non-empty string',
+        error:
+          'Parameter "command" is required and must be a non-empty string. ' +
+          'Expected: run_command(command: "ls -la"). ' +
+          'You provided: ' + JSON.stringify(args),
         success: false,
       };
     }

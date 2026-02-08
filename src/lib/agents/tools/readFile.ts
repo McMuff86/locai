@@ -8,16 +8,21 @@
 import { promises as fs } from 'fs';
 import path from 'path';
 import { RegisteredTool, ToolResult } from '../types';
+import { resolveWorkspacePath, getHomeDir } from '../../settings/store';
 
 /** Maximum file content returned (characters) */
 const MAX_FILE_SIZE = 50_000;
 
 /**
  * Resolve allowed base directories for file reading.
- * Reads from environment or falls back to sensible defaults.
+ * Includes workspace path from settings, env vars, and defaults.
  */
 function getAllowedPaths(): string[] {
   const paths: string[] = [];
+
+  // Agent workspace
+  const workspace = resolveWorkspacePath();
+  if (workspace) paths.push(workspace);
 
   // Documents data path
   const dataPath = process.env.LOCAI_DATA_PATH;
@@ -28,7 +33,7 @@ function getAllowedPaths(): string[] {
   if (notesPath) paths.push(path.resolve(notesPath));
 
   // Home-based defaults
-  const home = process.env.HOME || process.env.USERPROFILE || '';
+  const home = getHomeDir();
   if (home) {
     paths.push(path.resolve(home, '.locai'));
     paths.push(path.resolve(home, 'Documents'));
@@ -49,15 +54,15 @@ const readFileTool: RegisteredTool = {
   definition: {
     name: 'read_file',
     description:
-      'Read the contents of a file from the user\'s documents or notes directory. ' +
-      'Only files within allowed directories can be read (security restriction). ' +
-      'Large files are truncated.',
+      'Read the contents of a file. Relative paths (e.g. "test.txt") ' +
+      'are resolved from the agent workspace (~/.locai/workspace/). ' +
+      'Can also read from documents or notes directories. Large files are truncated.',
     parameters: {
       type: 'object',
       properties: {
         path: {
           type: 'string',
-          description: 'Absolute or relative file path to read',
+          description: 'File path. Relative paths are resolved from the workspace.',
         },
       },
       required: ['path'],
@@ -77,7 +82,10 @@ const readFileTool: RegisteredTool = {
       return {
         callId,
         content: '',
-        error: 'Parameter "path" is required and must be a non-empty string',
+        error:
+          'Parameter "path" is required and must be a non-empty string. ' +
+          'Expected: read_file(path: "dateiname.txt"). ' +
+          'You provided: ' + JSON.stringify(args),
         success: false,
       };
     }
@@ -95,7 +103,19 @@ const readFileTool: RegisteredTool = {
       };
     }
 
-    const resolved = path.resolve(filePath);
+    // Resolve relative paths to workspace directory
+    let resolved: string;
+    if (path.isAbsolute(filePath)) {
+      resolved = path.resolve(filePath);
+    } else {
+      const workspace = resolveWorkspacePath();
+      if (workspace) {
+        resolved = path.resolve(workspace, filePath);
+      } else {
+        resolved = path.resolve(filePath);
+      }
+    }
+
     const allowed = getAllowedPaths();
 
     if (allowed.length === 0) {
@@ -103,7 +123,7 @@ const readFileTool: RegisteredTool = {
         callId,
         content: '',
         error:
-          'No allowed file paths configured. Set LOCAI_DATA_PATH or LOCAL_NOTES_PATH.',
+          'No allowed file paths configured. Check agent workspace settings.',
         success: false,
       };
     }

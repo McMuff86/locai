@@ -25,6 +25,9 @@ export interface AppSettings {
   notesEmbeddingModel: string;
   notesAllowAI: boolean;
 
+  // Agent Settings
+  agentWorkspacePath: string;
+
   // Web Search Settings (SearXNG)
   searxngUrl: string;
   searxngEnabled: boolean;
@@ -53,6 +56,7 @@ const DEFAULT_SETTINGS: AppSettings = {
   notesPath: '',
   notesEmbeddingModel: 'nomic-embed-text',
   notesAllowAI: true,
+  agentWorkspacePath: '',
   searxngUrl: 'http://localhost:8888',
   searxngEnabled: true,
   chatLayout: 'linear',

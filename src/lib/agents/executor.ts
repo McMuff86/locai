@@ -20,6 +20,7 @@ import {
   AGENT_DEFAULTS,
 } from './types';
 import { ToolRegistry } from './registry';
+import { parseToolCallsFromText } from './textToolParser';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -79,6 +80,7 @@ async function executePlanningStep(
   model: string,
   host?: string,
   signal?: AbortSignal,
+  chatOptions?: Record<string, unknown>,
 ): Promise<string | null> {
   const planningMessages: OllamaChatMessage[] = [
     ...messages,
@@ -90,7 +92,7 @@ async function executePlanningStep(
       model,
       planningMessages,
       [], // No tools for planning
-      { host, signal },
+      { host, signal, chatOptions },
     );
     return response.content || null;
   } catch {
@@ -128,7 +130,7 @@ export async function* executeAgentLoop(
 
   // Optional planning step
   if (options.enablePlanning) {
-    const plan = await executePlanningStep(messages, model, host, signal);
+    const plan = await executePlanningStep(messages, model, host, signal, options.chatOptions);
     if (plan) {
       // Yield a special planning turn with index -1
       const planTurn: AgentFinalTurn = {
@@ -168,21 +170,69 @@ export async function* executeAgentLoop(
       model,
       conversationMessages,
       ollamaTools,
-      { host, signal },
+      { host, signal, chatOptions: options.chatOptions },
     );
 
-    // No tool_calls → this is the final text answer
+    // No tool_calls → check for tool calls embedded in text (fallback)
     if (!response.tool_calls || response.tool_calls.length === 0) {
-      const finalTurn: AgentFinalTurn = {
+      // Use ALL registered tool names for detection (not just enabled ones),
+      // so the parser can catch tool calls the model knows from the system prompt.
+      const toolNames = registry.listNames();
+      const parsedCalls = parseToolCallsFromText(response.content, toolNames);
+
+      if (parsedCalls.length === 0) {
+        // Genuinely the final text answer
+        const finalTurn: AgentFinalTurn = {
+          index: i,
+          toolCalls: [],
+          toolResults: [],
+          startedAt,
+          completedAt: new Date().toISOString(),
+          assistantMessage: response.content,
+        };
+        yield finalTurn;
+        return; // Done
+      }
+
+      // Convert parsed calls to ToolCall[] and continue the loop below
+      const toolCalls: ToolCall[] = parsedCalls.map((pc) => ({
+        id: makeCallId(),
+        name: pc.name,
+        arguments: pc.arguments,
+      }));
+
+      // Append the assistant's message to the conversation
+      conversationMessages.push({
+        role: 'assistant',
+        content: response.content || '',
+      });
+
+      // Execute each tool call
+      const toolResults: ToolResult[] = [];
+      for (const call of toolCalls) {
+        if (signal?.aborted) {
+          throw new DOMException('Agent loop aborted', 'AbortError');
+        }
+        const result = await registry.execute(call, signal);
+        toolResults.push(result);
+
+        conversationMessages.push({
+          role: 'tool',
+          content: result.success
+            ? result.content
+            : `Error: ${result.error ?? 'Unknown error'}`,
+        });
+      }
+
+      const turn: AgentFinalTurn = {
         index: i,
-        toolCalls: [],
-        toolResults: [],
+        toolCalls,
+        toolResults,
         startedAt,
         completedAt: new Date().toISOString(),
-        assistantMessage: response.content,
       };
-      yield finalTurn;
-      return; // Done
+      yield turn;
+      continue; // Next iteration
     }
 
     // Convert Ollama tool_calls to our ToolCall type
@@ -229,7 +279,7 @@ export async function* executeAgentLoop(
     model,
     conversationMessages,
     [], // No tools → force text answer
-    { host, signal },
+    { host, signal, chatOptions: options.chatOptions },
   );
 
   const exhaustedTurn: AgentFinalTurn = {

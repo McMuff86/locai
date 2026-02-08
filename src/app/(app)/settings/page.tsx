@@ -32,6 +32,7 @@ import {
   Type,
   User,
   X,
+  Zap,
 } from 'lucide-react';
 import { ChatAvatar } from '@/components/chat/ChatAvatar';
 
@@ -145,7 +146,7 @@ export default function SettingsPage() {
 
   // ── Helpers ────────────────────────────────────────────────────────────
 
-  const pickFolder = async (type: 'comfyPath' | 'outputPath' | 'notesPath') => {
+  const pickFolder = async (type: 'comfyPath' | 'outputPath' | 'notesPath' | 'agentWorkspace') => {
     setIsPickingFolder(type);
     try {
       const response = await fetch('/api/folder-picker', {
@@ -161,6 +162,8 @@ export default function SettingsPage() {
             updateSettings({ comfyUIPath: path });
           } else if (type === 'outputPath') {
             updateSettings({ comfyUIOutputPath: path });
+          } else if (type === 'agentWorkspace') {
+            updateSettings({ agentWorkspacePath: path });
           } else {
             updateSettings({ notesPath: path });
           }
@@ -648,6 +651,44 @@ export default function SettingsPage() {
                 onChange={(e) => handleInputChange('notesEmbeddingModel', e.target.value)}
                 placeholder="nomic-embed-text"
               />
+            </div>
+          </div>
+        </section>
+
+        {/* ────────────── Agent ────────────── */}
+        <section className="space-y-4">
+          <div className="flex items-center gap-2 text-lg font-semibold">
+            <Zap className="h-5 w-5 text-primary" />
+            Agent
+          </div>
+          <div className="bg-card border border-border rounded-lg p-4 space-y-4">
+            <div>
+              <label className="block font-medium mb-1">Workspace Pfad</label>
+              <p className="text-sm text-muted-foreground mb-2">
+                Ordner in dem der Agent Dateien erstellt. Standard: ~/.locai/workspace/
+              </p>
+              <div className="flex gap-2">
+                <Input
+                  value={settings?.agentWorkspacePath || ''}
+                  onChange={(e) => handleInputChange('agentWorkspacePath', e.target.value)}
+                  placeholder="~/.locai/workspace/ (Standard)"
+                  className="flex-1"
+                />
+                <Button
+                  variant="outline"
+                  onClick={() => pickFolder('agentWorkspace')}
+                  disabled={isPickingFolder === 'agentWorkspace'}
+                >
+                  {isPickingFolder === 'agentWorkspace' ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <FolderOpen className="h-4 w-4" />
+                  )}
+                </Button>
+              </div>
+            </div>
+            <div className="text-xs text-muted-foreground bg-muted/50 p-2 rounded">
+              Der Agent kann Dateien nur in erlaubten Verzeichnissen erstellen: Workspace, ~/.locai/, ~/Documents/ und konfigurierte Pfade.
             </div>
           </div>
         </section>

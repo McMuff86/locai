@@ -4,21 +4,27 @@
 // Write a file to the user's allowed directories.
 // Includes security checks to prevent path traversal.
 // Supports create (fail if exists) and overwrite modes.
+// Relative paths are resolved to the agent workspace (~/.locai/workspace/).
 // ============================================================================
 
 import { promises as fs } from 'fs';
 import path from 'path';
 import { RegisteredTool, ToolResult } from '../types';
+import { resolveWorkspacePath, getHomeDir } from '../../settings/store';
 
 /** Maximum content size in characters */
 const MAX_CONTENT_SIZE = 100_000;
 
 /**
  * Resolve allowed base directories for file writing.
- * Same logic as readFile – reads from environment or falls back to defaults.
+ * Includes workspace path from settings, env vars, and defaults.
  */
 function getAllowedPaths(): string[] {
   const paths: string[] = [];
+
+  // Agent workspace (primary write target)
+  const workspace = resolveWorkspacePath();
+  if (workspace) paths.push(workspace);
 
   const dataPath = process.env.LOCAI_DATA_PATH;
   if (dataPath) paths.push(path.resolve(dataPath));
@@ -26,7 +32,7 @@ function getAllowedPaths(): string[] {
   const notesPath = process.env.LOCAL_NOTES_PATH;
   if (notesPath) paths.push(path.resolve(notesPath));
 
-  const home = process.env.HOME || process.env.USERPROFILE || '';
+  const home = getHomeDir();
   if (home) {
     paths.push(path.resolve(home, '.locai'));
     paths.push(path.resolve(home, 'Documents'));
@@ -47,7 +53,8 @@ const writeFileTool: RegisteredTool = {
   definition: {
     name: 'write_file',
     description:
-      'Write content to a file in the user\'s allowed directories. ' +
+      'Write content to a file. Relative paths (e.g. "test.txt" or "subfolder/file.md") ' +
+      'are saved to the agent workspace (~/.locai/workspace/). ' +
       'Creates parent directories automatically. ' +
       'In "create" mode (default), fails if the file already exists. ' +
       'In "overwrite" mode, replaces existing file content.',
@@ -56,7 +63,9 @@ const writeFileTool: RegisteredTool = {
       properties: {
         path: {
           type: 'string',
-          description: 'Absolute or relative file path to write',
+          description:
+            'File path. Relative paths are saved in the workspace. ' +
+            'Example: "report.txt" or "notes/summary.md"',
         },
         content: {
           type: 'string',
@@ -90,7 +99,10 @@ const writeFileTool: RegisteredTool = {
       return {
         callId,
         content: '',
-        error: 'Parameter "path" is required and must be a non-empty string',
+        error:
+          'Parameter "path" is required and must be a non-empty string. ' +
+          'Expected: write_file(path: "dateiname.txt", content: "Inhalt der Datei"). ' +
+          'You provided: ' + JSON.stringify(args),
         success: false,
       };
     }
@@ -99,7 +111,10 @@ const writeFileTool: RegisteredTool = {
       return {
         callId,
         content: '',
-        error: 'Parameter "content" is required and must be a string',
+        error:
+          'Parameter "content" is required and must be a string. ' +
+          'Expected: write_file(path: "dateiname.txt", content: "Inhalt der Datei"). ' +
+          'You provided: ' + JSON.stringify(args),
         success: false,
       };
     }
@@ -133,7 +148,23 @@ const writeFileTool: RegisteredTool = {
       };
     }
 
-    const resolved = path.resolve(filePath);
+    // Resolve relative paths to workspace directory
+    let resolved: string;
+    if (path.isAbsolute(filePath)) {
+      resolved = path.resolve(filePath);
+    } else {
+      const workspace = resolveWorkspacePath();
+      if (!workspace) {
+        return {
+          callId,
+          content: '',
+          error: 'No workspace path configured and HOME directory not found.',
+          success: false,
+        };
+      }
+      resolved = path.resolve(workspace, filePath);
+    }
+
     const allowed = getAllowedPaths();
 
     if (allowed.length === 0) {
@@ -141,7 +172,7 @@ const writeFileTool: RegisteredTool = {
         callId,
         content: '',
         error:
-          'No allowed file paths configured. Set LOCAI_DATA_PATH or LOCAL_NOTES_PATH.',
+          'No allowed file paths configured. Check agent workspace settings.',
         success: false,
       };
     }
@@ -184,7 +215,7 @@ const writeFileTool: RegisteredTool = {
       await fs.writeFile(resolved, content, 'utf-8');
 
       const overwriteNote = mode === 'overwrite' && fileExists
-        ? ' (⚠️ existing file was overwritten)'
+        ? ' (existing file was overwritten)'
         : '';
 
       return {

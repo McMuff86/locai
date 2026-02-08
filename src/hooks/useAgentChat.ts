@@ -129,6 +129,8 @@ const DEFAULT_TOOLS = [
   'search_documents',
   'web_search',
   'read_file',
+  'write_file',
+  'edit_file',
   'create_note',
   'save_memory',
   'recall_memory',

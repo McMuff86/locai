@@ -18,6 +18,7 @@ const DEFAULT_SETTINGS = {
   notesPath: '',
   notesEmbeddingModel: 'nomic-embed-text',
   notesAllowAI: true,
+  agentWorkspacePath: '',
 };
 
 // Get settings file path - always under ~/.locai/

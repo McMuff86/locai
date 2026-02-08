@@ -39,7 +39,10 @@ const webSearchTool: RegisteredTool = {
       return {
         callId,
         content: '',
-        error: 'Parameter "query" is required and must be a non-empty string',
+        error:
+          'Parameter "query" is required and must be a non-empty string. ' +
+          'Expected: web_search(query: "Suchbegriff"). ' +
+          'You provided: ' + JSON.stringify(args),
         success: false,
       };
     }

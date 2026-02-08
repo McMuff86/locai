@@ -9,6 +9,7 @@
 import { promises as fs } from 'fs';
 import path from 'path';
 import { RegisteredTool, ToolResult } from '../types';
+import { resolveWorkspacePath, getHomeDir } from '../../settings/store';
 
 /** Number of context lines to show before/after the edit */
 const CONTEXT_LINES = 3;
@@ -20,13 +21,17 @@ const CONTEXT_LINES = 3;
 function getAllowedPaths(): string[] {
   const paths: string[] = [];
 
+  // Agent workspace
+  const workspace = resolveWorkspacePath();
+  if (workspace) paths.push(workspace);
+
   const dataPath = process.env.LOCAI_DATA_PATH;
   if (dataPath) paths.push(path.resolve(dataPath));
 
   const notesPath = process.env.LOCAL_NOTES_PATH;
   if (notesPath) paths.push(path.resolve(notesPath));
 
-  const home = process.env.HOME || process.env.USERPROFILE || '';
+  const home = getHomeDir();
   if (home) {
     paths.push(path.resolve(home, '.locai'));
     paths.push(path.resolve(home, 'Documents'));
@@ -135,7 +140,10 @@ const editFileTool: RegisteredTool = {
       return {
         callId,
         content: '',
-        error: 'Parameter "path" is required and must be a non-empty string',
+        error:
+          'Parameter "path" is required and must be a non-empty string. ' +
+          'Expected: edit_file(path: "datei.txt", old_text: "alter Text", new_text: "neuer Text"). ' +
+          'You provided: ' + JSON.stringify(args),
         success: false,
       };
     }
@@ -144,7 +152,10 @@ const editFileTool: RegisteredTool = {
       return {
         callId,
         content: '',
-        error: 'Parameter "old_text" is required and must be a string',
+        error:
+          'Parameter "old_text" is required and must be a string. ' +
+          'Expected: edit_file(path: "datei.txt", old_text: "alter Text", new_text: "neuer Text"). ' +
+          'You provided: ' + JSON.stringify(args),
         success: false,
       };
     }
@@ -153,7 +164,10 @@ const editFileTool: RegisteredTool = {
       return {
         callId,
         content: '',
-        error: 'Parameter "old_text" must not be empty',
+        error:
+          'Parameter "old_text" must not be empty. ' +
+          'Expected: edit_file(path: "datei.txt", old_text: "alter Text", new_text: "neuer Text"). ' +
+          'You provided: ' + JSON.stringify(args),
         success: false,
       };
     }
@@ -162,7 +176,10 @@ const editFileTool: RegisteredTool = {
       return {
         callId,
         content: '',
-        error: 'Parameter "new_text" is required and must be a string',
+        error:
+          'Parameter "new_text" is required and must be a string. ' +
+          'Expected: edit_file(path: "datei.txt", old_text: "alter Text", new_text: "neuer Text"). ' +
+          'You provided: ' + JSON.stringify(args),
         success: false,
       };
     }
@@ -178,7 +195,19 @@ const editFileTool: RegisteredTool = {
       };
     }
 
-    const resolved = path.resolve(filePath);
+    // Resolve relative paths to workspace directory
+    let resolved: string;
+    if (path.isAbsolute(filePath)) {
+      resolved = path.resolve(filePath);
+    } else {
+      const workspace = resolveWorkspacePath();
+      if (workspace) {
+        resolved = path.resolve(workspace, filePath);
+      } else {
+        resolved = path.resolve(filePath);
+      }
+    }
+
     const allowed = getAllowedPaths();
 
     if (allowed.length === 0) {
@@ -186,7 +215,7 @@ const editFileTool: RegisteredTool = {
         callId,
         content: '',
         error:
-          'No allowed file paths configured. Set LOCAI_DATA_PATH or LOCAL_NOTES_PATH.',
+          'No allowed file paths configured. Check agent workspace settings.',
         success: false,
       };
     }

@@ -7,15 +7,15 @@
 
 import { RegisteredTool, ToolResult } from '../types';
 import { FileNoteStorage } from '../../notes/fileNoteStorage';
+import { resolveNotesBasePath } from '../../settings/store';
 
 /**
- * Resolve the notes base path from environment or defaults.
+ * Resolve the notes base path.
+ * Priority: settings.notesPath > LOCAL_NOTES_PATH env > ~/.locai/notes/
  */
 function resolveNotesPath(): string | null {
-  return (
-    process.env.LOCAL_NOTES_PATH ||
-    null
-  );
+  const resolved = resolveNotesBasePath();
+  return resolved || null;
 }
 
 const createNoteTool: RegisteredTool = {
@@ -55,7 +55,10 @@ const createNoteTool: RegisteredTool = {
       return {
         callId,
         content: '',
-        error: 'Parameter "title" is required and must be a non-empty string',
+        error:
+          'Parameter "title" is required and must be a non-empty string. ' +
+          'Expected: create_note(title: "Meine Notiz", content: "Notizinhalt"). ' +
+          'You provided: ' + JSON.stringify(args),
         success: false,
       };
     }
@@ -64,7 +67,10 @@ const createNoteTool: RegisteredTool = {
       return {
         callId,
         content: '',
-        error: 'Parameter "content" is required and must be a string',
+        error:
+          'Parameter "content" is required and must be a string. ' +
+          'Expected: create_note(title: "Meine Notiz", content: "Notizinhalt"). ' +
+          'You provided: ' + JSON.stringify(args),
         success: false,
       };
     }
@@ -75,7 +81,7 @@ const createNoteTool: RegisteredTool = {
         callId,
         content: '',
         error:
-          'Notes path not configured. Set LOCAL_NOTES_PATH environment variable.',
+          'Notes path could not be resolved. Configure notesPath in Settings or set LOCAL_NOTES_PATH.',
         success: false,
       };
     }
