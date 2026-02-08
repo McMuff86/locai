@@ -367,6 +367,20 @@ html[data-font-size="large"] {
     linear-gradient(180deg, rgba(15, 15, 22, 0.98) 0%, rgba(10, 10, 16, 0.99) 100%) !important;
 }
 
+/* Animated gradient for title text */
+@keyframes gradient-x {
+  0%, 100% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+}
+
+.animate-gradient-x {
+  animation: gradient-x 4s ease infinite;
+}
+
 /* Landing page grid pattern */
 .bg-grid-pattern {
   background-image: 
