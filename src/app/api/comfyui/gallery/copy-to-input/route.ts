@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import fs from 'fs';
 import path from 'path';
-import { assertLocalRequest, sanitizeBasePath } from '../../../_utils/security';
+import { assertLocalRequest, sanitizeBasePath, validatePath } from '../../../_utils/security';
 
 export const dynamic = 'force-dynamic';
 
@@ -26,11 +26,20 @@ export async function POST(request: Request) {
         { status: 400 }
       );
     }
+
+    // SEC-2: Validate comfyUIPath (no traversal)
+    const safeComfyUIPath = sanitizeBasePath(comfyUIPath);
+    if (!safeComfyUIPath) {
+      return NextResponse.json(
+        { success: false, error: 'Invalid ComfyUI path' },
+        { status: 400 }
+      );
+    }
     
     // Determine output path
     let finalOutputPath = outputPath;
     if (!finalOutputPath) {
-      finalOutputPath = path.join(comfyUIPath, 'ComfyUI', 'output');
+      finalOutputPath = path.join(safeComfyUIPath, 'ComfyUI', 'output');
     }
 
     // SEC-2: Validate output path (no traversal)
@@ -56,11 +65,8 @@ export async function POST(request: Request) {
     
     const sourcePath = path.join(finalOutputPath, relativePath);
     
-    // Security check
-    const normalizedSourcePath = path.normalize(sourcePath);
-    const normalizedOutputPath = path.normalize(finalOutputPath);
-    
-    if (!normalizedSourcePath.startsWith(normalizedOutputPath)) {
+    // SEC-2: Validate source path stays within output folder
+    if (!validatePath(sourcePath, finalOutputPath)) {
       return NextResponse.json(
         { success: false, error: 'Access denied' },
         { status: 403 }
@@ -76,7 +82,7 @@ export async function POST(request: Request) {
     }
     
     // Determine input folder path
-    const inputPath = path.join(comfyUIPath, 'ComfyUI', 'input');
+    const inputPath = path.join(safeComfyUIPath, 'ComfyUI', 'input');
     
     // Create input folder if it doesn't exist
     if (!fs.existsSync(inputPath)) {

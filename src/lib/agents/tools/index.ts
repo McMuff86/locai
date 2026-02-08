@@ -8,18 +8,24 @@ import { ToolRegistry, defaultRegistry } from '../registry';
 import searchDocumentsTool from './searchDocuments';
 import webSearchTool from './webSearch';
 import readFileTool from './readFile';
+import writeFileTool from './writeFile';
+import editFileTool from './editFile';
 import createNoteTool from './createNote';
 import saveMemoryTool from './saveMemory';
 import recallMemoryTool from './recallMemory';
+import runCommandTool from './runCommand';
 
 /** All built-in tools in registration order */
 export const builtinTools = [
   searchDocumentsTool,
   webSearchTool,
   readFileTool,
+  writeFileTool,
+  editFileTool,
   createNoteTool,
   saveMemoryTool,
   recallMemoryTool,
+  runCommandTool,
 ] as const;
 
 /**
@@ -35,4 +41,4 @@ export function registerBuiltinTools(registry: ToolRegistry = defaultRegistry): 
 }
 
 // Re-export individual tools for selective registration
-export { searchDocumentsTool, webSearchTool, readFileTool, createNoteTool, saveMemoryTool, recallMemoryTool };
+export { searchDocumentsTool, webSearchTool, readFileTool, writeFileTool, editFileTool, createNoteTool, saveMemoryTool, recallMemoryTool, runCommandTool };

@@ -1,0 +1,208 @@
+// ============================================================================
+// Built-in Tool: write_file
+// ============================================================================
+// Write a file to the user's allowed directories.
+// Includes security checks to prevent path traversal.
+// Supports create (fail if exists) and overwrite modes.
+// ============================================================================
+
+import { promises as fs } from 'fs';
+import path from 'path';
+import { RegisteredTool, ToolResult } from '../types';
+
+/** Maximum content size in characters */
+const MAX_CONTENT_SIZE = 100_000;
+
+/**
+ * Resolve allowed base directories for file writing.
+ * Same logic as readFile – reads from environment or falls back to defaults.
+ */
+function getAllowedPaths(): string[] {
+  const paths: string[] = [];
+
+  const dataPath = process.env.LOCAI_DATA_PATH;
+  if (dataPath) paths.push(path.resolve(dataPath));
+
+  const notesPath = process.env.LOCAL_NOTES_PATH;
+  if (notesPath) paths.push(path.resolve(notesPath));
+
+  const home = process.env.HOME || process.env.USERPROFILE || '';
+  if (home) {
+    paths.push(path.resolve(home, '.locai'));
+    paths.push(path.resolve(home, 'Documents'));
+  }
+
+  return paths;
+}
+
+function isPathAllowed(resolvedPath: string, allowedPaths: string[]): boolean {
+  return allowedPaths.some(
+    (allowed) =>
+      resolvedPath === allowed ||
+      resolvedPath.startsWith(allowed + path.sep),
+  );
+}
+
+const writeFileTool: RegisteredTool = {
+  definition: {
+    name: 'write_file',
+    description:
+      'Write content to a file in the user\'s allowed directories. ' +
+      'Creates parent directories automatically. ' +
+      'In "create" mode (default), fails if the file already exists. ' +
+      'In "overwrite" mode, replaces existing file content.',
+    parameters: {
+      type: 'object',
+      properties: {
+        path: {
+          type: 'string',
+          description: 'Absolute or relative file path to write',
+        },
+        content: {
+          type: 'string',
+          description: 'Content to write to the file',
+        },
+        mode: {
+          type: 'string',
+          description: 'Write mode: "create" (fail if exists) or "overwrite" (replace existing). Default: "create"',
+          enum: ['create', 'overwrite'],
+          default: 'create',
+        },
+      },
+      required: ['path', 'content'],
+    },
+    enabled: true,
+    category: 'files',
+  },
+
+  handler: async (
+    args: Record<string, unknown>,
+    _signal?: AbortSignal,
+  ): Promise<ToolResult> => {
+    const callId = '';
+    const filePath = args.path as string | undefined;
+    const content = args.content as string | undefined;
+    const mode = (args.mode as string) || 'create';
+
+    // --- Parameter validation ---
+
+    if (!filePath || typeof filePath !== 'string' || !filePath.trim()) {
+      return {
+        callId,
+        content: '',
+        error: 'Parameter "path" is required and must be a non-empty string',
+        success: false,
+      };
+    }
+
+    if (content === undefined || content === null || typeof content !== 'string') {
+      return {
+        callId,
+        content: '',
+        error: 'Parameter "content" is required and must be a string',
+        success: false,
+      };
+    }
+
+    if (mode !== 'create' && mode !== 'overwrite') {
+      return {
+        callId,
+        content: '',
+        error: 'Parameter "mode" must be "create" or "overwrite"',
+        success: false,
+      };
+    }
+
+    if (content.length > MAX_CONTENT_SIZE) {
+      return {
+        callId,
+        content: '',
+        error: `Content too large: ${content.length} characters (max ${MAX_CONTENT_SIZE})`,
+        success: false,
+      };
+    }
+
+    // --- Security checks ---
+
+    if (filePath.includes('..') || filePath.includes('\0')) {
+      return {
+        callId,
+        content: '',
+        error: 'Path traversal ("..") or null bytes are not allowed',
+        success: false,
+      };
+    }
+
+    const resolved = path.resolve(filePath);
+    const allowed = getAllowedPaths();
+
+    if (allowed.length === 0) {
+      return {
+        callId,
+        content: '',
+        error:
+          'No allowed file paths configured. Set LOCAI_DATA_PATH or LOCAL_NOTES_PATH.',
+        success: false,
+      };
+    }
+
+    if (!isPathAllowed(resolved, allowed)) {
+      return {
+        callId,
+        content: '',
+        error: 'Access denied: file is outside allowed directories',
+        success: false,
+      };
+    }
+
+    // --- Write logic ---
+
+    try {
+      // Check if file already exists
+      let fileExists = false;
+      try {
+        await fs.stat(resolved);
+        fileExists = true;
+      } catch {
+        // File does not exist – OK
+      }
+
+      if (mode === 'create' && fileExists) {
+        return {
+          callId,
+          content: '',
+          error: `File already exists: ${resolved}. Use mode "overwrite" to replace it.`,
+          success: false,
+        };
+      }
+
+      // Create parent directories if needed
+      const parentDir = path.dirname(resolved);
+      await fs.mkdir(parentDir, { recursive: true });
+
+      // Write the file
+      await fs.writeFile(resolved, content, 'utf-8');
+
+      const overwriteNote = mode === 'overwrite' && fileExists
+        ? ' (⚠️ existing file was overwritten)'
+        : '';
+
+      return {
+        callId,
+        content: `File written successfully: ${resolved}${overwriteNote}\nSize: ${Buffer.byteLength(content, 'utf-8')} bytes`,
+        success: true,
+      };
+    } catch (err) {
+      const message =
+        err instanceof Error ? err.message : 'Failed to write file';
+      return {
+        callId,
+        content: '',
+        error: message,
+        success: false,
+      };
+    }
+  },
+};
+
+export default writeFileTool;
