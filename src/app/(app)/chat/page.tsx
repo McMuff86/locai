@@ -35,6 +35,56 @@ import { getModelSystemContent, deleteOllamaModel } from "@/lib/ollama";
 import { useToast } from "@/components/ui/use-toast";
 import { IMAGE_ANALYSIS_PROMPT } from "@/lib/prompt-templates";
 
+const OPEN_FILE_IN_AGENT_SESSION_KEY = 'openFileInAgent';
+
+interface OpenFileInAgentPayload {
+  rootId: string;
+  relativePath: string;
+  filename: string;
+  previewSnippet: string;
+  previewTruncated: boolean;
+}
+
+function buildOpenFileAgentPrompt(payload: OpenFileInAgentPayload): string {
+  const rootLabel =
+    payload.rootId === 'workspace'
+      ? 'Agent Workspace'
+      : payload.rootId === 'locai'
+        ? 'LocAI Daten'
+        : payload.rootId === 'documents'
+          ? 'Dokumente'
+          : payload.rootId;
+
+  const toolHint =
+    payload.rootId === 'workspace'
+      ? `Nutze das Tool read_file mit path "${payload.relativePath}".`
+      : 'Versuche die Datei bei Bedarf mit read_file zu lesen und nutze den Vorschauauszug als Fallback-Kontext.';
+
+  const snippet = payload.previewSnippet?.trim();
+  const snippetBlock = snippet
+    ? [
+      'Vorschauauszug:',
+      '```',
+      snippet,
+      '```',
+    ].join('\n')
+    : 'Kein Vorschauauszug verfügbar.';
+
+  return [
+    'Bitte analysiere diese Datei aus dem Dateibrowser.',
+    `Datei: ${payload.filename}`,
+    `Root: ${rootLabel} (${payload.rootId})`,
+    `Pfad: ${payload.relativePath}`,
+    '',
+    `Tool-Hinweis: ${toolHint}`,
+    payload.previewTruncated
+      ? 'Hinweis: Der Vorschauauszug ist gekürzt. Nutze für vollständige Analyse bevorzugt read_file.'
+      : 'Hinweis: Der Vorschauauszug entspricht dem geladenen Preview-Inhalt.',
+    '',
+    snippetBlock,
+  ].join('\n');
+}
+
 function ChatPageContent() {
   const { toast } = useToast();
   const router = useRouter();
@@ -93,6 +143,7 @@ function ChatPageContent() {
     agentTurns,
     isAgentMode,
     toggleAgentMode,
+    setIsAgentMode,
     enabledTools,
     toggleTool,
     isExecutingTool,
@@ -116,6 +167,9 @@ function ChatPageContent() {
   const [isResizing, setIsResizing] = useState(false);
   const [showModelPull, setShowModelPull] = useState(false);
   const [showGpuFloat, setShowGpuFloat] = useState(false);
+  const [prefillMessage, setPrefillMessage] = useState('');
+  const [prefillVersion, setPrefillVersion] = useState(0);
+  const [pendingOpenFilePrompt, setPendingOpenFilePrompt] = useState<string | null>(null);
   const chatInputRef = useRef<HTMLTextAreaElement>(null);
   const sidebarRef = useRef<HTMLDivElement>(null);
 
@@ -428,6 +482,68 @@ function ChatPageContent() {
     router.replace(qs ? `/chat?${qs}` : '/chat', { scroll: false });
   }, [searchParams, router, handleSelectConversation]);
 
+  // ── Open file in agent from file browser ─────────────────────
+
+  useEffect(() => {
+    const shouldOpenInAgent = searchParams.get('openFileInAgent');
+    if (!shouldOpenInAgent) return;
+
+    const storedData = sessionStorage.getItem(OPEN_FILE_IN_AGENT_SESSION_KEY);
+    if (storedData) {
+      try {
+        const payload = JSON.parse(storedData) as OpenFileInAgentPayload;
+        setPendingOpenFilePrompt(buildOpenFileAgentPrompt(payload));
+        toast({
+          title: 'Datei in Agent geöffnet',
+          description: `"${payload.filename}" wurde als Entwurf in den Chat übernommen.`,
+        });
+      } catch (err) {
+        console.error('Failed to parse open file in agent payload:', err);
+        toast({
+          title: 'Open in Agent fehlgeschlagen',
+          description: 'Dateikontext konnte nicht gelesen werden.',
+          variant: 'destructive',
+        });
+      } finally {
+        sessionStorage.removeItem(OPEN_FILE_IN_AGENT_SESSION_KEY);
+      }
+    } else {
+      toast({
+        title: 'Open in Agent fehlgeschlagen',
+        description: 'Kein Dateikontext gefunden.',
+        variant: 'destructive',
+      });
+    }
+
+    const nextParams = new URLSearchParams(searchParams.toString());
+    nextParams.delete('openFileInAgent');
+    const qs = nextParams.toString();
+    router.replace(qs ? `/chat?${qs}` : '/chat', { scroll: false });
+  }, [router, searchParams, toast]);
+
+  useEffect(() => {
+    if (!pendingOpenFilePrompt) return;
+
+    setIsAgentMode(true);
+
+    if (conversation.messages.length === 0) {
+      if (!selectedModel) return;
+      handleStartConversation();
+      return;
+    }
+
+    setPrefillMessage(pendingOpenFilePrompt);
+    setPrefillVersion((prev) => prev + 1);
+    setPendingOpenFilePrompt(null);
+    window.setTimeout(() => chatInputRef.current?.focus(), 60);
+  }, [
+    conversation.messages.length,
+    handleStartConversation,
+    pendingOpenFilePrompt,
+    selectedModel,
+    setIsAgentMode,
+  ]);
+
   // ── Image analysis from gallery ───────────────────────────────
 
   useEffect(() => {
@@ -689,6 +805,8 @@ function ChatPageContent() {
                   onSelectPreset={selectPreset}
                   enablePlanning={enablePlanning}
                   onTogglePlanning={togglePlanning}
+                  prefillMessage={prefillMessage}
+                  prefillVersion={prefillVersion}
                 />
               </div>
             </>

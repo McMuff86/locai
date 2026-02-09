@@ -1,4 +1,4 @@
-import React, { useState, useRef } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import { Button } from "../ui/button";
 import { Textarea } from "../ui/textarea";
 import { ChatInputProps } from "../../types/chat";
@@ -18,6 +18,8 @@ interface ChatInputExtendedProps extends ChatInputProps {
   onSelectPreset?: (preset: AgentPreset | null) => void;
   enablePlanning?: boolean;
   onTogglePlanning?: () => void;
+  prefillMessage?: string;
+  prefillVersion?: number;
 }
 
 export function ChatInput({ 
@@ -37,6 +39,8 @@ export function ChatInput({
   onSelectPreset,
   enablePlanning = false,
   onTogglePlanning,
+  prefillMessage,
+  prefillVersion = 0,
 }: ChatInputExtendedProps) {
   const [message, setMessage] = useState("");
   const [selectedImages, setSelectedImages] = useState<File[]>([]);
@@ -46,6 +50,19 @@ export function ChatInput({
   
   // Use provided ref or local ref
   const textareaRef = inputRef || localInputRef;
+
+  useEffect(() => {
+    if (!prefillMessage || !prefillMessage.trim()) return;
+
+    setMessage(prefillMessage);
+    window.requestAnimationFrame(() => {
+      const element = textareaRef.current;
+      if (!element) return;
+      element.focus();
+      const end = prefillMessage.length;
+      element.setSelectionRange(end, end);
+    });
+  }, [prefillMessage, prefillVersion, textareaRef]);
 
   const handleSubmit = (e?: React.FormEvent) => {
     e?.preventDefault();
