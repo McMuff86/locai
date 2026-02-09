@@ -1,7 +1,8 @@
 "use client";
 
 import React, { useState, CSSProperties } from 'react';
-import { Download, Loader2, Copy, Check, AlertTriangle } from 'lucide-react';
+import { useRouter } from 'next/navigation';
+import { Download, Loader2, Copy, Check, AlertTriangle, Bot, Files } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -11,12 +12,23 @@ import {
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { useToast } from '@/components/ui/use-toast';
 import { MarkdownRenderer } from '@/components/chat/MarkdownRenderer';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { oneDark } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import type { FilePreviewType } from '@/lib/filebrowser/types';
 
 const syntaxTheme = oneDark as { [key: string]: CSSProperties };
+const OPEN_FILE_IN_AGENT_SESSION_KEY = 'openFileInAgent';
+const AGENT_PREVIEW_SNIPPET_LIMIT = 4000;
+
+interface OpenFileInAgentPayload {
+  rootId: string;
+  relativePath: string;
+  filename: string;
+  previewSnippet: string;
+  previewTruncated: boolean;
+}
 
 function formatFileSize(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
@@ -48,7 +60,11 @@ export function FilePreviewDialog({
   rootId,
   relativePath,
 }: FilePreviewDialogProps) {
+  const router = useRouter();
+  const { toast } = useToast();
   const [copied, setCopied] = useState(false);
+  const [isOpeningInAgent, setIsOpeningInAgent] = useState(false);
+  const [isAddingToRag, setIsAddingToRag] = useState(false);
 
   const handleDownload = () => {
     if (!rootId || !relativePath) return;
@@ -67,6 +83,94 @@ export function FilePreviewDialog({
     }
   };
 
+  const handleOpenInAgent = () => {
+    if (!preview || !rootId || !relativePath) return;
+
+    setIsOpeningInAgent(true);
+    try {
+      const payload: OpenFileInAgentPayload = {
+        rootId,
+        relativePath,
+        filename: preview.filename,
+        previewSnippet: preview.content.slice(0, AGENT_PREVIEW_SNIPPET_LIMIT),
+        previewTruncated:
+          preview.truncated || preview.content.length > AGENT_PREVIEW_SNIPPET_LIMIT,
+      };
+
+      sessionStorage.setItem(OPEN_FILE_IN_AGENT_SESSION_KEY, JSON.stringify(payload));
+      onOpenChange(false);
+      router.push('/chat?openFileInAgent=true');
+    } catch {
+      toast({
+        title: 'Open in Agent fehlgeschlagen',
+        description: 'Dateikontext konnte nicht an den Chat übergeben werden.',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsOpeningInAgent(false);
+    }
+  };
+
+  const handleAddToRag = async () => {
+    if (!preview || !rootId || !relativePath) return;
+
+    setIsAddingToRag(true);
+    try {
+      const params = new URLSearchParams({ rootId, path: relativePath });
+      const downloadRes = await fetch(`/api/filebrowser/download?${params}`);
+      if (!downloadRes.ok) {
+        const errorPayload = await downloadRes.json().catch(() => null) as { error?: string } | null;
+        throw new Error(errorPayload?.error || 'Datei konnte nicht gelesen werden');
+      }
+
+      const blob = await downloadRes.blob();
+      const file = new File([blob], preview.filename, {
+        type: blob.type || 'application/octet-stream',
+      });
+
+      const formData = new FormData();
+      formData.append('file', file);
+
+      const uploadRes = await fetch('/api/documents/upload', {
+        method: 'POST',
+        body: formData,
+      });
+
+      const uploadPayload = await uploadRes
+        .json()
+        .catch(() => ({ error: 'Upload fehlgeschlagen' })) as {
+        success?: boolean;
+        error?: string;
+      };
+
+      if (!uploadRes.ok || !uploadPayload.success) {
+        const message = uploadPayload.error || 'Upload fehlgeschlagen';
+        if (uploadRes.status === 409) {
+          toast({
+            title: 'Bereits als RAG-Dokument vorhanden',
+            description: message,
+          });
+          return;
+        }
+
+        throw new Error(message);
+      }
+
+      toast({
+        title: 'Zu RAG hinzugefügt',
+        description: `"${preview.filename}" wird jetzt indexiert.`,
+      });
+    } catch (err) {
+      toast({
+        title: 'Add to RAG fehlgeschlagen',
+        description: err instanceof Error ? err.message : 'Unbekannter Fehler',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsAddingToRag(false);
+    }
+  };
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-4xl max-h-[85vh] flex flex-col">
@@ -80,7 +184,37 @@ export function FilePreviewDialog({
                   : ''}
               </DialogDescription>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap justify-end">
+              {preview && rootId && relativePath && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleOpenInAgent}
+                  disabled={isOpeningInAgent || isAddingToRag}
+                >
+                  {isOpeningInAgent ? (
+                    <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />
+                  ) : (
+                    <Bot className="h-3.5 w-3.5 mr-1.5" />
+                  )}
+                  Open in Agent
+                </Button>
+              )}
+              {preview && rootId && relativePath && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleAddToRag}
+                  disabled={isAddingToRag || isOpeningInAgent}
+                >
+                  {isAddingToRag ? (
+                    <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />
+                  ) : (
+                    <Files className="h-3.5 w-3.5 mr-1.5" />
+                  )}
+                  Add to RAG
+                </Button>
+              )}
               {preview && (
                 <Button variant="outline" size="sm" onClick={handleCopy}>
                   {copied ? (

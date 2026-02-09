@@ -40,23 +40,23 @@
 - Rename dialog.
 - Move dialog with target folder picker (workspace folder navigation).
 
+2. Added quick actions in preview
+- `Open in Agent` (navigates to chat, enables agent mode, pre-fills input with file context).
+- `Add to RAG` (uploads selected file from file browser preview to `/api/documents/upload`).
+
 ### Remaining
 
-1. Add quick actions in preview
-- `Open in Agent` (pre-fill chat input / tool context).
-- `Add to RAG` (upload selected file to document pipeline).
-
-2. Improve drag & drop UX
+1. Improve drag & drop UX
 - Better directory-level drop indicators for nested moves.
 - Explicit toast feedback per operation (move/rename/create/upload).
 - Keyboard-accessible alternatives for all DnD actions.
 
-3. Hardening / API consistency
+2. Hardening / API consistency
 - Unify error response format across filebrowser endpoints.
 - Add input schemas and stricter validation for mutation routes.
 - Add optional max upload count per request.
 
-4. Tests
+3. Tests
 - Add scanner unit tests for:
   - create/rename/move/upload path validation.
   - workspace-only mutation guard.
