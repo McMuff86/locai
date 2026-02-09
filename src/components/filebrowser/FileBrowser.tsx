@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Hammer,
   Database,
@@ -20,6 +20,14 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import { useFileBrowser } from '@/hooks/useFileBrowser';
 import { FileEntryRow } from './FileEntryRow';
 import { FilePreviewDialog } from './FilePreviewDialog';
@@ -40,6 +48,39 @@ const ROOT_DESCRIPTIONS: Record<string, string> = {
 type SortBy = 'name' | 'modifiedAt' | 'size';
 type SortOrder = 'asc' | 'desc';
 type TypeFilter = 'all' | 'file' | 'directory' | 'code' | 'markdown' | 'json' | 'text';
+type CreateDialogMode = 'file' | 'directory';
+
+function normalizeRelativePath(pathValue: string): string {
+  const withForwardSlashes = pathValue.trim().replace(/\\/g, '/');
+  if (!withForwardSlashes) return '';
+
+  const segments = withForwardSlashes
+    .split('/')
+    .filter((segment) => segment.length > 0 && segment !== '.');
+
+  return segments.join('/');
+}
+
+function validateEntryName(name: string): string | null {
+  const trimmed = name.trim();
+  if (!trimmed) return 'Name darf nicht leer sein.';
+  if (trimmed === '.' || trimmed === '..') return 'Ungültiger Name.';
+  if (trimmed.includes('/') || trimmed.includes('\\') || trimmed.includes('\0')) {
+    return 'Name darf keine Pfadseparatoren enthalten.';
+  }
+  return null;
+}
+
+function validateTargetDirectoryPath(pathValue: string): string | null {
+  const normalized = pathValue.trim().replace(/\\/g, '/');
+  if (!normalized) return null;
+  if (normalized.includes('\0')) return 'Pfad enthält ungültige Zeichen.';
+  if (normalized.includes('..')) return 'Pfad darf kein ".." enthalten.';
+  if (normalized.startsWith('/') || /^[a-zA-Z]:/.test(normalized)) {
+    return 'Bitte einen relativen Pfad zum Workspace verwenden.';
+  }
+  return null;
+}
 
 function classifyEntry(entry: FileEntry): TypeFilter {
   if (entry.type === 'directory') return 'directory';
@@ -89,6 +130,22 @@ export function FileBrowser() {
   const [extensionFilter, setExtensionFilter] = useState('all');
   const [draggedEntry, setDraggedEntry] = useState<FileEntry | null>(null);
   const [isDropZoneActive, setIsDropZoneActive] = useState(false);
+  const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
+  const [createDialogMode, setCreateDialogMode] = useState<CreateDialogMode>('file');
+  const [createName, setCreateName] = useState('');
+  const [createError, setCreateError] = useState<string | null>(null);
+  const [isRenameDialogOpen, setIsRenameDialogOpen] = useState(false);
+  const [renameEntryTarget, setRenameEntryTarget] = useState<FileEntry | null>(null);
+  const [renameName, setRenameName] = useState('');
+  const [renameError, setRenameError] = useState<string | null>(null);
+  const [isMoveDialogOpen, setIsMoveDialogOpen] = useState(false);
+  const [moveEntryTarget, setMoveEntryTarget] = useState<FileEntry | null>(null);
+  const [moveTargetPath, setMoveTargetPath] = useState('');
+  const [moveError, setMoveError] = useState<string | null>(null);
+  const [movePickerPath, setMovePickerPath] = useState('');
+  const [movePickerDirectories, setMovePickerDirectories] = useState<FileEntry[]>([]);
+  const [isMovePickerLoading, setIsMovePickerLoading] = useState(false);
+  const [movePickerError, setMovePickerError] = useState<string | null>(null);
 
   const canMutate = currentRoot?.id === 'workspace';
 
@@ -156,35 +213,171 @@ export function FileBrowser() {
     return filtered;
   }, [entries, searchQuery, typeFilter, extensionFilter, sortBy, sortOrder]);
 
-  const handleCreateFile = async () => {
+  const loadMovePickerDirectories = useCallback(async (pathValue: string) => {
+    if (!currentRoot) return;
+
+    const normalizedPath = normalizeRelativePath(pathValue);
+    setIsMovePickerLoading(true);
+    setMovePickerError(null);
+
+    try {
+      const params = new URLSearchParams({
+        rootId: currentRoot.id,
+        path: normalizedPath,
+        includeChildCount: 'false',
+      });
+
+      const res = await fetch(`/api/filebrowser/list?${params}`);
+      const payload = (await res.json()) as {
+        success?: boolean;
+        entries?: FileEntry[];
+        error?: string;
+      };
+
+      if (!res.ok || !payload.success) {
+        setMovePickerDirectories([]);
+        setMovePickerError(payload.error || 'Ordner konnten nicht geladen werden.');
+        return;
+      }
+
+      const directories = Array.isArray(payload.entries)
+        ? payload.entries.filter((entry) => entry.type === 'directory')
+        : [];
+
+      setMovePickerDirectories(directories);
+      setMovePickerPath(normalizedPath);
+    } catch {
+      setMovePickerDirectories([]);
+      setMovePickerError('Ordner konnten nicht geladen werden.');
+    } finally {
+      setIsMovePickerLoading(false);
+    }
+  }, [currentRoot]);
+
+  const handleCreateFile = () => {
     if (!canMutate) return;
-    const name = window.prompt('Name der neuen Datei (z.B. note.md):', 'neue-datei.txt');
-    if (!name) return;
-    await createFile(name.trim());
+    clearMutationMessage();
+    setCreateDialogMode('file');
+    setCreateName('neue-datei.txt');
+    setCreateError(null);
+    setIsCreateDialogOpen(true);
   };
 
-  const handleCreateFolder = async () => {
+  const handleCreateFolder = () => {
     if (!canMutate) return;
-    const name = window.prompt('Name des neuen Ordners:', 'neuer-ordner');
-    if (!name) return;
-    await createFolder(name.trim());
+    clearMutationMessage();
+    setCreateDialogMode('directory');
+    setCreateName('neuer-ordner');
+    setCreateError(null);
+    setIsCreateDialogOpen(true);
   };
 
-  const handleRename = async (entry: FileEntry) => {
+  const handleRename = (entry: FileEntry) => {
     if (!canMutate) return;
-    const name = window.prompt(`Neuer Name für "${entry.name}":`, entry.name);
-    if (!name || name.trim() === entry.name) return;
-    await renameEntry(entry, name.trim());
+    clearMutationMessage();
+    setRenameEntryTarget(entry);
+    setRenameName(entry.name);
+    setRenameError(null);
+    setIsRenameDialogOpen(true);
   };
 
   const handleMove = async (entry: FileEntry) => {
     if (!canMutate) return;
-    const target = window.prompt(
-      `Zielordner relativ zum Workspace für "${entry.name}" (leer = root):`,
-      currentPath,
-    );
-    if (target === null) return;
-    await moveEntry(entry, target.trim());
+    clearMutationMessage();
+    const initialTargetPath = normalizeRelativePath(currentPath);
+
+    setMoveEntryTarget(entry);
+    setMoveTargetPath(initialTargetPath);
+    setMoveError(null);
+    setMovePickerPath(initialTargetPath);
+    setMovePickerDirectories([]);
+    setMovePickerError(null);
+    setIsMoveDialogOpen(true);
+
+    await loadMovePickerDirectories(initialTargetPath);
+  };
+
+  const handleCreateDialogSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!canMutate) return;
+
+    const validationError = validateEntryName(createName);
+    if (validationError) {
+      setCreateError(validationError);
+      return;
+    }
+
+    const safeName = createName.trim();
+    const success = createDialogMode === 'file'
+      ? await createFile(safeName)
+      : await createFolder(safeName);
+
+    if (success) {
+      setIsCreateDialogOpen(false);
+      setCreateName('');
+      setCreateError(null);
+      return;
+    }
+
+    setCreateError('Aktion fehlgeschlagen. Prüfe die Statusmeldung.');
+  };
+
+  const handleRenameDialogSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!canMutate || !renameEntryTarget) return;
+
+    const validationError = validateEntryName(renameName);
+    if (validationError) {
+      setRenameError(validationError);
+      return;
+    }
+
+    const safeName = renameName.trim();
+    if (safeName === renameEntryTarget.name) {
+      setRenameError('Bitte einen anderen Namen eingeben.');
+      return;
+    }
+
+    const success = await renameEntry(renameEntryTarget, safeName);
+    if (success) {
+      setIsRenameDialogOpen(false);
+      setRenameEntryTarget(null);
+      setRenameName('');
+      setRenameError(null);
+      return;
+    }
+
+    setRenameError('Umbenennen fehlgeschlagen. Prüfe die Statusmeldung.');
+  };
+
+  const handleMoveDialogSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!canMutate || !moveEntryTarget) return;
+
+    const validationError = validateTargetDirectoryPath(moveTargetPath);
+    if (validationError) {
+      setMoveError(validationError);
+      return;
+    }
+
+    const normalizedTargetPath = normalizeRelativePath(moveTargetPath);
+    const success = await moveEntry(moveEntryTarget, normalizedTargetPath);
+    if (success) {
+      setIsMoveDialogOpen(false);
+      setMoveEntryTarget(null);
+      setMoveTargetPath('');
+      setMoveError(null);
+      setMovePickerDirectories([]);
+      return;
+    }
+
+    setMoveError('Verschieben fehlgeschlagen. Prüfe die Statusmeldung.');
+  };
+
+  const handleMovePickerNavigateUp = () => {
+    const parts = movePickerPath.split('/').filter(Boolean);
+    parts.pop();
+    void loadMovePickerDirectories(parts.join('/'));
   };
 
   const handleFileInputChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -520,6 +713,299 @@ export function FileBrowser() {
         rootId={filePreview?.rootId}
         relativePath={filePreview?.relativePath}
       />
+
+      <Dialog
+        open={isCreateDialogOpen}
+        onOpenChange={(open) => {
+          setIsCreateDialogOpen(open);
+          if (!open) {
+            setCreateError(null);
+          }
+        }}
+      >
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>
+              {createDialogMode === 'file' ? 'Neue Datei erstellen' : 'Neuen Ordner erstellen'}
+            </DialogTitle>
+            <DialogDescription>
+              {createDialogMode === 'file'
+                ? 'Dateiname im aktuellen Workspace-Ordner angeben.'
+                : 'Ordnername im aktuellen Workspace-Ordner angeben.'}
+            </DialogDescription>
+          </DialogHeader>
+          <form className="space-y-4" onSubmit={handleCreateDialogSubmit}>
+            <div className="space-y-2">
+              <label htmlFor="filebrowser-create-name" className="text-sm font-medium">
+                Name
+              </label>
+              <Input
+                id="filebrowser-create-name"
+                value={createName}
+                onChange={(event) => {
+                  setCreateName(event.target.value);
+                  if (createError) {
+                    setCreateError(null);
+                  }
+                }}
+                autoFocus
+                disabled={isMutating}
+              />
+              {createError && (
+                <p className="text-xs text-destructive">
+                  {createError}
+                </p>
+              )}
+            </div>
+
+            <DialogFooter>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setIsCreateDialogOpen(false)}
+                disabled={isMutating}
+              >
+                Abbrechen
+              </Button>
+              <Button type="submit" disabled={isMutating}>
+                {isMutating && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                {createDialogMode === 'file' ? 'Datei erstellen' : 'Ordner erstellen'}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={isRenameDialogOpen}
+        onOpenChange={(open) => {
+          setIsRenameDialogOpen(open);
+          if (!open) {
+            setRenameError(null);
+            setRenameEntryTarget(null);
+          }
+        }}
+      >
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Eintrag umbenennen</DialogTitle>
+            <DialogDescription>
+              {renameEntryTarget
+                ? `Neuer Name für "${renameEntryTarget.name}".`
+                : 'Neuen Namen eingeben.'}
+            </DialogDescription>
+          </DialogHeader>
+          <form className="space-y-4" onSubmit={handleRenameDialogSubmit}>
+            <div className="space-y-2">
+              <label htmlFor="filebrowser-rename-name" className="text-sm font-medium">
+                Neuer Name
+              </label>
+              <Input
+                id="filebrowser-rename-name"
+                value={renameName}
+                onChange={(event) => {
+                  setRenameName(event.target.value);
+                  if (renameError) {
+                    setRenameError(null);
+                  }
+                }}
+                autoFocus
+                disabled={isMutating}
+              />
+              {renameError && (
+                <p className="text-xs text-destructive">
+                  {renameError}
+                </p>
+              )}
+            </div>
+
+            <DialogFooter>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setIsRenameDialogOpen(false)}
+                disabled={isMutating}
+              >
+                Abbrechen
+              </Button>
+              <Button type="submit" disabled={isMutating || !renameEntryTarget}>
+                {isMutating && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                Umbenennen
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={isMoveDialogOpen}
+        onOpenChange={(open) => {
+          setIsMoveDialogOpen(open);
+          if (!open) {
+            setMoveError(null);
+            setMovePickerError(null);
+            setMoveEntryTarget(null);
+            setMovePickerDirectories([]);
+          }
+        }}
+      >
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Eintrag verschieben</DialogTitle>
+            <DialogDescription>
+              {moveEntryTarget
+                ? `Zielordner für "${moveEntryTarget.name}" auswählen.`
+                : 'Zielordner auswählen.'}
+            </DialogDescription>
+          </DialogHeader>
+          <form className="space-y-4" onSubmit={handleMoveDialogSubmit}>
+            <div className="space-y-2">
+              <label htmlFor="filebrowser-move-target" className="text-sm font-medium">
+                Zielordner (relativ zum Workspace)
+              </label>
+              <Input
+                id="filebrowser-move-target"
+                value={moveTargetPath}
+                onChange={(event) => {
+                  setMoveTargetPath(event.target.value);
+                  if (moveError) {
+                    setMoveError(null);
+                  }
+                }}
+                placeholder="leer = Workspace root"
+                autoFocus
+                disabled={isMutating}
+              />
+              <p className="text-xs text-muted-foreground">
+                Leer lassen, um in den Workspace-Root zu verschieben.
+              </p>
+              {moveError && (
+                <p className="text-xs text-destructive">
+                  {moveError}
+                </p>
+              )}
+            </div>
+
+            <div className="rounded-lg border border-border/60 overflow-hidden">
+              <div className="flex items-center justify-between gap-2 px-3 py-2 border-b border-border/60 bg-muted/30">
+                <p className="text-xs text-muted-foreground truncate">
+                  Picker-Pfad: {movePickerPath || 'Workspace root'}
+                </p>
+                <div className="flex items-center gap-1">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="h-7 w-7"
+                    onClick={handleMovePickerNavigateUp}
+                    disabled={isMovePickerLoading || !movePickerPath}
+                    title="Eine Ebene hoch"
+                  >
+                    <ChevronLeft className="h-3.5 w-3.5" />
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="h-7 px-2 text-xs"
+                    onClick={() => {
+                      setMoveTargetPath(movePickerPath);
+                      setMoveError(null);
+                    }}
+                    disabled={isMutating}
+                    title="Aktuellen Picker-Pfad als Ziel setzen"
+                  >
+                    Als Ziel
+                  </Button>
+                </div>
+              </div>
+
+              <ScrollArea className="h-48">
+                <div className="p-2 space-y-1">
+                  <button
+                    type="button"
+                    className={`w-full text-left px-2 py-1.5 rounded-md text-sm border transition-colors ${
+                      normalizeRelativePath(moveTargetPath) === ''
+                        ? 'border-primary/40 bg-primary/10'
+                        : 'border-transparent hover:bg-muted/60'
+                    }`}
+                    onClick={() => setMoveTargetPath('')}
+                    disabled={isMutating}
+                  >
+                    Workspace root
+                  </button>
+
+                  {isMovePickerLoading ? (
+                    <div className="flex items-center gap-2 px-2 py-2 text-xs text-muted-foreground">
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      Ordner werden geladen…
+                    </div>
+                  ) : movePickerError ? (
+                    <div className="px-2 py-2 text-xs text-destructive">
+                      {movePickerError}
+                    </div>
+                  ) : movePickerDirectories.length === 0 ? (
+                    <div className="px-2 py-2 text-xs text-muted-foreground">
+                      Keine Unterordner vorhanden.
+                    </div>
+                  ) : (
+                    movePickerDirectories.map((directory) => {
+                      const isSelected = normalizeRelativePath(moveTargetPath) === directory.relativePath;
+                      return (
+                        <div key={directory.relativePath} className="flex items-center gap-1">
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            className={`h-8 flex-1 justify-start px-2 ${
+                              isSelected ? 'bg-primary/10 text-primary' : ''
+                            }`}
+                            onClick={() => {
+                              setMoveTargetPath(directory.relativePath);
+                              setMoveError(null);
+                            }}
+                            disabled={isMutating}
+                          >
+                            <FolderOpen className="h-3.5 w-3.5 mr-1.5" />
+                            <span className="truncate">{directory.name}</span>
+                          </Button>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8"
+                            onClick={() => {
+                              void loadMovePickerDirectories(directory.relativePath);
+                            }}
+                            disabled={isMutating}
+                            title={`In ${directory.name} navigieren`}
+                          >
+                            <ChevronRight className="h-3.5 w-3.5" />
+                          </Button>
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+              </ScrollArea>
+            </div>
+
+            <DialogFooter>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setIsMoveDialogOpen(false)}
+                disabled={isMutating}
+              >
+                Abbrechen
+              </Button>
+              <Button type="submit" disabled={isMutating || !moveEntryTarget}>
+                {isMutating && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                Verschieben
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

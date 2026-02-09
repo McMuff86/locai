@@ -33,26 +33,30 @@
 
 ## Open Items (Next Priority)
 
-1. Replace `window.prompt` based actions with proper dialogs
+### Completed after merge (2026-02-08)
+
+1. Replaced `window.prompt` based actions with proper dialogs
 - Create file/folder dialog (validation + inline errors).
 - Rename dialog.
-- Move dialog with target folder picker.
+- Move dialog with target folder picker (workspace folder navigation).
 
-2. Add quick actions in preview
+### Remaining
+
+1. Add quick actions in preview
 - `Open in Agent` (pre-fill chat input / tool context).
 - `Add to RAG` (upload selected file to document pipeline).
 
-3. Improve drag & drop UX
+2. Improve drag & drop UX
 - Better directory-level drop indicators for nested moves.
 - Explicit toast feedback per operation (move/rename/create/upload).
 - Keyboard-accessible alternatives for all DnD actions.
 
-4. Hardening / API consistency
+3. Hardening / API consistency
 - Unify error response format across filebrowser endpoints.
 - Add input schemas and stricter validation for mutation routes.
 - Add optional max upload count per request.
 
-5. Tests
+4. Tests
 - Add scanner unit tests for:
   - create/rename/move/upload path validation.
   - workspace-only mutation guard.
