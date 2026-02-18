@@ -1,10 +1,49 @@
-# LocAI Context Handoff – Sprint 5 File Canvas
+# LocAI Context Handoff – Sprint 5 Image Editor
 
-**Last updated:** 2026-02-19 00:xx  
-**Branch:** `sprint5/fix-canvas-editor` (pushed, PR ready)  
-**Commit:** `80d0c82`  
+**Last updated:** 2026-02-19 00:52  
+**Branch:** `sprint5/feat-image-editor` (pushed)  
+**Commit:** `81cc612`  
 **Build:** ✅ green (lint warnings only – all pre-existing)  
-**Tests:** ✅ 100/100  
+
+## 🖼️ Image Editor Feature (NEW)
+
+### What was built
+Full image editor integrated into the FileWindow canvas system. When an image is opened,
+a "Bearbeiten" toggle switches between view mode and full editor mode.
+
+### New Files
+- `src/components/filebrowser/ImageEditor.tsx` – Main editor (HTML Canvas API, ~900 lines)
+- `src/components/filebrowser/ImageToolbar.tsx` – Grouped toolbar with icons + tooltips
+- `src/hooks/useImageEditor.ts` – State management (undo/redo, tools, settings)
+- `src/app/api/image-editor/ai-describe/route.ts` – Ollama vision description
+- `src/app/api/image-editor/ai-edit/route.ts` – ComfyUI img2img editing
+- `src/components/ui/{slider,tooltip,popover,select}.tsx` – Shadcn components
+
+### Modified Files
+- `FileWindow.tsx` – Added ImageEditor integration, edit toggle button
+- `useFileCanvas.ts` – Larger default size for image windows (700×500)
+- `scanner.ts` – Added `writeFileBinary()` for base64 image saving
+- `write/route.ts` – Added `encoding: 'base64'` support
+
+### Features
+- **Transform:** Crop, Resize (aspect lock), Rotate 90°CW/CCW, Flip H/V
+- **Adjust:** Brightness, Contrast, Saturation, Blur, Sharpen, Grayscale, Sepia, Invert (live preview + apply)
+- **Draw:** Freehand brush, Eraser, Text overlay, Shapes (rect/circle/line/arrow), Color picker (eyedropper), Blur region
+- **AI:** Describe (Ollama vision), Edit (ComfyUI img2img with denoise slider), Before/After compare slider
+- **Utility:** Undo/Redo (max 20 steps), Reset, Save, Save As, Export (PNG/JPG with quality)
+- **Keyboard:** Ctrl+Z undo, Ctrl+Y redo
+- **Status bar:** Dimensions, zoom slider, unsaved indicator
+
+### Architecture
+- Pure HTML Canvas API (no Fabric.js/Konva)
+- CSS filters for live preview, canvas operations for permanent apply
+- Undo stack stores data URLs (max 20)
+- Compare mode uses CSS clip-path overlay
+
+---
+
+## Previous context  
+
 
 ---
 
