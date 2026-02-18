@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { assertLocalRequest } from '@/app/api/_utils/security';
-import { writeFileContent } from '@/lib/filebrowser/scanner';
+import { writeFileContent, writeFileBinary } from '@/lib/filebrowser/scanner';
 
 export const runtime = 'nodejs';
 
@@ -8,6 +8,7 @@ interface WriteBody {
   rootId?: string;
   path?: string;
   content?: string;
+  encoding?: 'utf-8' | 'base64';
 }
 
 export async function POST(req: NextRequest) {
@@ -27,7 +28,9 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const entry = await writeFileContent(rootId, relativePath, content);
+    const entry = body.encoding === 'base64'
+      ? await writeFileBinary(rootId, relativePath, content)
+      : await writeFileContent(rootId, relativePath, content);
 
     return NextResponse.json({ success: true, entry });
   } catch (err) {

@@ -476,5 +476,28 @@ export async function writeFileContent(
   return buildEntry(rootId, fullPath);
 }
 
+/**
+ * Write binary content (base64-encoded) to a file in the workspace.
+ */
+export async function writeFileBinary(
+  rootId: string,
+  relativePath: string,
+  base64Content: string,
+): Promise<FileEntry> {
+  ensureWorkspaceMutationRoot(rootId);
+
+  const fullPath = resolveAndValidate(rootId, relativePath);
+  if (!fullPath) {
+    throw new Error('Ungültiger Pfad');
+  }
+
+  const dir = path.dirname(fullPath);
+  await fs.mkdir(dir, { recursive: true });
+
+  const buffer = Buffer.from(base64Content, 'base64');
+  await fs.writeFile(fullPath, buffer);
+  return buildEntry(rootId, fullPath);
+}
+
 export { TEXT_EXTENSIONS };
 
