@@ -103,7 +103,6 @@ export function AgentModeToggle({
         ref={buttonRef}
         type="button"
         variant="ghost"
-        size="icon"
         disabled={disabled}
         onClick={onToggle}
         onContextMenu={(e) => {
@@ -111,9 +110,9 @@ export function AgentModeToggle({
           setShowPopover(prev => !prev);
         }}
         className={cn(
-          'h-8 w-8 relative transition-all duration-300',
+          'h-12 w-12 relative transition-all duration-300',
           isActive
-            ? 'text-primary bg-primary/15 hover:bg-primary/25 shadow-[0_0_12px_rgba(var(--primary-rgb,59,130,246),0.3)]'
+            ? 'text-primary bg-primary/15 hover:bg-primary/25 shadow-[0_0_16px_rgba(var(--primary-rgb,59,130,246),0.35)]'
             : 'text-muted-foreground hover:text-foreground',
         )}
         title={
@@ -122,11 +121,11 @@ export function AgentModeToggle({
             : 'Agent Modus — KI kann Werkzeuge nutzen'
         }
       >
-        <Zap className={cn('h-4 w-4', isActive && 'fill-primary')} />
+        <Zap className={cn('h-6 w-6', isActive && 'fill-primary')} />
         {isActive && (
-          <span className="absolute -top-0.5 -right-0.5 flex h-3 w-3">
+          <span className="absolute -top-0.5 -right-0.5 flex h-4 w-4">
             <span className="absolute inline-flex h-full w-full rounded-full bg-primary opacity-75 animate-ping" />
-            <span className="relative inline-flex rounded-full h-3 w-3 bg-primary" />
+            <span className="relative inline-flex rounded-full h-4 w-4 bg-primary" />
           </span>
         )}
       </Button>
@@ -136,7 +135,7 @@ export function AgentModeToggle({
         <button
           type="button"
           onClick={() => setShowPopover(prev => !prev)}
-          className="absolute -bottom-5 left-1/2 -translate-x-1/2 flex gap-0.5 cursor-pointer"
+          className="absolute -bottom-6 left-1/2 -translate-x-1/2 flex gap-0.5 cursor-pointer"
           title="Werkzeuge konfigurieren"
         >
           {enabledTools.slice(0, 4).map(toolName => {
@@ -144,14 +143,14 @@ export function AgentModeToggle({
             return (
               <span
                 key={toolName}
-                className="text-[10px] leading-none"
+                className="text-xs leading-none"
               >
                 {tool?.emoji || '🔧'}
               </span>
             );
           })}
           {enabledTools.length > 4 && (
-            <span className="text-[9px] text-muted-foreground">+{enabledTools.length - 4}</span>
+            <span className="text-[11px] text-muted-foreground">+{enabledTools.length - 4}</span>
           )}
         </button>
       )}

@@ -288,11 +288,11 @@ export function WebSearchButton({
       <Button
         variant="ghost"
         size="icon"
-        className="h-8 w-8 text-muted-foreground/50"
+        className="h-12 w-12 text-muted-foreground/50"
         disabled
         title="Web-Suche deaktiviert. Aktiviere sie in den Einstellungen."
       >
-        <Globe className="h-4 w-4" />
+        <Globe className="h-5 w-5" />
       </Button>
     );
   }
@@ -302,11 +302,11 @@ export function WebSearchButton({
       <Button
         variant="ghost"
         size="icon"
-        className="h-8 w-8"
+        className="h-12 w-12"
         onClick={() => setIsOpen(true)}
         title="Web-Suche (AI-powered)"
       >
-        <Globe className="h-4 w-4" />
+        <Globe className="h-5 w-5" />
       </Button>
 
       <Dialog open={isOpen} onOpenChange={setIsOpen}>
