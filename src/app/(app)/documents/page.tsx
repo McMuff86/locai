@@ -8,7 +8,7 @@ import { FileBrowser } from '@/components/filebrowser';
 
 export default function DocumentsPage() {
   return (
-    <div className="flex flex-col h-full p-4 md:p-6 max-w-4xl mx-auto">
+    <div className="flex flex-col h-full p-4 md:p-6">
       <Tabs defaultValue="filebrowser" className="flex flex-col h-full">
         <TabsList className="flex-shrink-0 mb-4">
           <TabsTrigger value="filebrowser">

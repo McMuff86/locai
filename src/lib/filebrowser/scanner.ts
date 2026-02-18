@@ -19,10 +19,13 @@ export interface ListDirectoryOptions {
   includeChildCount?: boolean;
 }
 
+const IMAGE_EXTENSIONS = new Set(['.svg', '.png', '.jpg', '.jpeg', '.gif', '.webp', '.avif', '.ico']);
+
 export function getPreviewType(ext: string): FilePreviewType {
   if (ext === '.md') return 'markdown';
   if (ext === '.json') return 'json';
   if (ext === '.txt' || ext === '.csv' || ext === '.log') return 'text';
+  if (IMAGE_EXTENSIONS.has(ext)) return 'image';
   if (TEXT_EXTENSIONS.has(ext)) return 'code';
   return 'binary';
 }
@@ -258,6 +261,17 @@ export async function readFileContent(rootId: string, relativePath: string): Pro
 
   if (previewType === 'binary') {
     throw new Error('Binärdateien können nicht als Text angezeigt werden');
+  }
+
+  // Images are served separately via /api/filebrowser/image
+  if (previewType === 'image') {
+    return {
+      content: '',
+      truncated: false,
+      size: stat.size,
+      previewType,
+      language: 'text',
+    };
   }
 
   const truncated = stat.size > MAX_READ_SIZE;
