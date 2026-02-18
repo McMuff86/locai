@@ -1,116 +1,158 @@
-# LocAI Context Handoff – Sprint 5 UI Polish Round 3
+# LocAI Context Handoff – Sprint 5 File Canvas
 
 **Last updated:** 2026-02-18 23:xx  
-**Branch:** `sprint5/ui-polish-round3` (pushed, PR open)  
-**Commit:** `85ab1fe`  
+**Branch:** `sprint5/feat-file-canvas` (pushed, PR open)  
+**Commit:** `93120c7`  
 **Build:** ✅ green (lint warnings only – all pre-existing)  
 **Tests:** ✅ 100/100  
 
 ---
 
-## Was wurde gemacht (Runde 3)
+## Was wurde gemacht (File Canvas)
 
-### 1. Breiteres Chat-Layout ✅
-- `ChatContainer.tsx`: Outer-Padding von `p-4` auf `py-3` reduziert (kein seitliches Padding), innerer Wrapper `px-4 lg:px-8` → `px-3 lg:px-5`
-- `SetupCard.tsx`: `max-w-4xl` → `max-w-5xl` (1024px statt 896px)
-- `chat/page.tsx`: Agent/Workflow/Input-Wrapper auf `px-3 lg:px-5` vereinheitlicht
-- **Effekt:** Content nutzt jetzt ~85-90% der verfügbaren Breite
+### 1. `src/hooks/useFileCanvas.ts` – Canvas State Management ✅
+- Verwaltet: `windows[]`, `transform: { x, y, zoom }`
+- `openFile(file, rootId)`: öffnet Datei; bereits offen → bring-to-front + un-minimize
+- Cascade-Positionierung: neue Fenster erscheinen 30px versetzt (max 10 Positionen)
+- `closeWindow`, `bringToFront`, `updatePosition`, `updateSize`, `toggleMinimize`, `updateTransform`
+- zIndex-Counter via `useRef` (kein unnötiger Re-render)
 
-### 2. Code Block Upgrade (MarkdownRenderer) ✅
-- Language-Color-Dot: TypeScript=blau, Python=grün, Bash=smaragd, JSON=gelb, usw.
-- Copy-Button mit State Machine (idle → copied → idle via Framer Motion)
-- Word-Wrap Toggle Button pro Code-Block
-- Auto-Zeilennummern wenn >10 Zeilen
-- Dunklerer Header vs. Body (Kontrast)
+### 2. `src/components/filebrowser/FileCanvas.tsx` – Canvas Viewport ✅
+- Dot-Grid-Hintergrund: skaliert und verschiebt sich mit Zoom/Pan
+- Non-passive wheel event listener für Zoom (Browser blockiert sonst `preventDefault`)
+- Zoom-to-Cursor: Formel `newX = mouseX - (mouseX - panX) * (newZoom / zoom)`
+- Zoom: 15% – 400%, Pinch (ctrlKey) und Mausrad
+- Pan: Drag auf leerem Canvas (document-level listener → pan funktioniert auch wenn Maus den Canvas verlässt)
+- Reset-Button (bottom-left), Zoom-Indicator (bottom-right)
+- Leerer-Zustand-Overlay wenn keine Fenster offen
+- Fenster (FileWindow) stoppen Event-Propagation → Canvas-Pan nur auf freier Fläche
 
-### 3. ToolCall Cards (ToolCallBlock) ✅
-- Emoji-Map pro Tool: 🌐 Web, 📖 Read, ✍️ Write, ⚡ Run, 🎨 Image, 🧠 Memory…
-- Animierter Status-Dot für "running" (Puls-Glow, kein Layout-Shift)
-- Chevron dreht 90° beim Expand (Framer Motion)
-- Duration auf abgeschlossenen Calls
-- Status-basierte Border + Glow
+### 3. `src/components/filebrowser/FileWindow.tsx` – Datei-Fenster ✅
+- Absolut positioniert im World-Koordinatensystem des Canvas
+- **Title Bar**: Datei-Icon, Filename, macOS-Stil Buttons (gelb=minimize, rot=close)
+- **Drag**: MouseDown auf Title Bar → document-level mousemove dividiert durch Zoom
+- **Resize**: Bottom-right Ecken-Handle → document-level mousemove dividiert durch Zoom
+- **Min-Size**: 300×200px, **Default**: 500×400px
+- **Content Loading**: fetch `/api/filebrowser/read` on mount, lazy per Fenster
+- **File Types**: Markdown (MarkdownRenderer), Code (SyntaxHighlighter), JSON (formatted SyntaxHighlighter), Text (pre), Image (img-Tag via `/api/filebrowser/image`), Binary (Fallback-Text)
+- **Edit Mode**: Nur Workspace + nicht-gekürzte Dateien + EDITABLE_TYPES
+  - Text/Code/JSON: Textarea
+  - Markdown: Tab "Bearbeiten" / "Vorschau" (Live-Preview)
+  - Save → POST `/api/filebrowser/write` → toast
+- **Copy Button**: Clipboard-Copy des aktuellen Inhalts
+- Text-Selektion im Content-Bereich aktiviert (userSelect: text)
 
-### 4. Sidebar Collapse (layout.tsx) ✅
-- Framer Motion `layout` Animation: 224px ↔ 56px, 0.25s ease
-- Labels fade+slide via AnimatePresence
-- `layoutId="sidebar-active-indicator"` – aktive Route gleitet zwischen Einträgen
-- CSS Hover-Tooltip im Collapsed-State (kein Radix, reines CSS)
-- Collapse-State in localStorage persistiert (`locai-sidebar-collapsed`)
+### 4. Documents Page – Neues Layout ✅
+- `src/app/(app)/documents/page.tsx` neu strukturiert:
+  - **Links (320px)**: `FileBrowser` mit `onOpenFile` Callback
+  - **Rechts (flex-1)**: `FileCanvas` (Haupt-Bereich)
+  - RAG Tab bleibt unverändert
+- Datei-Klick → `canvas.openFile(entry, entry.rootId)` → Fenster auf Canvas
 
-### 5. FileBrowser – Open in Agent ✅
-- `FileEntryRow.tsx`: Bot-Icon-Button als Quick-Action (ohne Preview zu öffnen)
-- `FileBrowser.tsx`: `handleOpenInAgent` – liest Datei via `/api/filebrowser/read`, schreibt sessionStorage, navigiert zu `/chat?openFileInAgent=true`
-- (FilePreviewDialog hatte schon "Open in Agent" – jetzt auch direkt in der Liste)
-
-### 6. File-Editing im FilePreviewDialog ✅ (NEUE ANFORDERUNG)
-- **Edit-Button** in der Header-Zeile (nur Workspace-Root, nur nicht-gekürzte Dateien)
-- Unterstützte Typen: `text`, `code`, `json`, `markdown`
-- **Text/Code/JSON:** Textarea-Edit-Mode mit Auto-Focus, Save/Abbrechen
-- **Markdown:** Tab-Toggle "Bearbeiten" / "Vorschau" mit Live-MarkdownRenderer
-- **Speichern** → `POST /api/filebrowser/write` → Toast + `refresh()` im FileBrowser
-- Abbrechen stellt den Zustand wieder her
-
-### 7. NEW API: `/api/filebrowser/write` ✅
-- `POST { rootId, path, content }` → überschreibt bestehende Workspace-Datei
-- Backed by `scanner.writeFileContent()` – nur Workspace, nur Files (keine Dirs)
-- Gibt aktualisiertes `FileEntry` zurück
-
----
-
-## Noch offen / Für Runde 4
-
-### UI
-- Toast Redesign (Glass Morphism, Slide-in von rechts mit Progress Bar) – noch nicht gemacht
-- Shimmer vs. animate-pulse – schon in globals.css definiert, aber nicht alle Stellen umgestellt
-
-### Features
-- Chat-Messages in Bubbles-Layout: `max-w-[82%]` evtl. auf `max-w-[90%]` erhöhen für breite Screens
-- FilePreviewDialog: Edit für Binary/Image ausgeblendet – ggf. Hinweis "nicht editierbar" anzeigen
-- Rename in FilePreviewDialog direkt (aktuell nur in FileBrowser-Liste via Dialog)
-
-### Tech
-- `@radix-ui/react-tooltip` installieren wenn mehr Tooltips gebraucht werden
-- CSS-Tooltip im Sidebar ist funktional aber nicht 100% design-konsistent
+### 5. FileBrowser – onOpenFile Prop ✅
+- Neues optionales Prop: `onOpenFile?: (entry: FileEntry) => void`
+- Wenn vorhanden: Datei-Klick ruft `onOpenFile` statt `previewFile` auf
+- `FilePreviewDialog` bleibt erhalten (Fallback wenn kein Prop übergeben)
+- Komplett rückwärtskompatibel
 
 ---
 
-## Architektur-Notizen
+## Architektur
 
-### Layout-Hierarchie
+### Koordinatensystem
 ```
-AppLayout (layout.tsx)
-└── motion.nav (sidebar, 56px↔224px, Framer layout)
-└── main (flex-1, min-w-0)
-    └── children (chat page, etc.)
-
-Chat Page
-└── ConversationSidebar (wenn vorhanden)
-└── flex-1 flex flex-col
-    ├── ChatHeader
-    ├── ChatContainer (flex-1, py-3)
-    │   └── div.w-full.px-3.lg:px-5
-    │       └── ChatMessage (max-w-[95%] linear / max-w-[82%] bubbles)
-    ├── AgentMessage wrapper (px-3 lg:px-5)
-    └── ChatInput wrapper (px-3 lg:px-5 pb-6)
+Viewport (CSS overflow:hidden)
+└── World div (position:absolute, width:0, height:0)
+    transform: translate(panX, panY) scale(zoom)
+    transformOrigin: 0 0
+    └── FileWindow (position:absolute, left:winX, top:winY)
+        → winX/Y in World-Koordinaten
+        → screen pos = (panX + winX*zoom, panY + winY*zoom)
 ```
 
-### FileBrowser Write Flow
+### Zoom-to-Cursor (Invariante)
 ```
-User klickt "Bearbeiten" in FilePreviewDialog
-→ isEditMode = true, editedContent = preview.content
-→ Textarea erscheint
-→ User bearbeitet → klickt "Speichern"
-→ POST /api/filebrowser/write { rootId, path, content }
-→ scanner.writeFileContent() → fs.writeFile(path, content, 'utf-8')
-→ toast("Gespeichert") + onSaved() → FileBrowser.refresh()
+// Punkt unter dem Cursor soll nach dem Zoom an gleicher Stelle bleiben
+// cursor_world = (cursor_screen - panX) / zoom = const
+// → newPanX = cursorScreen - (cursorScreen - panX) * (newZoom / zoom)
 ```
 
-### Sidebar Collapse
+### Event-Fluss
 ```
-Collapsed = 56px (Icons only)
-Expanded  = 224px (Icons + Labels)
-Transition: Framer Motion layout, 0.25s [0.4,0,0.2,1] ease
-Tooltip: CSS group-hover/tip, absolute left-full, z-50
-Active indicator: motion.span layoutId="sidebar-active-indicator"
-Persist: localStorage['locai-sidebar-collapsed']
+Wheel → non-passive DOM listener → zoom + pan adjust
+Canvas MouseDown (empty) → isPanningRef = true
+Document MouseMove → if isPanning: update panX/panY
+Document MouseUp → isPanning = false
+
+Window Title MouseDown → isDraggingRef = true (per FileWindow)
+Document MouseMove → if isDragging: pos += delta / zoom
+Window Resize Handle MouseDown → isResizingRef = true
+Document MouseMove → if isResizing: size += delta / zoom
 ```
+
+### Datei öffnen – Flow
+```
+FileBrowser: User klickt Datei
+→ handlePreviewOrOpen(entry)
+  → onOpenFile prop vorhanden? → canvas.openFile(entry, entry.rootId)
+    → useFileCanvas: neues CanvasWindow erstellt
+    → FileCanvas rendert FileWindow
+    → FileWindow: fetch /api/filebrowser/read on mount
+    → Content wird angezeigt
+  → kein onOpenFile? → previewFile(entry) → FilePreviewDialog (wie bisher)
+```
+
+---
+
+## Noch offen / Für nächste Runde
+
+### Nice-to-have (nicht blockierend)
+- Snap-to-Grid beim Window-Release (optisch sauber)
+- Drag-Datei aus FileBrowser-Liste direkt auf Canvas droppen (DragEvent → Canvas-Position berechnen)
+- Keyboard Shortcut: Escape = aktives Fenster schließen, Ctrl+Z = letzte Position zurück
+- Window "Shake" um alle anderen zu minimieren (macOS-Feature)
+- Zoom Controls als Buttons (+/-) zusätzlich zum Mausrad
+
+### Potenzielle Verbesserungen
+- Canvas-Zustand in sessionStorage speichern (Tab-Reload → Fenster bleiben)
+- Fenster-Tab-Bar unten (minimierte Fenster als Tabs)
+- Rechtsklick-Kontext-Menü auf Window (Close, Minimize, Duplicate)
+- Grid-Toggle (Dots an/aus)
+
+---
+
+## Technische Entscheidungen
+
+| Entscheidung | Gewählt | Warum |
+|---|---|---|
+| Zoom/Pan Library | Keine (pure CSS) | Framer Motion ist bereits da; volle Kontrolle; keine extra Deps |
+| zIndex-Counter | useRef | Kein Re-render nötig; nur Inkrementieren |
+| Wheel Events | non-passive DOM listener | React's onWheel ist passive by default → kann preventDefault nicht aufrufen |
+| Drag (Window) | Document-level listeners | Mouse verlässt sonst das Element und drag stoppt |
+| Canvas Background | CSS radial-gradient | Kein SVG overhead, skaliert mit zoom via backgroundSize/Position |
+| Edit-Backend | Bestehend (`/api/filebrowser/write`) | Nicht neu bauen; funktioniert bereits |
+
+---
+
+## Frühere Handoff-Notes (Sprint 5 UI Polish Round 3)
+
+### Breiteres Chat-Layout ✅
+- `ChatContainer.tsx`: Outer-Padding reduziert, innerer Wrapper `px-3 lg:px-5`
+
+### Code Block Upgrade ✅
+- Language-Color-Dot, Copy-Button (Framer Motion), Word-Wrap Toggle, Auto-Zeilennummern
+
+### ToolCall Cards ✅
+- Emoji-Map, animierter Status-Dot, Chevron-Animation, Duration
+
+### Sidebar Collapse ✅
+- Framer Motion layout, 224px ↔ 56px, CSS Tooltip, localStorage persist
+
+### FileBrowser – Open in Agent ✅
+- Bot-Icon als Quick-Action in FileEntryRow
+
+### File-Editing im FilePreviewDialog ✅
+- Edit-Button, Textarea, Markdown-Tabs, Save → POST /api/filebrowser/write
+
+### NEW API: `/api/filebrowser/write` ✅
+- POST `{ rootId, path, content }` → überschreibt Workspace-Datei

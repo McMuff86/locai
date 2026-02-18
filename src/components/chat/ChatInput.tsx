@@ -201,7 +201,8 @@ export function ChatInput({
         />
         <Button 
           type="button" 
-          variant="outline" 
+          variant="outline"
+          size="lg"
           disabled={disabled}
           onClick={triggerFileInput}
           title="Upload image"
