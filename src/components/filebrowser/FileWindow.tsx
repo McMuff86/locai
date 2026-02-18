@@ -33,6 +33,7 @@ import { oneDark } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import type { CanvasWindow } from '@/hooks/useFileCanvas';
 import { MIN_WINDOW_SIZE } from '@/hooks/useFileCanvas';
 import type { FilePreviewType } from '@/lib/filebrowser/types';
+import { ImageEditor } from './ImageEditor';
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -106,6 +107,9 @@ export function FileWindow({
   // ── Editor feature state ─────────────────────────────────────────
   const [wordWrap, setWordWrap] = useState(true);
   const [fontSize, setFontSize] = useState(DEFAULT_FONT_SIZE);
+
+  // ── Image editor state ────────────────────────────────────────────
+  const [imageEditMode, setImageEditMode] = useState(false);
 
   // ── Copy state ───────────────────────────────────────────────────
   const [copied, setCopied] = useState(false);
@@ -449,6 +453,19 @@ export function FileWindow({
               )}
 
               <div className="ml-auto flex items-center gap-1">
+                {/* Image edit toggle */}
+                {fileContent.type === 'image' && (
+                  <Button
+                    variant={imageEditMode ? 'default' : 'ghost'}
+                    size="sm"
+                    className="h-6 px-2 text-xs"
+                    onClick={() => setImageEditMode(!imageEditMode)}
+                  >
+                    <Pencil className="h-3 w-3 mr-1" />
+                    {imageEditMode ? 'Ansicht' : 'Bearbeiten'}
+                  </Button>
+                )}
+
                 {/* Edit button */}
                 {canEdit && !isEditMode && (
                   <Button
@@ -546,9 +563,11 @@ export function FileWindow({
                 isSaving={isSaving}
                 rootId={win.rootId}
                 relativePath={win.file.relativePath}
+                fileName={win.file.name}
                 wordWrap={wordWrap}
                 fontSize={fontSize}
                 onFontSizeChange={setFontSize}
+                imageEditMode={imageEditMode}
               />
             )}
           </div>
@@ -583,9 +602,11 @@ interface WindowContentProps {
   isSaving: boolean;
   rootId: string;
   relativePath: string;
+  fileName: string;
   wordWrap: boolean;
   fontSize: number;
   onFontSizeChange: (size: number) => void;
+  imageEditMode: boolean;
 }
 
 function WindowContent({
@@ -597,9 +618,11 @@ function WindowContent({
   isSaving,
   rootId,
   relativePath,
+  fileName,
   wordWrap,
   fontSize,
   onFontSizeChange,
+  imageEditMode,
 }: WindowContentProps) {
   const { content, type, language, truncated } = fileContent;
 
@@ -788,8 +811,8 @@ function WindowContent({
         </ScrollArea>
       )}
 
-      {/* ── Image preview ─────────────────────────────────────── */}
-      {type === 'image' && !isEditMode && (
+      {/* ── Image preview / editor ────────────────────────────── */}
+      {type === 'image' && !isEditMode && !imageEditMode && (
         <ScrollArea className="flex-1 min-h-0 p-3">
           <div className="flex items-center justify-center">
             {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -800,6 +823,17 @@ function WindowContent({
             />
           </div>
         </ScrollArea>
+      )}
+
+      {type === 'image' && imageEditMode && (
+        <div className="flex-1 min-h-0 overflow-hidden">
+          <ImageEditor
+            imageUrl={`/api/filebrowser/image?${new URLSearchParams({ rootId, path: relativePath })}`}
+            rootId={rootId}
+            relativePath={relativePath}
+            fileName={fileName}
+          />
+        </div>
       )}
 
       {/* ── JSON (read-only) ──────────────────────────────────── */}
