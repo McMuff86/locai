@@ -20,6 +20,12 @@ interface ChatInputExtendedProps extends ChatInputProps {
   onTogglePlanning?: () => void;
   prefillMessage?: string;
   prefillVersion?: number;
+  /** Workflow Engine mode */
+  workflowMode?: boolean;
+  onToggleWorkflowMode?: () => void;
+  /** Reflection toggle */
+  enableReflection?: boolean;
+  onToggleReflection?: () => void;
 }
 
 export function ChatInput({ 
@@ -41,6 +47,10 @@ export function ChatInput({
   onTogglePlanning,
   prefillMessage,
   prefillVersion = 0,
+  workflowMode = false,
+  onToggleWorkflowMode,
+  enableReflection = true,
+  onToggleReflection,
 }: ChatInputExtendedProps) {
   const [message, setMessage] = useState("");
   const [selectedImages, setSelectedImages] = useState<File[]>([]);
@@ -210,6 +220,10 @@ export function ChatInput({
             onSelectPreset={onSelectPreset}
             enablePlanning={enablePlanning}
             onTogglePlanning={onTogglePlanning}
+            workflowMode={workflowMode}
+            onToggleWorkflowMode={onToggleWorkflowMode}
+            enableReflection={enableReflection}
+            onToggleReflection={onToggleReflection}
           />
         )}
         <Button 

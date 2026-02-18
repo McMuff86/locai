@@ -1,0 +1,170 @@
+// ============================================================================
+// Workflow Agent API Route
+// ============================================================================
+// POST /api/chat/agent/workflow
+//
+// New endpoint for the WorkflowEngine. Streams NDJSON WorkflowStreamEvents.
+// The existing /api/chat/agent endpoint is NOT modified (backward compatible).
+//
+// Reference: docs/adr/ADR-001-workflow-engine.md
+// ============================================================================
+
+import { NextRequest, NextResponse } from 'next/server';
+import { WorkflowEngine } from '@/lib/agents/workflow';
+import { ToolRegistry } from '@/lib/agents/registry';
+import { registerBuiltinTools } from '@/lib/agents/tools';
+import { getRelevantMemories, formatMemories } from '@/lib/memory/store';
+import { getPresetById } from '@/lib/agents/presets';
+import { resolveWorkspacePath } from '@/lib/settings/store';
+import type { OllamaChatMessage } from '@/lib/ollama';
+import type { WorkflowApiRequest } from '@/lib/agents/workflowTypes';
+import { WORKFLOW_DEFAULTS } from '@/lib/agents/workflowTypes';
+
+// ---------------------------------------------------------------------------
+// Agent System Prompt (same as /api/chat/agent for consistency)
+// ---------------------------------------------------------------------------
+
+function buildDefaultAgentPrompt(enabledToolNames: string[]): string {
+  const toolList = enabledToolNames.join(', ');
+  const workspace = resolveWorkspacePath() || '~/.locai/workspace/';
+
+  return (
+    'Du bist ein hilfreicher KI-Agent mit Zugriff auf Werkzeuge (Tools). ' +
+    'Du MUSST die bereitgestellten Werkzeuge verwenden, um Aufgaben zu erledigen. ' +
+    'Schreibe KEINEN Code fuer den Benutzer zum Ausfuehren — fuehre die Aktionen selbst mit deinen Werkzeugen aus.\n\n' +
+    'Verfuegbare Werkzeuge: ' + toolList + '\n\n' +
+    'Wichtige Regeln:\n' +
+    '- Wenn du eine Datei erstellen sollst, nutze write_file direkt.\n' +
+    '- Wenn du eine Datei lesen sollst, nutze read_file direkt.\n' +
+    '- Wenn du etwas suchen sollst, nutze search_documents oder web_search.\n' +
+    '- Wenn du eine Notiz erstellen sollst, nutze create_note.\n' +
+    '- Relative Dateipfade werden automatisch im Workspace gespeichert: ' + workspace + '\n' +
+    '- Fuehre die Werkzeuge Schritt fuer Schritt aus.\n' +
+    '- Antworte auf Deutsch, es sei denn der Benutzer schreibt in einer anderen Sprache.\n\n' +
+    'WICHTIG:\n' +
+    '- write_file braucht "path" und "content"\n' +
+    '- read_file braucht "path"\n' +
+    '- Fuehre Werkzeuge direkt aus.'
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Route Handler
+// ---------------------------------------------------------------------------
+
+export async function POST(request: NextRequest) {
+  try {
+    const body = (await request.json()) as WorkflowApiRequest;
+
+    const {
+      message,
+      model = 'llama3',
+      conversationId,
+      enabledTools,
+      maxSteps = WORKFLOW_DEFAULTS.maxSteps,
+      timeoutMs = WORKFLOW_DEFAULTS.timeoutMs,
+      enablePlanning = WORKFLOW_DEFAULTS.enablePlanning,
+      enableReflection = WORKFLOW_DEFAULTS.enableReflection,
+      host,
+      conversationHistory = [],
+      presetId,
+    } = body;
+
+    if (!message?.trim()) {
+      return NextResponse.json({ error: 'Message is required' }, { status: 400 });
+    }
+
+    // Set up tool registry
+    const registry = new ToolRegistry();
+    registerBuiltinTools(registry);
+
+    // Determine which tools will be available
+    const resolvedTools = enabledTools ?? registry.listNames();
+
+    // Build conversation messages
+    const messages: OllamaChatMessage[] = [
+      ...conversationHistory.map((m) => ({
+        role: m.role as 'system' | 'user' | 'assistant',
+        content: m.content,
+      })),
+    ];
+
+    // Inject default agent system prompt
+    const defaultPrompt = buildDefaultAgentPrompt(resolvedTools);
+    messages.unshift({ role: 'system', content: defaultPrompt });
+
+    // Layer preset system prompt on top if selected
+    if (presetId) {
+      const preset = getPresetById(presetId);
+      if (preset) {
+        messages.unshift({ role: 'system', content: preset.systemPrompt });
+      }
+    }
+
+    // Memory Auto-Inject
+    try {
+      const relevantMemories = await getRelevantMemories(message, 10);
+      if (relevantMemories.length > 0) {
+        messages.unshift({
+          role: 'system',
+          content: `Bekannte Informationen über den Benutzer:\n${formatMemories(relevantMemories)}`,
+        });
+      }
+    } catch {
+      // Memory injection is best-effort
+    }
+
+    // Create WorkflowEngine
+    const engine = new WorkflowEngine({
+      message,
+      messages,
+      model,
+      registry,
+      conversationId,
+      host,
+      config: {
+        enabledTools: resolvedTools,
+        maxSteps,
+        timeoutMs,
+        enablePlanning,
+        enableReflection,
+        maxRePlans: WORKFLOW_DEFAULTS.maxRePlans,
+        stepTimeoutMs: WORKFLOW_DEFAULTS.stepTimeoutMs,
+      },
+    });
+
+    // Create NDJSON streaming response
+    const stream = new ReadableStream({
+      async start(controller) {
+        const encoder = new TextEncoder();
+
+        function emit(data: Record<string, unknown>): void {
+          controller.enqueue(encoder.encode(JSON.stringify(data) + '\n'));
+        }
+
+        try {
+          for await (const event of engine.run()) {
+            emit(event as unknown as Record<string, unknown>);
+          }
+        } catch (err) {
+          const errMsg = err instanceof Error ? err.message : 'Workflow error';
+          emit({ type: 'error', message: errMsg, recoverable: false });
+        } finally {
+          controller.close();
+        }
+      },
+    });
+
+    return new Response(stream, {
+      headers: {
+        'Content-Type': 'application/x-ndjson',
+        'Cache-Control': 'no-cache',
+        'Connection': 'keep-alive',
+        'X-Workflow-Mode': 'true',
+      },
+    });
+  } catch (err) {
+    const errMsg = err instanceof Error ? err.message : 'Internal server error';
+    return NextResponse.json({ error: errMsg }, { status: 500 });
+  }
+}

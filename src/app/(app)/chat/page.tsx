@@ -22,12 +22,14 @@ import { useModels } from "@/hooks/useModels";
 import { useConversations } from "@/hooks/useConversations";
 import { useChat } from "@/hooks/useChat";
 import { useAgentChat } from "@/hooks/useAgentChat";
+import { useWorkflowChat } from "@/hooks/useWorkflowChat";
 import { useDocuments } from "@/hooks/useDocuments";
 import { useKeyboardShortcuts, KeyboardShortcut } from "@/hooks/useKeyboardShortcuts";
 import { useSettings } from "@/hooks/useSettings";
 
 // Agent Components
 import { AgentMessage } from "@/components/chat/AgentMessage";
+import { WorkflowProgress } from "@/components/chat/WorkflowProgress";
 
 // Types & Utils
 import { Message } from "@/types/chat";
@@ -160,6 +162,19 @@ function ChatPageContent() {
     togglePlanning,
     agentPlan,
   } = useAgentChat();
+
+  // Workflow Engine hook (Sprint 5)
+  const {
+    workflowState,
+    isRunning: isWorkflowRunning,
+    enableReflection,
+    toggleReflection,
+    sendWorkflowMessage,
+    cancelWorkflow,
+    resetWorkflow,
+  } = useWorkflowChat();
+  const [workflowMode, setWorkflowMode] = useState(false);
+  const toggleWorkflowMode = useCallback(() => setWorkflowMode((p) => !p), []);
 
   // ── Local UI state ────────────────────────────────────────────
   const [showSidebar, setShowSidebar] = useState(true);
@@ -407,7 +422,14 @@ function ChatPageContent() {
 
   const handleSendMessage = useCallback(async (content: string, images?: File[]) => {
     if (isAgentMode && !images?.length) {
-      // Agent mode: send through agent pipeline
+      // Build conversation history for agent context
+      const history = conversation.messages.map(msg => ({
+        role: msg.role as string,
+        content: typeof msg.content === 'string' ? msg.content : '[media content]',
+      }));
+      history.push({ role: 'user', content });
+
+      // Add user message to conversation
       const userMessage: Message = {
         id: uuidv4(),
         role: 'user',
@@ -417,32 +439,50 @@ function ChatPageContent() {
       };
       addMessage(userMessage);
 
-      // Build conversation history for agent context
-      const history = conversation.messages.map(msg => ({
-        role: msg.role as string,
-        content: typeof msg.content === 'string' ? msg.content : '[media content]',
-      }));
-      history.push({ role: 'user', content });
+      if (workflowMode) {
+        // Workflow Engine mode: use new endpoint
+        resetWorkflow();
+        const finalContent = await sendWorkflowMessage(content, {
+          conversationHistory: history,
+          enabledTools,
+          model: selectedModel,
+          host: settings?.ollamaHost,
+          presetId: activePreset ?? undefined,
+          conversationId: conversation.id,
+        });
 
-      const finalContent = await sendAgentMessage(content, {
-        conversationHistory: history,
-        enabledTools,
-        model: selectedModel,
-        host: settings?.ollamaHost,
-        presetId: activePreset ?? undefined,
-        enablePlanning,
-      });
+        if (finalContent) {
+          const botMessage: Message = {
+            id: uuidv4(),
+            role: 'assistant',
+            content: finalContent,
+            timestamp: new Date(),
+            modelName: selectedModel,
+          };
+          addMessage(botMessage);
+        }
+      } else {
+        // Classic agent mode: send through agent pipeline
+        const finalContent = await sendAgentMessage(content, {
+          conversationHistory: history,
+          enabledTools,
+          model: selectedModel,
+          host: settings?.ollamaHost,
+          presetId: activePreset ?? undefined,
+          enablePlanning,
+        });
 
-      // Add the final bot message to conversation
-      if (finalContent) {
-        const botMessage: Message = {
-          id: uuidv4(),
-          role: 'assistant',
-          content: finalContent,
-          timestamp: new Date(),
-          modelName: selectedModel,
-        };
-        addMessage(botMessage);
+        // Add the final bot message to conversation
+        if (finalContent) {
+          const botMessage: Message = {
+            id: uuidv4(),
+            role: 'assistant',
+            content: finalContent,
+            timestamp: new Date(),
+            modelName: selectedModel,
+          };
+          addMessage(botMessage);
+        }
       }
       return;
     }
@@ -463,7 +503,7 @@ function ChatPageContent() {
       undefined, // useStreaming - use default
       { ragEnabled }
     );
-  }, [sendMessage, conversation, selectedModel, addMessage, setSelectedModel, visionModels, toast, isAgentMode, sendAgentMessage, enabledTools, ragEnabled, settings?.ollamaHost, activePreset, enablePlanning]);
+  }, [sendMessage, conversation, selectedModel, addMessage, setSelectedModel, visionModels, toast, isAgentMode, sendAgentMessage, enabledTools, ragEnabled, settings?.ollamaHost, activePreset, enablePlanning, workflowMode, sendWorkflowMessage, resetWorkflow, cancelWorkflow]);
 
   // ── Load conversation from URL ────────────────────────────────
 
@@ -736,8 +776,8 @@ function ChatPageContent() {
             <>
               <ChatContainer conversation={conversation} isLoading={isChatLoading && !isAgentMode} />
 
-              {/* Agent message (tool calls + streaming) */}
-              {isAgentMode && (isAgentLoading || agentTurns.length > 0) && (
+              {/* Agent message (classic mode: tool calls + streaming) */}
+              {isAgentMode && !workflowMode && (isAgentLoading || agentTurns.length > 0) && (
                 <div className="px-4 lg:px-8">
                   <AgentMessage
                     turns={agentTurns}
@@ -749,6 +789,19 @@ function ChatPageContent() {
                     modelName={selectedModel}
                     error={agentError}
                     plan={agentPlan}
+                  />
+                </div>
+              )}
+
+              {/* Workflow Engine mode: WorkflowProgress visualization */}
+              {isAgentMode && workflowMode && (isWorkflowRunning || workflowState.steps.length > 0 || workflowState.status !== 'idle') && (
+                <div className="px-4 lg:px-8 mb-2">
+                  <WorkflowProgress
+                    workflowState={workflowState}
+                    isRunning={isWorkflowRunning}
+                    content={workflowState.streamingAnswer}
+                    modelName={selectedModel}
+                    enableReflection={enableReflection}
                   />
                 </div>
               )}
@@ -765,15 +818,21 @@ function ChatPageContent() {
               )}
               
               {/* Stop Button */}
-              {(isStreaming || isAgentLoading) && (
+              {(isStreaming || isAgentLoading || isWorkflowRunning) && (
                 <div className="px-4 py-2 border-t border-border/40 flex justify-center">
                   <Button 
                     variant="outline" 
                     size="sm"
-                    onClick={isAgentLoading ? cancelAgentRun : stopStreaming}
+                    onClick={
+                      isWorkflowRunning
+                        ? cancelWorkflow
+                        : isAgentLoading
+                        ? cancelAgentRun
+                        : stopStreaming
+                    }
                     className="text-destructive hover:text-destructive"
                   >
-                    {isAgentLoading ? 'Agent stoppen' : 'Stop Generating'}
+                    {isWorkflowRunning ? 'Workflow stoppen' : isAgentLoading ? 'Agent stoppen' : 'Stop Generating'}
                   </Button>
                 </div>
               )}
@@ -791,7 +850,7 @@ function ChatPageContent() {
                 </div>
                 <ChatInput
                   onSend={handleSendMessage}
-                  disabled={isChatLoading || isAgentLoading}
+                  disabled={isChatLoading || isAgentLoading || isWorkflowRunning}
                   inputRef={chatInputRef}
                   searxngUrl={settings?.searxngUrl}
                   searxngEnabled={settings?.searxngEnabled}
@@ -807,6 +866,10 @@ function ChatPageContent() {
                   onTogglePlanning={togglePlanning}
                   prefillMessage={prefillMessage}
                   prefillVersion={prefillVersion}
+                  workflowMode={workflowMode}
+                  onToggleWorkflowMode={toggleWorkflowMode}
+                  enableReflection={enableReflection}
+                  onToggleReflection={toggleReflection}
                 />
               </div>
             </>
