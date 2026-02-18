@@ -13,12 +13,12 @@ export function ChatContainer({ conversation, isLoading = false }: ChatContainer
 
   return (
     <motion.div 
-      className="flex-1 overflow-y-auto p-4"
+      className="flex-1 overflow-y-auto py-3"
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       transition={{ duration: 0.5 }}
     >
-      <div className="w-full px-4 lg:px-8">
+      <div className="w-full px-3 lg:px-5">
         {conversation.messages.map((message, index) => (
           <ChatMessage 
             key={message.id} 

@@ -445,5 +445,36 @@ export async function saveUploadedFile(
   return buildEntry(rootId, targetPath);
 }
 
+/**
+ * Overwrites an existing file in the workspace with new content.
+ * Only allowed in the workspace root.
+ */
+export async function writeFileContent(
+  rootId: string,
+  relativePath: string,
+  content: string,
+): Promise<FileEntry> {
+  ensureWorkspaceMutationRoot(rootId);
+
+  const fullPath = resolveAndValidate(rootId, relativePath);
+  if (!fullPath) {
+    throw new Error('Ungültiger Pfad');
+  }
+
+  let stat;
+  try {
+    stat = await fs.stat(fullPath);
+  } catch {
+    throw new Error('Datei nicht gefunden');
+  }
+
+  if (stat.isDirectory()) {
+    throw new Error('Pfad zeigt auf ein Verzeichnis, keine Datei');
+  }
+
+  await fs.writeFile(fullPath, content, 'utf-8');
+  return buildEntry(rootId, fullPath);
+}
+
 export { TEXT_EXTENSIONS };
 

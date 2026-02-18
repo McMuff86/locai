@@ -779,7 +779,7 @@ function ChatPageContent() {
 
               {/* Agent message (classic mode: tool calls + streaming) */}
               {isAgentMode && !workflowMode && (isAgentLoading || agentTurns.length > 0) && (
-                <div className="px-4 lg:px-8">
+                <div className="px-3 lg:px-5">
                   <AgentMessage
                     turns={agentTurns}
                     content={agentStreamingContent}
@@ -796,7 +796,7 @@ function ChatPageContent() {
 
               {/* Workflow Engine mode: WorkflowProgress visualization */}
               {isAgentMode && workflowMode && (isWorkflowRunning || workflowState.steps.length > 0 || workflowState.status !== 'idle') && (
-                <div className="px-4 lg:px-8 mb-2">
+                <div className="px-3 lg:px-5 mb-2">
                   <WorkflowProgress
                     workflowState={workflowState}
                     isRunning={isWorkflowRunning}
@@ -839,7 +839,7 @@ function ChatPageContent() {
               )}
               
               {/* Chat Input */}
-              <div className="px-4 pb-6">
+              <div className="px-3 lg:px-5 pb-6">
                 {/* RAG + Agent toggles row */}
                 <div className="flex items-center gap-1 mb-1 ml-1">
                   <RAGToggle

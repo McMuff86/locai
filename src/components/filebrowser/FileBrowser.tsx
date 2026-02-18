@@ -17,6 +17,7 @@ import {
   Upload,
   FolderInput,
 } from 'lucide-react';
+import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -49,6 +50,9 @@ type SortBy = 'name' | 'modifiedAt' | 'size';
 type SortOrder = 'asc' | 'desc';
 type TypeFilter = 'all' | 'file' | 'directory' | 'code' | 'markdown' | 'json' | 'text';
 type CreateDialogMode = 'file' | 'directory';
+
+const OPEN_FILE_IN_AGENT_SESSION_KEY = 'openFileInAgent';
+const AGENT_PREVIEW_SNIPPET_LIMIT = 4000;
 
 function normalizeRelativePath(pathValue: string): string {
   const withForwardSlashes = pathValue.trim().replace(/\\/g, '/');
@@ -94,6 +98,7 @@ function classifyEntry(entry: FileEntry): TypeFilter {
 }
 
 export function FileBrowser() {
+  const router = useRouter();
   const {
     roots,
     currentRoot,
@@ -253,6 +258,34 @@ export function FileBrowser() {
       setIsMovePickerLoading(false);
     }
   }, [currentRoot]);
+
+  const handleOpenInAgent = useCallback(async (entry: FileEntry) => {
+    if (entry.type !== 'file' || !currentRoot) return;
+
+    try {
+      // Fetch a preview snippet of the file content
+      const params = new URLSearchParams({ rootId: currentRoot.id, path: entry.relativePath });
+      const res = await fetch(`/api/filebrowser/read?${params}`);
+      const payload = await res.json() as { content?: string; truncated?: boolean; error?: string };
+
+      const snippet = (payload.content ?? '').slice(0, AGENT_PREVIEW_SNIPPET_LIMIT);
+      const truncated = !!(payload.truncated || (payload.content ?? '').length > AGENT_PREVIEW_SNIPPET_LIMIT);
+
+      sessionStorage.setItem(
+        OPEN_FILE_IN_AGENT_SESSION_KEY,
+        JSON.stringify({
+          rootId: currentRoot.id,
+          relativePath: entry.relativePath,
+          filename: entry.name,
+          previewSnippet: snippet,
+          previewTruncated: truncated,
+        }),
+      );
+      router.push('/chat?openFileInAgent=true');
+    } catch (err) {
+      console.error('Open in agent failed:', err);
+    }
+  }, [currentRoot, router]);
 
   const handleCreateFile = () => {
     if (!canMutate) return;
@@ -693,6 +726,7 @@ export function FileBrowser() {
                     onDelete={deleteFile}
                     onRename={handleRename}
                     onMove={handleMove}
+                    onOpenInAgent={handleOpenInAgent}
                     onDragStart={setDraggedEntry}
                     onDragEnd={() => setDraggedEntry(null)}
                     onDropOnDirectory={handleDropOnDirectory}
@@ -712,6 +746,7 @@ export function FileBrowser() {
         isLoading={isPreviewLoading}
         rootId={filePreview?.rootId}
         relativePath={filePreview?.relativePath}
+        onSaved={refresh}
       />
 
       <Dialog

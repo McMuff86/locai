@@ -463,7 +463,7 @@ export function SetupCard({
 
   return (
     <div className="flex-1 flex flex-col items-center justify-center p-4 md:p-6 overflow-y-auto">
-      <div className="w-full max-w-4xl space-y-4">
+      <div className="w-full max-w-5xl space-y-4">
 
         {/* ── Header ─────────────────────────────────────────────── */}
         <div className="space-y-0.5">
