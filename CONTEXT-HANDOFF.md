@@ -7,26 +7,46 @@
 ---
 
 ## Letzter Agent
-- **Rolle:** 💻 Coding Agent (locai-coder)
+- **Rolle:** 🧪 Test Agent (locai-tester)
 - **Datum:** 2026-02-18
-- **Branch:** `sprint5/feat-workflow-engine`
-- **Letzter Commit:** `8c51ea2` – fix: clean up lint warnings from workflow integration
+- **Branch:** `sprint5/test-workflow-engine`
+- **Letzter Commit:** (commit nach Handoff-Update)
 
 ---
 
 ## Aktueller Stand
 
-**FEAT-1 (Workflow Engine) ist vollständig implementiert und deployed.**
+**TEST-1 (Workflow Engine Tests) ist vollständig implementiert.**
 
-`npm run preflight` läuft durch:
-- ✅ `npm run lint` – nur pre-existing Warnings (keine neuen Errors)
-- ✅ `npm run typecheck` – sauber, 0 Fehler
-- ✅ `npm run test` – 100/100 Tests grün
-- ✅ `npm run build` – Build erfolgreich, `/api/chat/agent/workflow` ist live
+`npm run test` läuft durch:
+- ✅ `npm run test` – **238/238 Tests grün** (138 neue Tests, alle bestanden)
+- ✅ `workflowTypes.test.ts` – 52 Tests (alle Type Guards + WORKFLOW_DEFAULTS)
+- ✅ `workflow.test.ts` – 45 Tests (WorkflowEngine State Machine, alle Szenarien)
+- ✅ `useWorkflowChat.test.ts` – 41 Tests (Hook + NDJSON Parsing, jsdom env)
 
 ---
 
 ## Was wurde gemacht
+
+### Neue Dateien (Sprint 5 – TEST-1)
+
+| Datei | Beschreibung |
+|-------|--------------|
+| `src/lib/agents/workflowTypes.test.ts` | 52 Tests für alle `isWorkflow*Event` Type Guards und WORKFLOW_DEFAULTS Werte |
+| `src/lib/agents/workflow.test.ts` | 45 Tests für WorkflowEngine: State Machine, Planning (inkl. Fallback), Reflection (continue/complete/abort/adjust_plan), Re-Plan Limit, Cancellation, Timeout, Error Recovery, Config Overrides |
+| `src/hooks/useWorkflowChat.test.ts` | 41 Tests für den Hook: NDJSON Event Parsing, State Updates für alle Event-Typen, Cancel/Reset, Reflection/Planning Toggle, Fehlerbehandlung |
+| `src/lib/agents/workflow.integration-test.md` | E2E Szenario-Dokumentation: 3-Step Workflow, alle benötigten Mocks, Assertions, zukünftige Szenarien |
+
+### Installierte Dev-Dependencies
+- `jsdom@^25` – Für Vitest jsdom Environment (Hook-Tests)
+- `@testing-library/react@^16` – React 19 kompatibles Testing Library für `renderHook` + `act`
+
+### Mocking-Strategie
+- `sendAgentChatMessage` aus `@/lib/ollama` → `vi.mock('@/lib/ollama', ...)`
+- `executeAgentLoop` aus `./executor` → `vi.mock('./executor', ...)`
+- `fetch` global → `vi.stubGlobal('fetch', vi.fn())`
+
+---
 
 ### Neue Dateien (Sprint 5 – FEAT-1)
 
@@ -59,6 +79,10 @@
 
 ### Sprint 5 Backlog (noch offen)
 Laut `sprints/sprint-5-agent-evolution.md`:
+
+0. **TEST-1 DONE** – Branch `sprint5/test-workflow-engine` ist bereit für Review.
+   - PR erstellen: von `sprint5/test-workflow-engine` → `sprint5/feat-workflow-engine`
+   - Alle 238 Tests grün ✅
 
 1. **FEAT-2 – RAG Upgrade** (ADR-002)
    - Hybrides Chunking (800-1200 Chars statt 500)
