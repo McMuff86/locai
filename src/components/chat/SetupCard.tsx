@@ -21,6 +21,56 @@ import {
 } from '../../lib/prompt-templates';
 import { cn } from '../../lib/utils';
 
+// ---------------------------------------------------------------------------
+// Model descriptions (German) – keyed by model name prefix / exact match
+// ---------------------------------------------------------------------------
+
+const MODEL_DESCRIPTIONS: { pattern: RegExp; description: string }[] = [
+  { pattern: /qwen2\.5|qwen3/i,       description: 'Starkes Allround-Modell mit exzellentem Tool-Calling. Ideal für Agent Mode.' },
+  { pattern: /qwen/i,                  description: 'Alibabas Qwen-Modellreihe. Gutes Tool-Calling, stark mehrsprachig.' },
+  { pattern: /llama3\.[1-9]/i,         description: 'Metas Flaggschiff-Modell. Solides Tool-Calling, gut für Chat und Code.' },
+  { pattern: /llama3/i,                description: 'Metas Llama-3-Modell. Vielseitig für Chat und Wissensaufgaben.' },
+  { pattern: /llama/i,                 description: 'Metas offenes Sprachmodell. Solide Allround-Performance.' },
+  { pattern: /deepseek-r1|deepseek-v3/i, description: 'Reasoning-Modell mit sichtbarem Denkprozess. Stark bei komplexen Aufgaben.' },
+  { pattern: /deepseek/i,              description: 'DeepSeeks Sprachmodell. Gut für Code und analytische Aufgaben.' },
+  { pattern: /mistral-large/i,         description: 'Mistral Large: leistungsstarkes Flaggschiff mit exzellentem Tool-Calling.' },
+  { pattern: /mistral-nemo/i,          description: 'Mistral Nemo: kompaktes, mehrsprachiges Modell für schnelle Aufgaben.' },
+  { pattern: /mistral/i,               description: 'Schnelles europäisches Modell. Gut für Chat, solides Tool-Calling.' },
+  { pattern: /mixtral/i,               description: 'Mistral MoE-Modell. Hohe Qualität bei guter Effizienz.' },
+  { pattern: /codellama/i,             description: 'Spezialisiert auf Code-Generierung und -Analyse.' },
+  { pattern: /starcoder/i,             description: 'BigCodes Coding-Spezialist. Unterstützt viele Programmiersprachen.' },
+  { pattern: /gemma2/i,                description: 'Googles kompaktes Gemma-2-Modell. Gut für allgemeine Aufgaben.' },
+  { pattern: /gemma/i,                 description: 'Googles offenes Gemma-Modell. Leichtgewichtig und effizient.' },
+  { pattern: /phi-?[34]/i,             description: 'Microsofts kompaktes Phi-Modell. Überraschend stark für seine Grösse.' },
+  { pattern: /phi/i,                   description: 'Microsofts Phi-Modell. Klein und schnell für einfache Aufgaben.' },
+  { pattern: /command-r/i,             description: 'Coheres Command-R: optimiert für RAG und Tool-Calling.' },
+  { pattern: /hermes/i,                description: 'NousResearch Hermes: fine-tuned für Instruktionsbefolgung und Tool-Calling.' },
+  { pattern: /neural-chat/i,           description: 'Intels Neural Chat: optimiert für Konversation.' },
+  { pattern: /vicuna/i,                description: 'Vicuna: Chat-fähiges Open-Source-Modell.' },
+  { pattern: /orca/i,                  description: 'Microsofts Orca: auf Reasoning fine-tuned.' },
+  { pattern: /dolphin/i,               description: 'Uncensored Chat-Modell, gut für kreative Aufgaben.' },
+];
+
+/**
+ * Returns a German 1–2-sentence description for the given model name.
+ * Falls back to a generic size-based hint for unknowns.
+ */
+function getModelDescription(modelName: string): string {
+  for (const { pattern, description } of MODEL_DESCRIPTIONS) {
+    if (pattern.test(modelName)) return description;
+  }
+  // Generic fallback based on parameter size hint in name
+  const sizeMatch = modelName.match(/(\d+\.?\d*)b/i);
+  if (sizeMatch) {
+    const params = parseFloat(sizeMatch[1]);
+    if (params <= 3)  return 'Sehr kompaktes Modell. Schnell und ressourcenschonend.';
+    if (params <= 8)  return 'Mittelgrosses Modell. Gute Balance zwischen Qualität und Geschwindigkeit.';
+    if (params <= 14) return 'Grösseres Modell. Stärker bei komplexen Aufgaben.';
+    return 'Leistungsstarkes Grossmodell. Ideal für anspruchsvolle Aufgaben.';
+  }
+  return 'Lokales Sprachmodell. Für Details Ollama-Dokumentation prüfen.';
+}
+
 // Re-export for backwards compatibility
 export { IMAGE_PROMPT };
 
@@ -413,7 +463,7 @@ export function SetupCard({
 
   return (
     <div className="flex-1 flex flex-col items-center justify-center p-4 md:p-6 overflow-y-auto">
-      <div className="w-full max-w-2xl space-y-4">
+      <div className="w-full max-w-4xl space-y-4">
 
         {/* ── Header ─────────────────────────────────────────────── */}
         <div className="space-y-0.5">
@@ -437,6 +487,12 @@ export function SetupCard({
               selectedModel={selectedModel}
               onSelectModel={onSelectModel}
             />
+            {/* Model description */}
+            {selectedModel && (
+              <p className="text-sm text-muted-foreground px-1">
+                {getModelDescription(selectedModel)}
+              </p>
+            )}
             <ModelStatsBar model={selectedModelData} />
           </CardContent>
         </Card>

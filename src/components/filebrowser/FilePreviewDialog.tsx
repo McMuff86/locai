@@ -257,6 +257,8 @@ export function FilePreviewDialog({
                 content={preview.content}
                 type={preview.type}
                 language={preview.language}
+                rootId={rootId}
+                relativePath={relativePath}
               />
             </div>
           ) : null}
@@ -270,12 +272,37 @@ function PreviewContent({
   content,
   type,
   language,
+  rootId,
+  relativePath,
 }: {
   content: string;
   type: FilePreviewType;
   language: string;
+  rootId?: string;
+  relativePath?: string;
 }) {
   switch (type) {
+    case 'image': {
+      if (!rootId || !relativePath) {
+        return (
+          <p className="text-sm text-muted-foreground p-4">
+            Bildvorschau nicht verfügbar (fehlende Pfadangaben).
+          </p>
+        );
+      }
+      const params = new URLSearchParams({ rootId, path: relativePath });
+      const imageUrl = `/api/filebrowser/image?${params}`;
+      return (
+        <div className="flex items-center justify-center py-4">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={imageUrl}
+            alt={relativePath}
+            className="max-w-full max-h-[70vh] object-contain rounded-lg"
+          />
+        </div>
+      );
+    }
     case 'markdown':
       return (
         <div className="py-2">
