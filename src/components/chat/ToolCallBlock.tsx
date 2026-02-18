@@ -2,35 +2,51 @@
 
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ChevronRight, ChevronDown, Loader2, CheckCircle2, XCircle, Wrench } from 'lucide-react';
+import { ChevronRight, Loader2, CheckCircle2, XCircle } from 'lucide-react';
 import { ToolCall, ToolResult } from '@/lib/agents/types';
 import { cn } from '@/lib/utils';
 
-// ---------------------------------------------------------------------------
-// Tool display name mapping (German labels)
-// ---------------------------------------------------------------------------
+// ── Tool display labels (German) ──────────────────────────────────
 
 const TOOL_LABELS: Record<string, string> = {
   search_documents: 'Suche Dokumente',
-  web_search: 'Web-Suche',
-  read_file: 'Datei lesen',
-  write_file: 'Datei schreiben',
-  edit_file: 'Datei bearbeiten',
-  create_note: 'Notiz erstellen',
-  save_memory: 'Merken',
-  recall_memory: 'Erinnern',
-  run_command: 'Befehl ausführen',
-  run_code: 'Code ausführen',
-  generate_image: 'Bild generieren',
+  web_search:       'Web-Suche',
+  read_file:        'Datei lesen',
+  write_file:       'Datei schreiben',
+  edit_file:        'Datei bearbeiten',
+  create_note:      'Notiz erstellen',
+  save_memory:      'Merken',
+  recall_memory:    'Erinnern',
+  run_command:      'Befehl ausführen',
+  run_code:         'Code ausführen',
+  generate_image:   'Bild generieren',
 };
 
 function getToolLabel(name: string): string {
   return TOOL_LABELS[name] || name;
 }
 
-// ---------------------------------------------------------------------------
-// Status helpers
-// ---------------------------------------------------------------------------
+// ── Tool emoji map ────────────────────────────────────────────────
+
+const TOOL_EMOJI: Record<string, string> = {
+  search_documents: '📄',
+  web_search:       '🌐',
+  read_file:        '📖',
+  write_file:       '✍️',
+  edit_file:        '✏️',
+  create_note:      '📝',
+  save_memory:      '🧠',
+  recall_memory:    '💭',
+  run_command:      '⚡',
+  run_code:         '🔬',
+  generate_image:   '🎨',
+};
+
+function getToolEmoji(name: string): string {
+  return TOOL_EMOJI[name] ?? '🔧';
+}
+
+// ── Status helpers ────────────────────────────────────────────────
 
 type ToolCallStatus = 'running' | 'success' | 'error';
 
@@ -51,17 +67,33 @@ function formatArgs(args: Record<string, unknown>): string {
 }
 
 function formatDuration(startedAt: string, completedAt?: string): string {
-  if (!completedAt) return '...';
-  const start = new Date(startedAt).getTime();
-  const end = new Date(completedAt).getTime();
-  const ms = end - start;
+  if (!completedAt) return '';
+  const ms = new Date(completedAt).getTime() - new Date(startedAt).getTime();
   if (ms < 1000) return `${ms}ms`;
   return `${(ms / 1000).toFixed(1)}s`;
 }
 
-// ---------------------------------------------------------------------------
-// Component
-// ---------------------------------------------------------------------------
+// ── Status Icon ───────────────────────────────────────────────────
+
+function StatusIcon({ status }: { status: ToolCallStatus }) {
+  if (status === 'running') {
+    return (
+      <motion.span
+        animate={{ opacity: [1, 0.5, 1] }}
+        transition={{ duration: 1.2, repeat: Infinity }}
+        className="w-4 h-4 rounded-full bg-blue-500/20 border border-blue-400/50 flex items-center justify-center shrink-0"
+      >
+        <span className="w-1.5 h-1.5 rounded-full bg-blue-400" />
+      </motion.span>
+    );
+  }
+  if (status === 'success') {
+    return <CheckCircle2 className="h-4 w-4 text-emerald-400 shrink-0" />;
+  }
+  return <XCircle className="h-4 w-4 text-red-400 shrink-0" />;
+}
+
+// ── Component ─────────────────────────────────────────────────────
 
 interface ToolCallBlockProps {
   call: ToolCall;
@@ -79,65 +111,77 @@ export function ToolCallBlock({ call, result, turnStartedAt, turnCompletedAt }: 
   return (
     <motion.div
       className={cn(
-        'rounded-lg border text-sm my-1.5 overflow-hidden transition-colors',
-        status === 'running' && 'border-blue-500/40 bg-blue-500/5',
-        status === 'success' && 'border-emerald-500/30 bg-muted/60',
-        status === 'error' && 'border-red-500/40 bg-red-500/5',
+        'rounded-lg border text-sm my-1.5 overflow-hidden',
+        status === 'running' && [
+          'border-blue-500/30 bg-blue-950/10',
+          'shadow-[0_0_0_1px_rgba(59,130,246,0.08),0_0_12px_rgba(59,130,246,0.04)]',
+        ],
+        status === 'success' && 'border-emerald-500/20 bg-card/60',
+        status === 'error'   && [
+          'border-red-500/30 bg-red-950/10',
+          'shadow-[0_0_0_1px_rgba(239,68,68,0.08)]',
+        ],
       )}
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.25 }}
     >
-      {/* Header row */}
+      {/* ── Header ──────────────────────────────────────────────── */}
       <button
-        onClick={() => setIsExpanded(prev => !prev)}
-        className="flex items-center gap-2 w-full px-3 py-2 text-left hover:bg-muted/40 transition-colors"
+        onClick={() => setIsExpanded((prev) => !prev)}
+        className={cn(
+          'flex items-center gap-2 w-full px-3 py-2.5 text-left',
+          'hover:bg-muted/30 transition-colors duration-100',
+          isExpanded ? 'rounded-t-lg' : 'rounded-lg',
+        )}
       >
-        {/* Expand icon */}
-        <span className="text-muted-foreground shrink-0">
-          {isExpanded ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
-        </span>
+        {/* Animated chevron */}
+        <motion.span
+          animate={{ rotate: isExpanded ? 90 : 0 }}
+          transition={{ duration: 0.15, ease: [0.4, 0, 0.2, 1] }}
+          className="text-muted-foreground/60 shrink-0"
+        >
+          <ChevronRight className="h-3.5 w-3.5" />
+        </motion.span>
 
-        {/* Status icon */}
-        <span className="shrink-0">
-          {status === 'running' && (
-            <Loader2 className="h-4 w-4 text-blue-400 animate-spin" />
-          )}
-          {status === 'success' && (
-            <CheckCircle2 className="h-4 w-4 text-emerald-400" />
-          )}
-          {status === 'error' && (
-            <XCircle className="h-4 w-4 text-red-400" />
-          )}
-        </span>
+        {/* Status dot */}
+        <StatusIcon status={status} />
 
-        {/* Tool name + args preview */}
+        {/* Emoji + label + args preview */}
         <span className="flex items-center gap-1.5 min-w-0 flex-1">
-          <Wrench className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-          <span className="font-medium text-foreground truncate">
+          <span className="text-xs leading-none">{getToolEmoji(call.name)}</span>
+          <span className="text-[13px] font-semibold text-foreground/90 truncate">
             {getToolLabel(call.name)}
           </span>
           {argsPreview && (
-            <span className="font-mono text-xs text-muted-foreground truncate">
-              ({argsPreview.length > 50 ? argsPreview.slice(0, 50) + '…' : argsPreview})
+            <span className="font-mono text-[11px] text-muted-foreground/60 truncate hidden sm:block">
+              {argsPreview.length > 50 ? argsPreview.slice(0, 50) + '…' : argsPreview}
             </span>
           )}
         </span>
 
-        {/* Duration badge */}
-        <span className="text-xs text-muted-foreground shrink-0 ml-auto">
-          {duration}
-        </span>
+        {/* Duration / running indicator */}
+        <div className="flex items-center gap-1.5 shrink-0 ml-auto">
+          {status === 'running' ? (
+            <span className="flex items-center gap-1 text-[11px] text-blue-400">
+              <Loader2 className="h-3 w-3 animate-spin" />
+              <span>läuft…</span>
+            </span>
+          ) : duration ? (
+            <span className="text-[11px] font-mono text-muted-foreground/60">{duration}</span>
+          ) : null}
+        </div>
       </button>
 
-      {/* Collapsible detail area */}
-      <AnimatePresence>
+      {/* ── Collapsible detail ───────────────────────────────────── */}
+      <AnimatePresence initial={false}>
         {isExpanded && (
           <motion.div
+            key="detail"
             initial={{ height: 0, opacity: 0 }}
             animate={{ height: 'auto', opacity: 1 }}
             exit={{ height: 0, opacity: 0 }}
-            transition={{ duration: 0.2 }}
+            transition={{ duration: 0.2, ease: [0.4, 0, 0.2, 1] }}
             className="overflow-hidden"
           >
             <div className="px-3 pb-3 space-y-2 border-t border-border/40">
@@ -160,9 +204,7 @@ export function ToolCallBlock({ call, result, turnStartedAt, turnCompletedAt }: 
                   <pre
                     className={cn(
                       'text-xs font-mono rounded p-2 overflow-x-auto max-h-60 whitespace-pre-wrap break-all',
-                      result.success
-                        ? 'bg-background/80'
-                        : 'bg-red-500/10 text-red-300',
+                      result.success ? 'bg-background/80' : 'bg-red-500/10 text-red-300',
                     )}
                   >
                     {result.error || result.content}

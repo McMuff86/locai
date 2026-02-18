@@ -11,6 +11,7 @@ import {
   Trash2,
   Pencil,
   Move,
+  Bot,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import type { FileEntry } from '@/lib/filebrowser/types';
@@ -53,6 +54,7 @@ interface FileEntryRowProps {
   onDelete: (entry: FileEntry) => Promise<void>;
   onRename: (entry: FileEntry) => void;
   onMove: (entry: FileEntry) => void;
+  onOpenInAgent?: (entry: FileEntry) => void;
   onDragStart: (entry: FileEntry) => void;
   onDragEnd: () => void;
   onDropOnDirectory: (targetDirectoryPath: string) => void;
@@ -67,6 +69,7 @@ export function FileEntryRow({
   onDelete,
   onRename,
   onMove,
+  onOpenInAgent,
   onDragStart,
   onDragEnd,
   onDropOnDirectory,
@@ -118,6 +121,11 @@ export function FileEntryRow({
   const handleMove = (e: React.MouseEvent) => {
     e.stopPropagation();
     onMove(entry);
+  };
+
+  const handleOpenInAgent = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    onOpenInAgent?.(entry);
   };
 
   const handleDragStart = (e: React.DragEvent<HTMLDivElement>) => {
@@ -189,6 +197,18 @@ export function FileEntryRow({
       </div>
 
       <div className="flex-shrink-0 flex items-center gap-1 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
+        {/* Open in Agent – quick action for files */}
+        {entry.type === 'file' && onOpenInAgent && (
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-7 w-7 text-muted-foreground hover:text-primary"
+            onClick={handleOpenInAgent}
+            title="In Agent öffnen"
+          >
+            <Bot className="h-3.5 w-3.5" />
+          </Button>
+        )}
         {entry.type === 'file' && (
           <Button
             variant="ghost"

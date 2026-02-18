@@ -1,103 +1,116 @@
-# CONTEXT-HANDOFF.md
+# LocAI Context Handoff – Sprint 5 UI Polish Round 3
 
-> **Zweck:** Übergabe-Dokument zwischen Agent-Sessions.
-> Bevor ein Agent out-of-context geht, beschreibt er hier den aktuellen Stand.
-> Der nächste Agent liest dieses File zuerst.
-
----
-
-## Letzter Agent
-- **Rolle:** 🎨 UI Polish Agent Runde 2 (Subagent)
-- **Datum:** 18.02.2026
-- **Branch:** `sprint5/ui-polish-round2` (von main, gepusht, PR-ready)
-- **Commit:** `be575e9 feat(ui): Model descriptions, wider layout, image preview in FileBrowser`
+**Last updated:** 2026-02-18 23:xx  
+**Branch:** `sprint5/ui-polish-round3` (pushed, PR open)  
+**Commit:** `85ab1fe`  
+**Build:** ✅ green (lint warnings only – all pre-existing)  
+**Tests:** ✅ 100/100  
 
 ---
 
-## Was wurde gemacht (Sprint 5 – UI Polish Runde 2)
+## Was wurde gemacht (Runde 3)
 
-### ✅ 1. Model Card: Modell-Beschreibungen
-- **Datei:** `src/components/chat/SetupCard.tsx`
-- Neues `MODEL_DESCRIPTIONS`-Array mit Regex-Patterns für bekannte Modelle (deutsch)
-- Funktion `getModelDescription(modelName)` mit Fallback basierend auf Parametergrösse
-- Beschreibung wird als `<p className="text-sm text-muted-foreground">` unter dem Dropdown angezeigt
-- Deckt ab: qwen, llama3.x, deepseek, mistral, codellama, gemma, phi, command-r, hermes u.v.m.
+### 1. Breiteres Chat-Layout ✅
+- `ChatContainer.tsx`: Outer-Padding von `p-4` auf `py-3` reduziert (kein seitliches Padding), innerer Wrapper `px-4 lg:px-8` → `px-3 lg:px-5`
+- `SetupCard.tsx`: `max-w-4xl` → `max-w-5xl` (1024px statt 896px)
+- `chat/page.tsx`: Agent/Workflow/Input-Wrapper auf `px-3 lg:px-5` vereinheitlicht
+- **Effekt:** Content nutzt jetzt ~85-90% der verfügbaren Breite
 
-### ✅ 2. Layout breiter gemacht
-- **SetupCard:** `max-w-2xl` → `max-w-4xl` (mehr Breite für den Setup-Bereich)
-- **Documents Page:** `max-w-4xl mx-auto` entfernt → volle verfügbare Breite für FileBrowser
+### 2. Code Block Upgrade (MarkdownRenderer) ✅
+- Language-Color-Dot: TypeScript=blau, Python=grün, Bash=smaragd, JSON=gelb, usw.
+- Copy-Button mit State Machine (idle → copied → idle via Framer Motion)
+- Word-Wrap Toggle Button pro Code-Block
+- Auto-Zeilennummern wenn >10 Zeilen
+- Dunklerer Header vs. Body (Kontrast)
 
-### ✅ 3. Bild-Preview im FileBrowser
-- **Neuer API-Endpoint:** `src/app/api/filebrowser/image/route.ts`
-  - Liefert Bilder mit korrektem MIME-Type (image/svg+xml, image/png, image/jpeg, etc.)
-  - URL: `/api/filebrowser/image?rootId=<id>&path=<filepath>`
-- **`src/lib/filebrowser/types.ts`:** `FilePreviewType` um `'image'` erweitert
-- **`src/lib/filebrowser/scanner.ts`:**
-  - `IMAGE_EXTENSIONS` Set hinzugefügt (.svg, .png, .jpg, .jpeg, .gif, .webp, .avif, .ico)
-  - `getPreviewType()`: Gibt `'image'` für Bilddateien zurück (statt `'binary'`)
-  - `readFileContent()`: Für `previewType === 'image'` early return (kein Binärfehler)
-- **`src/components/filebrowser/FilePreviewDialog.tsx`:**
-  - `PreviewContent` erhält `rootId` und `relativePath` als Props
-  - Neuer `case 'image'`: Rendert `<img src="/api/filebrowser/image?...">` zentriert mit `max-h-[70vh] object-contain`
+### 3. ToolCall Cards (ToolCallBlock) ✅
+- Emoji-Map pro Tool: 🌐 Web, 📖 Read, ✍️ Write, ⚡ Run, 🎨 Image, 🧠 Memory…
+- Animierter Status-Dot für "running" (Puls-Glow, kein Layout-Shift)
+- Chevron dreht 90° beim Expand (Framer Motion)
+- Duration auf abgeschlossenen Calls
+- Status-basierte Border + Glow
 
----
+### 4. Sidebar Collapse (layout.tsx) ✅
+- Framer Motion `layout` Animation: 224px ↔ 56px, 0.25s ease
+- Labels fade+slide via AnimatePresence
+- `layoutId="sidebar-active-indicator"` – aktive Route gleitet zwischen Einträgen
+- CSS Hover-Tooltip im Collapsed-State (kein Radix, reines CSS)
+- Collapse-State in localStorage persistiert (`locai-sidebar-collapsed`)
 
-## Was als nächstes zu tun ist
+### 5. FileBrowser – Open in Agent ✅
+- `FileEntryRow.tsx`: Bot-Icon-Button als Quick-Action (ohne Preview zu öffnen)
+- `FileBrowser.tsx`: `handleOpenInAgent` – liest Datei via `/api/filebrowser/read`, schreibt sessionStorage, navigiert zu `/chat?openFileInAgent=true`
+- (FilePreviewDialog hatte schon "Open in Agent" – jetzt auch direkt in der Liste)
 
-- **PR reviewen & mergen:** `sprint5/ui-polish-round2` → main
-  - URL: https://github.com/McMuff86/locai/pull/new/sprint5/ui-polish-round2
-- Vorherigen PR `sprint5/ui-cleanup-polish` zuerst mergen falls noch offen
-- **RAG Upgrade (FEAT-2):** implementieren nach ADR-002
-- **Sidebar Collapse:** Component Upgrade Spec in `docs/design/component-upgrades.md` (Abschnitt 6)
-- **Toast Redesign:** `.toast-premium` CSS-Klassen sind bereit, Shadcn Toaster muss angepasst werden
-- **MarkdownRenderer + CodeBlock:** Upgrade-Spec in component-upgrades.md (Abschnitt 2)
+### 6. File-Editing im FilePreviewDialog ✅ (NEUE ANFORDERUNG)
+- **Edit-Button** in der Header-Zeile (nur Workspace-Root, nur nicht-gekürzte Dateien)
+- Unterstützte Typen: `text`, `code`, `json`, `markdown`
+- **Text/Code/JSON:** Textarea-Edit-Mode mit Auto-Focus, Save/Abbrechen
+- **Markdown:** Tab-Toggle "Bearbeiten" / "Vorschau" mit Live-MarkdownRenderer
+- **Speichern** → `POST /api/filebrowser/write` → Toast + `refresh()` im FileBrowser
+- Abbrechen stellt den Zustand wieder her
 
----
-
-## Wichtige Dateien (geändert in dieser Session)
-
-| Datei | Was |
-|-------|-----|
-| `src/components/chat/SetupCard.tsx` | Model-Beschreibungen + max-w-2xl → max-w-4xl |
-| `src/app/(app)/documents/page.tsx` | max-w-4xl Constraint entfernt |
-| `src/app/api/filebrowser/image/route.ts` | **NEU** – Image-Serving mit korrektem MIME-Type |
-| `src/lib/filebrowser/types.ts` | FilePreviewType += 'image' |
-| `src/lib/filebrowser/scanner.ts` | IMAGE_EXTENSIONS, getPreviewType, readFileContent |
-| `src/components/filebrowser/FilePreviewDialog.tsx` | Image-Rendering via \<img\> |
-
-## Wichtige Dateien aus Vorrunde (unverändert, für nächste Session relevant)
-
-| Datei | Was |
-|-------|-----|
-| `src/hooks/useAgentChat.ts` | Default isAgentMode: false → true (Runde 1) |
-| `src/app/globals.css` | Design System Tokens (Runde 1) |
-| `src/components/chat/ChatMessage.tsx` | Message Bubble Polish (Runde 1) |
-| `src/components/chat/ChatContainer.tsx` | Shimmer statt Pulse (Runde 1) |
-
-## Wichtige Dateien (unverändert, für nächste Session relevant)
-
-| Datei | Zweck |
-|-------|-------|
-| `docs/design/design-system.md` | Design System Spec (Source of Truth) |
-| `docs/design/component-upgrades.md` | Component Upgrade Specs (Sidebar, Toast, CodeBlock) |
-| `docs/design/tailwind-tokens.ts` | CSS Variables + Framer Motion Tokens |
-| `docs/adr/ADR-002-rag-upgrade.md` | RAG Upgrade Architektur |
-| `src/lib/agents/workflow.ts` | Workflow Engine |
+### 7. NEW API: `/api/filebrowser/write` ✅
+- `POST { rootId, path, content }` → überschreibt bestehende Workspace-Datei
+- Backed by `scanner.writeFileContent()` – nur Workspace, nur Files (keine Dirs)
+- Gibt aktualisiertes `FileEntry` zurück
 
 ---
 
-## Preflight Status
+## Noch offen / Für Runde 4
+
+### UI
+- Toast Redesign (Glass Morphism, Slide-in von rechts mit Progress Bar) – noch nicht gemacht
+- Shimmer vs. animate-pulse – schon in globals.css definiert, aber nicht alle Stellen umgestellt
+
+### Features
+- Chat-Messages in Bubbles-Layout: `max-w-[82%]` evtl. auf `max-w-[90%]` erhöhen für breite Screens
+- FilePreviewDialog: Edit für Binary/Image ausgeblendet – ggf. Hinweis "nicht editierbar" anzeigen
+- Rename in FilePreviewDialog direkt (aktuell nur in FileBrowser-Liste via Dialog)
+
+### Tech
+- `@radix-ui/react-tooltip` installieren wenn mehr Tooltips gebraucht werden
+- CSS-Tooltip im Sidebar ist funktional aber nicht 100% design-konsistent
+
+---
+
+## Architektur-Notizen
+
+### Layout-Hierarchie
 ```
-✅ npm run preflight – Build erfolgreich, keine TypeScript-Fehler
-   (sprint5/ui-polish-round2, Commit be575e9)
+AppLayout (layout.tsx)
+└── motion.nav (sidebar, 56px↔224px, Framer layout)
+└── main (flex-1, min-w-0)
+    └── children (chat page, etc.)
+
+Chat Page
+└── ConversationSidebar (wenn vorhanden)
+└── flex-1 flex flex-col
+    ├── ChatHeader
+    ├── ChatContainer (flex-1, py-3)
+    │   └── div.w-full.px-3.lg:px-5
+    │       └── ChatMessage (max-w-[95%] linear / max-w-[82%] bubbles)
+    ├── AgentMessage wrapper (px-3 lg:px-5)
+    └── ChatInput wrapper (px-3 lg:px-5 pb-6)
 ```
 
----
+### FileBrowser Write Flow
+```
+User klickt "Bearbeiten" in FilePreviewDialog
+→ isEditMode = true, editedContent = preview.content
+→ Textarea erscheint
+→ User bearbeitet → klickt "Speichern"
+→ POST /api/filebrowser/write { rootId, path, content }
+→ scanner.writeFileContent() → fs.writeFile(path, content, 'utf-8')
+→ toast("Gespeichert") + onSaved() → FileBrowser.refresh()
+```
 
-### Regeln für die Übergabe
-
-1. **VOR dem Ende jeder Session** dieses File updaten
-2. **Konkret sein** – keine vagen Beschreibungen
-3. **Branch + letzte Commits** angeben
-4. **Offene Fragen** explizit markieren
-5. **Dateipfade** angeben die geändert/erstellt wurden
+### Sidebar Collapse
+```
+Collapsed = 56px (Icons only)
+Expanded  = 224px (Icons + Labels)
+Transition: Framer Motion layout, 0.25s [0.4,0,0.2,1] ease
+Tooltip: CSS group-hover/tip, absolute left-full, z-50
+Active indicator: motion.span layoutId="sidebar-active-indicator"
+Persist: localStorage['locai-sidebar-collapsed']
+```
