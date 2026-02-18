@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useRef, useEffect } from 'react';
-import { Zap, Check, AlertTriangle, Lightbulb } from 'lucide-react';
+import { Zap, Check, AlertTriangle, Lightbulb, GitBranch } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { getModelAgentCapability } from '@/lib/agents/modelCapabilities';
@@ -46,6 +46,12 @@ interface AgentModeToggleProps {
   onSelectPreset?: (preset: AgentPreset | null) => void;
   enablePlanning?: boolean;
   onTogglePlanning?: () => void;
+  /** Workflow Engine mode (Sprint 5) */
+  workflowMode?: boolean;
+  onToggleWorkflowMode?: () => void;
+  /** Reflection toggle (Workflow mode only) */
+  enableReflection?: boolean;
+  onToggleReflection?: () => void;
 }
 
 export function AgentModeToggle({
@@ -59,6 +65,10 @@ export function AgentModeToggle({
   onSelectPreset,
   enablePlanning = false,
   onTogglePlanning,
+  workflowMode = false,
+  onToggleWorkflowMode,
+  enableReflection = true,
+  onToggleReflection,
 }: AgentModeToggleProps) {
   const [showPopover, setShowPopover] = useState(false);
   const popoverRef = useRef<HTMLDivElement>(null);
@@ -211,8 +221,68 @@ export function AgentModeToggle({
             </>
           )}
 
+          {/* Workflow Mode toggle */}
+          {onToggleWorkflowMode && (
+            <>
+              <p className="text-xs font-semibold text-muted-foreground px-2 py-1 select-none flex items-center gap-1">
+                <GitBranch className="h-3 w-3" />
+                Workflow Engine
+              </p>
+              <button
+                type="button"
+                onClick={onToggleWorkflowMode}
+                className={cn(
+                  'flex items-center gap-2 w-full rounded-md px-2 py-1.5 text-sm transition-colors',
+                  'hover:bg-muted/60',
+                  workflowMode ? 'text-foreground bg-primary/5 border border-primary/20' : 'text-muted-foreground',
+                )}
+              >
+                <GitBranch className="h-4 w-4 shrink-0" />
+                <div className="flex-1 text-left min-w-0">
+                  <span className="block truncate font-medium text-xs">Workflow Modus</span>
+                  <span className="block truncate text-[10px] text-muted-foreground">
+                    Plan → Execute → Reflect
+                  </span>
+                </div>
+                <span className={cn(
+                  'text-[10px] px-1.5 py-0.5 rounded-full shrink-0',
+                  workflowMode
+                    ? 'bg-primary/15 text-primary'
+                    : 'bg-muted text-muted-foreground'
+                )}>
+                  {workflowMode ? 'An' : 'Aus'}
+                </span>
+              </button>
+
+              {/* Reflection toggle (only visible in workflow mode) */}
+              {workflowMode && onToggleReflection && (
+                <button
+                  type="button"
+                  onClick={onToggleReflection}
+                  className={cn(
+                    'flex items-center gap-2 w-full rounded-md px-2 py-1.5 text-sm transition-colors ml-2',
+                    'hover:bg-muted/60',
+                    enableReflection ? 'text-foreground' : 'text-muted-foreground',
+                  )}
+                >
+                  <span className="text-base shrink-0">💡</span>
+                  <span className="flex-1 text-left truncate text-xs">Reflection</span>
+                  <span className={cn(
+                    'text-[10px] px-1.5 py-0.5 rounded-full',
+                    enableReflection
+                      ? 'bg-amber-500/15 text-amber-400'
+                      : 'bg-muted text-muted-foreground'
+                  )}>
+                    {enableReflection ? 'An' : 'Aus'}
+                  </span>
+                </button>
+              )}
+              <div className="border-t border-border/40 my-1" />
+            </>
+          )}
+
           {/* Planning toggle */}
-          {onTogglePlanning && (
+          {onTogglePlanning && !workflowMode && (
             <>
               <button
                 type="button"
