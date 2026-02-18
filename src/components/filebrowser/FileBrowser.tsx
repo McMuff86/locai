@@ -34,6 +34,15 @@ import { FileEntryRow } from './FileEntryRow';
 import { FilePreviewDialog } from './FilePreviewDialog';
 import type { FileEntry } from '@/lib/filebrowser/types';
 
+interface FileBrowserProps {
+  /**
+   * When provided, clicking a file opens it on the canvas instead of
+   * the built-in FilePreviewDialog. The dialog is still used as fallback
+   * when this prop is absent.
+   */
+  onOpenFile?: (entry: FileEntry) => void;
+}
+
 const ROOT_ICONS: Record<string, React.ReactNode> = {
   workspace: <Hammer className="h-5 w-5" />,
   locai: <Database className="h-5 w-5" />,
@@ -97,7 +106,7 @@ function classifyEntry(entry: FileEntry): TypeFilter {
   return 'file';
 }
 
-export function FileBrowser() {
+export function FileBrowser({ onOpenFile }: FileBrowserProps = {}) {
   const router = useRouter();
   const {
     roots,
@@ -153,6 +162,15 @@ export function FileBrowser() {
   const [movePickerError, setMovePickerError] = useState<string | null>(null);
 
   const canMutate = currentRoot?.id === 'workspace';
+
+  // Route file open to canvas callback when available, otherwise use the built-in dialog
+  const handlePreviewOrOpen = useCallback((entry: FileEntry) => {
+    if (onOpenFile && entry.type === 'file') {
+      onOpenFile(entry);
+    } else {
+      previewFile(entry);
+    }
+  }, [onOpenFile, previewFile]);
 
   const extensionOptions = useMemo(() => {
     const values = new Set(
@@ -722,7 +740,7 @@ export function FileBrowser() {
                     entry={entry}
                     canMutate={canMutate}
                     onNavigate={navigateTo}
-                    onPreview={previewFile}
+                    onPreview={handlePreviewOrOpen}
                     onDelete={deleteFile}
                     onRename={handleRename}
                     onMove={handleMove}
