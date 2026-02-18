@@ -134,7 +134,7 @@ export function ChatInput({
   return (
     <motion.div
       className={cn(
-        "sticky bottom-0 w-full p-4 bg-background border-t transition-colors duration-300",
+        "sticky bottom-0 w-full p-5 bg-background border-t transition-colors duration-300",
         agentMode && "border-t-primary/40"
       )}
       initial={{ y: 50, opacity: 0 }}
@@ -163,19 +163,19 @@ export function ChatInput({
         </div>
       )}
 
-      <form onSubmit={handleSubmit} className="flex gap-2 items-end">
+      <form onSubmit={handleSubmit} className="flex gap-3 items-end">
         <Textarea
           ref={textareaRef as React.RefObject<HTMLTextAreaElement>}
           value={message}
           onChange={(e) => setMessage(e.target.value)}
           onKeyDown={handleKeyDown}
-          placeholder={agentMode ? "Agent Modus — KI kann Werkzeuge nutzen..." : "Enter message... (Ctrl+Enter or Enter to send)"}
+          placeholder={agentMode ? "Agent Modus — KI kann Werkzeuge nutzen..." : "Nachricht eingeben... (Ctrl+Enter oder Enter zum Senden)"}
           disabled={disabled}
           className={cn(
-            "flex-grow min-h-[44px] max-h-[200px] resize-none transition-colors duration-300",
+            "flex-grow min-h-[120px] max-h-[300px] resize-none transition-colors duration-300 text-base",
             agentMode && "border-primary/40 focus-visible:ring-primary/30"
           )}
-          rows={1}
+          rows={4}
         />
         <input
           type="file"
@@ -205,8 +205,9 @@ export function ChatInput({
           disabled={disabled}
           onClick={triggerFileInput}
           title="Upload image"
+          className="h-12 w-12"
         >
-          <Image className="h-4 w-4" />
+          <Image className="h-5 w-5" />
         </Button>
         {onToggleAgentMode && onToggleTool && (
           <AgentModeToggle
@@ -228,10 +229,12 @@ export function ChatInput({
         )}
         <Button 
           type="submit" 
+          size="lg"
           disabled={disabled || (!message.trim() && selectedImages.length === 0)}
+          className="h-12 px-6 text-base font-semibold"
         >
-          <Send className="h-4 w-4 mr-2" />
-          Send
+          <Send className="h-5 w-5 mr-2" />
+          Senden
         </Button>
       </form>
     </motion.div>
