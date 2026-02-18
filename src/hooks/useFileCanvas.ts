@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useState } from 'react';
 import { v4 as uuid } from 'uuid';
 import type { FileEntry } from '@/lib/filebrowser/types';
 
@@ -50,13 +50,7 @@ export function useFileCanvas(): UseFileCanvasReturn {
     y: 0,
     zoom: INITIAL_ZOOM,
   });
-  // Use a ref for zIndex counter so it never causes extra re-renders
-  const zIndexCounterRef = useRef(1);
-
-  const nextZIndex = useCallback(() => {
-    zIndexCounterRef.current += 1;
-    return zIndexCounterRef.current;
-  }, []);
+  const [maxZIndex, setMaxZIndex] = useState(1);
 
   const openFile = useCallback(
     (file: FileEntry, rootId: string) => {
@@ -66,12 +60,15 @@ export function useFileCanvas(): UseFileCanvasReturn {
       );
 
       if (existing) {
-        const newZ = nextZIndex();
-        setWindows((ws) =>
-          ws.map((w) =>
-            w.id === existing.id ? { ...w, zIndex: newZ, isMinimized: false } : w,
-          ),
-        );
+        setMaxZIndex((prev) => {
+          const newZ = prev + 1;
+          setWindows((ws) =>
+            ws.map((w) =>
+              w.id === existing.id ? { ...w, zIndex: newZ, isMinimized: false } : w,
+            ),
+          );
+          return newZ;
+        });
         return;
       }
 
@@ -82,18 +79,22 @@ export function useFileCanvas(): UseFileCanvasReturn {
         y: 20 + cascadeIndex * CASCADE_OFFSET,
       };
 
-      const newWindow: CanvasWindow = {
-        id: uuid(),
-        file,
-        rootId,
-        position,
-        size: { ...DEFAULT_WINDOW_SIZE },
-        zIndex: nextZIndex(),
-        isMinimized: false,
-      };
-      setWindows((ws) => [...ws, newWindow]);
+      setMaxZIndex((prev) => {
+        const newZ = prev + 1;
+        const newWindow: CanvasWindow = {
+          id: uuid(),
+          file,
+          rootId,
+          position,
+          size: { ...DEFAULT_WINDOW_SIZE },
+          zIndex: newZ,
+          isMinimized: false,
+        };
+        setWindows((ws) => [...ws, newWindow]);
+        return newZ;
+      });
     },
-    [windows, nextZIndex],
+    [windows],
   );
 
   const closeWindow = useCallback((id: string) => {
@@ -101,11 +102,14 @@ export function useFileCanvas(): UseFileCanvasReturn {
   }, []);
 
   const bringToFront = useCallback((id: string) => {
-    const newZ = nextZIndex();
-    setWindows((ws) =>
-      ws.map((w) => (w.id === id ? { ...w, zIndex: newZ } : w)),
-    );
-  }, [nextZIndex]);
+    setMaxZIndex((prev) => {
+      const newZ = prev + 1;
+      setWindows((ws) =>
+        ws.map((w) => (w.id === id ? { ...w, zIndex: newZ } : w)),
+      );
+      return newZ;
+    });
+  }, []);
 
   const updatePosition = useCallback(
     (id: string, position: { x: number; y: number }) => {

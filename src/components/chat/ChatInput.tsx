@@ -169,7 +169,7 @@ export function ChatInput({
           value={message}
           onChange={(e) => setMessage(e.target.value)}
           onKeyDown={handleKeyDown}
-          placeholder={agentMode ? "Agent Modus — KI kann Werkzeuge nutzen..." : "Enter message... (Ctrl+Enter or Enter to send)"}
+          placeholder={agentMode ? "Agent Modus — KI kann Werkzeuge nutzen..." : "Nachricht eingeben... (Ctrl+Enter oder Enter zum Senden)"}
           disabled={disabled}
           className={cn(
             "flex-grow min-h-[120px] max-h-[300px] resize-none transition-colors duration-300 text-base",
@@ -206,7 +206,7 @@ export function ChatInput({
           disabled={disabled}
           onClick={triggerFileInput}
           title="Upload image"
-          className="h-12 w-12 p-0"
+          className="h-12 w-12"
         >
           <Image className="h-5 w-5" />
         </Button>
@@ -229,13 +229,13 @@ export function ChatInput({
           />
         )}
         <Button 
-          type="submit"
+          type="submit" 
           size="lg"
           disabled={disabled || (!message.trim() && selectedImages.length === 0)}
           className="h-12 px-6 text-base font-semibold"
         >
           <Send className="h-5 w-5 mr-2" />
-          Send
+          Senden
         </Button>
       </form>
     </motion.div>

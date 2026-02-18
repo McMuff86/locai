@@ -287,7 +287,7 @@ export function WebSearchButton({
     return (
       <Button
         variant="ghost"
-        size="icon"
+        
         className="h-12 w-12 text-muted-foreground/50"
         disabled
         title="Web-Suche deaktiviert. Aktiviere sie in den Einstellungen."
@@ -301,7 +301,7 @@ export function WebSearchButton({
     <>
       <Button
         variant="ghost"
-        size="icon"
+        
         className="h-12 w-12"
         onClick={() => setIsOpen(true)}
         title="Web-Suche (AI-powered)"
