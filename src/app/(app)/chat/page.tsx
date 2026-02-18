@@ -503,7 +503,8 @@ function ChatPageContent() {
       undefined, // useStreaming - use default
       { ragEnabled }
     );
-  }, [sendMessage, conversation, selectedModel, addMessage, setSelectedModel, visionModels, toast, isAgentMode, sendAgentMessage, enabledTools, ragEnabled, settings?.ollamaHost, activePreset, enablePlanning, workflowMode, sendWorkflowMessage, resetWorkflow, cancelWorkflow]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- cancelWorkflow is stable (ref-based)
+  }, [sendMessage, conversation, selectedModel, addMessage, setSelectedModel, visionModels, toast, isAgentMode, sendAgentMessage, enabledTools, ragEnabled, settings?.ollamaHost, activePreset, enablePlanning, workflowMode, sendWorkflowMessage, resetWorkflow]);
 
   // ── Load conversation from URL ────────────────────────────────
 
