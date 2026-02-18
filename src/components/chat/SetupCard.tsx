@@ -1,16 +1,19 @@
 "use client";
 
 import React, { useState, useMemo, useRef, useEffect } from 'react';
-import { FileEdit, Wand2, Image as ImageIcon, Sparkles, Check, ChevronRight, ChevronDown, Cpu, HardDrive, Eye, Box, Layers } from 'lucide-react';
+import {
+  FileEdit, Wand2, Image as ImageIcon, Sparkles, Check,
+  ChevronDown, Cpu, HardDrive, Box, Layers, Eye,
+} from 'lucide-react';
 import { Button } from '../ui/button';
-import { Card, CardContent, CardHeader, CardTitle, CardFooter, CardDescription } from '../ui/card';
+import { Card, CardContent } from '../ui/card';
 import { Textarea } from '../ui/textarea';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs';
 import { ScrollArea } from '../ui/scroll-area';
 import { OllamaModel } from '../../lib/ollama';
-import { 
-  IMAGE_PROMPT, 
-  PROMPT_TEMPLATES, 
+import {
+  IMAGE_PROMPT,
+  PROMPT_TEMPLATES,
   CATEGORY_LABELS,
   PromptTemplate,
   getTemplatesByCategory,
@@ -22,14 +25,12 @@ import { cn } from '../../lib/utils';
 export { IMAGE_PROMPT };
 
 interface SetupCardProps {
-  // Model props
   models: OllamaModel[];
   selectedModel: string;
   onSelectModel: (model: string) => void;
   isLoading: boolean;
   error: string | null;
-  
-  // Prompt props
+
   defaultPrompt: string;
   customPrompt: string;
   imagePrompt: string;
@@ -39,81 +40,46 @@ interface SetupCardProps {
   onImagePromptChange: (value: string) => void;
   onTabChange: (tab: string) => void;
   onResetPrompt: () => void;
-  
-  // Actions
+
   onStartConversation: () => void;
 }
 
-// Template Card Component
-function TemplateCard({ 
-  template, 
-  isSelected, 
-  onSelect 
-}: { 
-  template: PromptTemplate; 
-  isSelected: boolean; 
-  onSelect: () => void;
-}) {
-  return (
-    <button
-      onClick={onSelect}
-      className={cn(
-        "w-full text-left p-3 rounded-lg border transition-all duration-200",
-        "hover:border-primary/50 hover:bg-accent/50",
-        isSelected 
-          ? "border-primary bg-primary/10 ring-1 ring-primary/30" 
-          : "border-border bg-card"
-      )}
-    >
-      <div className="flex items-start gap-3">
-        <span className="text-2xl flex-shrink-0">{template.icon}</span>
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center justify-between gap-2">
-            <h4 className="font-medium text-sm truncate">{template.name}</h4>
-            {isSelected && (
-              <Check className="h-4 w-4 text-primary flex-shrink-0" />
-            )}
-          </div>
-          <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">
-            {template.description}
-          </p>
-        </div>
-      </div>
-    </button>
-  );
-}
+// ---------------------------------------------------------------------------
+// Helper functions
+// ---------------------------------------------------------------------------
 
-// Helper: detect if model is a vision model
 function isVisionModel(model: OllamaModel): boolean {
   const name = model.name.toLowerCase();
   return name.includes('vision') || name.includes('llava') || model.details?.families?.includes('clip') || false;
 }
 
-// Helper: detect model capability tags
 function getModelTags(model: OllamaModel): string[] {
   const tags: string[] = [];
   const name = model.name.toLowerCase();
-  
   if (isVisionModel(model)) tags.push('Vision');
   if (name.includes('code') || name.includes('coder') || name.includes('starcoder') || name.includes('codellama')) tags.push('Code');
   if (name.includes('embed')) tags.push('Embedding');
   if (name.includes('dolphin') || name.includes('uncensored')) tags.push('Uncensored');
   if (name.includes('deepseek')) tags.push('Reasoning');
-  
   return tags;
 }
 
-// Helper: format date
-function formatDate(dateStr: string): string {
-  try {
-    const d = new Date(dateStr);
-    return d.toLocaleDateString('de-CH', { day: '2-digit', month: '2-digit', year: 'numeric' });
-  } catch {
-    return dateStr;
-  }
+// ---------------------------------------------------------------------------
+// Model Tag Badge
+// ---------------------------------------------------------------------------
+
+function ModelTag({ label }: { label: string }) {
+  return (
+    <span className="text-[10px] px-1.5 py-0.5 rounded-sm bg-primary/10 text-primary font-medium tracking-wide">
+      {label}
+    </span>
+  );
 }
 
-// Model Selector Component with Dropdown + Info Panel
+// ---------------------------------------------------------------------------
+// Compact Model Selector (dropdown only, no separate info panel)
+// ---------------------------------------------------------------------------
+
 function ModelSelector({
   models,
   selectedModel,
@@ -126,186 +92,219 @@ function ModelSelector({
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
-  // Close dropdown on outside click
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
       if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
         setIsOpen(false);
       }
     }
-    if (isOpen) {
-      document.addEventListener('mousedown', handleClickOutside);
-    }
+    if (isOpen) document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [isOpen]);
 
-  const selectedModelData = models.find(m => m.name === selectedModel);
-  const selectedSizeGB = selectedModelData?.size ? (selectedModelData.size / 1024 / 1024 / 1024).toFixed(1) : null;
-  const selectedParamSize = selectedModelData?.details?.parameter_size || null;
-  const selectedTags = selectedModelData ? getModelTags(selectedModelData) : [];
+  const selected = models.find(m => m.name === selectedModel);
+  const sizeGB = selected?.size ? (selected.size / 1024 / 1024 / 1024).toFixed(1) : null;
+  const paramSize = selected?.details?.parameter_size ?? null;
+  const tags = selected ? getModelTags(selected) : [];
 
   return (
-    <div className="flex gap-4">
-      {/* Dropdown */}
-      <div className="relative w-full max-w-sm" ref={dropdownRef}>
-        <button
-          type="button"
-          onClick={() => setIsOpen(!isOpen)}
-          className={cn(
-            "w-full flex items-center justify-between gap-2 rounded-lg border px-4 py-3 text-left transition-colors",
-            "hover:border-primary/50 hover:bg-accent/30",
-            isOpen ? "border-primary ring-1 ring-primary/30" : "border-border",
-            selectedModel ? "text-foreground" : "text-muted-foreground"
+    <div className="relative w-full" ref={dropdownRef}>
+      {/* Trigger */}
+      <button
+        type="button"
+        onClick={() => setIsOpen(o => !o)}
+        className={cn(
+          "w-full flex items-center gap-3 rounded-lg border px-3 py-2.5 text-left",
+          "transition-all duration-150",
+          "hover:border-primary/50 hover:bg-accent/20",
+          isOpen
+            ? "border-primary ring-1 ring-primary/20 bg-accent/10"
+            : "border-border bg-card/50",
+          !selectedModel && "text-muted-foreground"
+        )}
+      >
+        {/* Model icon */}
+        <div className="w-7 h-7 rounded-md bg-primary/10 flex items-center justify-center flex-shrink-0">
+          <Cpu className="h-3.5 w-3.5 text-primary" />
+        </div>
+
+        {/* Model info */}
+        <div className="flex-1 min-w-0">
+          {selectedModel ? (
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="text-sm font-medium truncate">{selectedModel}</span>
+              {paramSize && (
+                <span className="text-xs text-muted-foreground">{paramSize}</span>
+              )}
+              {sizeGB && (
+                <span className="text-xs text-muted-foreground">{sizeGB} GB</span>
+              )}
+              {tags.map(t => <ModelTag key={t} label={t} />)}
+            </div>
+          ) : (
+            <span className="text-sm">Modell wählen…</span>
           )}
-        >
-          <div className="flex-1 min-w-0">
-            {selectedModel ? (
-              <div>
-                <span className="font-medium text-sm">{selectedModel}</span>
-                {selectedParamSize && (
-                  <span className="text-xs text-muted-foreground ml-2">{selectedParamSize}</span>
-                )}
-              </div>
-            ) : (
-              <span className="text-sm">Select a model...</span>
-            )}
-          </div>
-          <ChevronDown className={cn("h-4 w-4 text-muted-foreground transition-transform", isOpen && "rotate-180")} />
-        </button>
+        </div>
 
-        {isOpen && (
-          <div className="absolute z-50 mt-1 w-full rounded-lg border border-border bg-popover shadow-lg max-h-[300px] overflow-y-auto">
-              <div className="p-1">
-                {models.map((model) => {
-                  const sizeGB = model.size ? (model.size / 1024 / 1024 / 1024).toFixed(1) : null;
-                  const paramSize = model.details?.parameter_size || null;
-                  const tags = getModelTags(model);
-                  const isSelected = selectedModel === model.name;
+        <ChevronDown className={cn(
+          "h-4 w-4 text-muted-foreground transition-transform duration-150 flex-shrink-0",
+          isOpen && "rotate-180"
+        )} />
+      </button>
 
-                  return (
-                    <button
-                      key={model.name}
-                      type="button"
-                      onClick={() => {
-                        onSelectModel(model.name);
-                        setIsOpen(false);
-                      }}
-                      className={cn(
-                        "w-full flex items-center gap-3 rounded-md px-3 py-2.5 text-left transition-colors",
-                        "hover:bg-accent/50",
-                        isSelected && "bg-primary/10 text-primary"
-                      )}
-                    >
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2">
-                          <span className={cn("text-sm font-medium truncate", isSelected && "text-primary")}>
-                            {model.name}
-                          </span>
-                          {tags.map(tag => (
-                            <span key={tag} className="text-[10px] px-1.5 py-0.5 rounded-full bg-primary/10 text-primary font-medium">
-                              {tag}
-                            </span>
-                          ))}
-                        </div>
-                        <div className="flex items-center gap-2 mt-0.5">
-                          {paramSize && <span className="text-xs text-muted-foreground">{paramSize}</span>}
-                          {paramSize && sizeGB && <span className="text-xs text-muted-foreground">•</span>}
-                          {sizeGB && <span className="text-xs text-muted-foreground">{sizeGB} GB</span>}
-                        </div>
+      {/* Dropdown */}
+      {isOpen && (
+        <div className="absolute z-50 mt-1 w-full rounded-lg border border-border bg-popover shadow-lg max-h-[280px] overflow-y-auto">
+          <div className="p-1">
+            {models.map(model => {
+              const mSize = model.size ? (model.size / 1024 / 1024 / 1024).toFixed(1) : null;
+              const mParam = model.details?.parameter_size ?? null;
+              const mTags = getModelTags(model);
+              const isSelected = selectedModel === model.name;
+
+              return (
+                <button
+                  key={model.name}
+                  type="button"
+                  onClick={() => { onSelectModel(model.name); setIsOpen(false); }}
+                  className={cn(
+                    "w-full flex items-center gap-2.5 rounded-md px-3 py-2 text-left transition-colors",
+                    "hover:bg-accent/50",
+                    isSelected && "bg-primary/10 text-primary"
+                  )}
+                >
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className={cn("text-sm font-medium truncate", isSelected && "text-primary")}>
+                        {model.name}
+                      </span>
+                      {mTags.map(t => <ModelTag key={t} label={t} />)}
+                    </div>
+                    {(mParam || mSize) && (
+                      <div className="flex items-center gap-1.5 mt-0.5">
+                        {mParam && <span className="text-xs text-muted-foreground">{mParam}</span>}
+                        {mParam && mSize && <span className="text-xs text-muted-foreground">·</span>}
+                        {mSize && <span className="text-xs text-muted-foreground">{mSize} GB</span>}
                       </div>
-                      {isSelected && <Check className="h-4 w-4 text-primary flex-shrink-0" />}
-                    </button>
-                  );
-                })}
-              </div>
+                    )}
+                  </div>
+                  {isSelected && <Check className="h-3.5 w-3.5 text-primary flex-shrink-0" />}
+                </button>
+              );
+            })}
           </div>
-        )}
-      </div>
-
-      {/* Info Panel */}
-      <div className={cn(
-        "flex-1 rounded-lg border border-border bg-card/50 p-4 transition-all",
-        !selectedModelData && "flex items-center justify-center"
-      )}>
-        {selectedModelData ? (
-          <div className="space-y-3">
-            <div className="flex items-center gap-2">
-              <Cpu className="h-4 w-4 text-primary" />
-              <h4 className="font-semibold text-sm">{selectedModelData.name}</h4>
-              {selectedTags.map(tag => (
-                <span key={tag} className="text-[10px] px-1.5 py-0.5 rounded-full bg-primary/15 text-primary font-medium">
-                  {tag}
-                </span>
-              ))}
-            </div>
-            
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-              {selectedParamSize && (
-                <div className="space-y-1">
-                  <div className="flex items-center gap-1.5 text-muted-foreground">
-                    <Layers className="h-3.5 w-3.5" />
-                    <span className="text-xs font-medium">Parameters</span>
-                  </div>
-                  <p className="text-sm font-semibold">{selectedParamSize}</p>
-                </div>
-              )}
-              
-              {selectedSizeGB && (
-                <div className="space-y-1">
-                  <div className="flex items-center gap-1.5 text-muted-foreground">
-                    <HardDrive className="h-3.5 w-3.5" />
-                    <span className="text-xs font-medium">Size</span>
-                  </div>
-                  <p className="text-sm font-semibold">{selectedSizeGB} GB</p>
-                </div>
-              )}
-              
-              {selectedModelData.details?.quantization_level && (
-                <div className="space-y-1">
-                  <div className="flex items-center gap-1.5 text-muted-foreground">
-                    <Box className="h-3.5 w-3.5" />
-                    <span className="text-xs font-medium">Quantization</span>
-                  </div>
-                  <p className="text-sm font-semibold">{selectedModelData.details.quantization_level}</p>
-                </div>
-              )}
-              
-              {selectedModelData.details?.family && (
-                <div className="space-y-1">
-                  <div className="flex items-center gap-1.5 text-muted-foreground">
-                    <Cpu className="h-3.5 w-3.5" />
-                    <span className="text-xs font-medium">Family</span>
-                  </div>
-                  <p className="text-sm font-semibold">{selectedModelData.details.family}</p>
-                </div>
-              )}
-            </div>
-            
-            <div className="flex items-center gap-4 pt-1 border-t border-border/50">
-              {selectedModelData.details?.format && (
-                <span className="text-xs text-muted-foreground">
-                  Format: <span className="text-foreground font-medium">{selectedModelData.details.format}</span>
-                </span>
-              )}
-              {isVisionModel(selectedModelData) && (
-                <span className="text-xs text-muted-foreground flex items-center gap-1">
-                  <Eye className="h-3 w-3" /> Vision-fähig
-                </span>
-              )}
-              {selectedModelData.modified_at && (
-                <span className="text-xs text-muted-foreground">
-                  Modified: {formatDate(selectedModelData.modified_at)}
-                </span>
-              )}
-            </div>
-          </div>
-        ) : (
-          <p className="text-sm text-muted-foreground">Select a model to see details</p>
-        )}
-      </div>
+        </div>
+      )}
     </div>
   );
 }
+
+// ---------------------------------------------------------------------------
+// Model Stats Bar (compact, below selector)
+// ---------------------------------------------------------------------------
+
+function ModelStatsBar({ model }: { model: OllamaModel | undefined }) {
+  if (!model) return null;
+
+  const sizeGB = model.size ? (model.size / 1024 / 1024 / 1024).toFixed(1) : null;
+  const paramSize = model.details?.parameter_size ?? null;
+  const quant = model.details?.quantization_level ?? null;
+  const family = model.details?.family ?? null;
+  const hasVision = isVisionModel(model);
+
+  const stats = [
+    paramSize && { icon: <Layers className="h-3 w-3" />, label: 'Params', value: paramSize },
+    sizeGB    && { icon: <HardDrive className="h-3 w-3" />, label: 'Size', value: `${sizeGB} GB` },
+    quant     && { icon: <Box className="h-3 w-3" />, label: 'Quant', value: quant },
+    family    && { icon: <Cpu className="h-3 w-3" />, label: 'Family', value: family },
+    hasVision && { icon: <Eye className="h-3 w-3" />, label: 'Vision', value: 'Ja' },
+  ].filter(Boolean) as { icon: React.ReactNode; label: string; value: string }[];
+
+  if (stats.length === 0) return null;
+
+  return (
+    <div className="flex items-center gap-4 px-1 py-1">
+      {stats.map(s => (
+        <div key={s.label} className="flex items-center gap-1 text-xs text-muted-foreground">
+          {s.icon}
+          <span>{s.value}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Template Card (compact)
+// ---------------------------------------------------------------------------
+
+function TemplateCard({
+  template,
+  isSelected,
+  onSelect,
+}: {
+  template: PromptTemplate;
+  isSelected: boolean;
+  onSelect: () => void;
+}) {
+  return (
+    <button
+      onClick={onSelect}
+      className={cn(
+        "w-full text-left px-3 py-2.5 rounded-lg border transition-all duration-150",
+        "hover:border-primary/40 hover:bg-accent/30",
+        isSelected
+          ? "border-primary/60 bg-primary/8 ring-1 ring-primary/20"
+          : "border-border/60 bg-transparent"
+      )}
+    >
+      <div className="flex items-center gap-2.5">
+        <span className="text-lg flex-shrink-0 leading-none">{template.icon}</span>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center justify-between gap-2">
+            <h4 className="text-sm font-medium truncate">{template.name}</h4>
+            {isSelected && <Check className="h-3.5 w-3.5 text-primary flex-shrink-0" />}
+          </div>
+          <p className="text-xs text-muted-foreground mt-0.5 line-clamp-1">
+            {template.description}
+          </p>
+        </div>
+      </div>
+    </button>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Category filter pills
+// ---------------------------------------------------------------------------
+
+function CategoryPill({
+  label,
+  isActive,
+  onClick,
+}: {
+  label: string;
+  isActive: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className={cn(
+        "px-3 py-1 rounded-full text-xs font-medium transition-all duration-150 whitespace-nowrap",
+        isActive
+          ? "bg-primary text-primary-foreground"
+          : "bg-muted/60 text-muted-foreground hover:bg-muted hover:text-foreground"
+      )}
+    >
+      {label}
+    </button>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// SetupCard main component
+// ---------------------------------------------------------------------------
 
 export function SetupCard({
   models,
@@ -322,280 +321,306 @@ export function SetupCard({
   onImagePromptChange,
   onTabChange,
   onResetPrompt,
-  onStartConversation
+  onStartConversation,
 }: SetupCardProps) {
-  
-  // Template selection state
   const [selectedTemplateId, setSelectedTemplateId] = useState<string>('default');
   const [activeCategory, setActiveCategory] = useState<PromptTemplate['category'] | 'all'>('all');
-  
-  // Get filtered templates
+
   const filteredTemplates = useMemo(() => {
-    if (activeCategory === 'all') {
-      return PROMPT_TEMPLATES;
-    }
+    if (activeCategory === 'all') return PROMPT_TEMPLATES;
     return getTemplatesByCategory(activeCategory);
   }, [activeCategory]);
-  
-  // Get selected template
-  const selectedTemplate = useMemo(() => {
-    return PROMPT_TEMPLATES.find(t => t.id === selectedTemplateId);
-  }, [selectedTemplateId]);
-  
-  // Handle template selection
+
+  const selectedTemplate = useMemo(() =>
+    PROMPT_TEMPLATES.find(t => t.id === selectedTemplateId),
+    [selectedTemplateId]
+  );
+
+  const selectedModelData = models.find(m => m.name === selectedModel);
+
   const handleTemplateSelect = (template: PromptTemplate) => {
     setSelectedTemplateId(template.id);
-    // Copy template prompt to custom prompt for potential editing
     onCustomPromptChange(template.systemPrompt);
-    // Switch to templates tab to show the selection
-    if (activeTab === 'custom') {
-      // Stay on custom if user is there
-    } else {
+    if (activeTab !== 'custom') {
       onTabChange('templates');
     }
   };
-  
-  // Start with selected template
+
   const handleStartWithTemplate = () => {
     if (selectedTemplate) {
       onCustomPromptChange(selectedTemplate.systemPrompt);
     }
     onStartConversation();
   };
-  
-  const canStart = selectedModel && 
-    ((activeTab === "default") ||
-     (activeTab === "templates" && selectedTemplate) ||
-     (activeTab === "custom" && customPrompt.trim()) ||
-     (activeTab === "image" && imagePrompt.trim()));
+
+  const canStart =
+    selectedModel &&
+    ((activeTab === 'default') ||
+     (activeTab === 'templates' && selectedTemplate) ||
+     (activeTab === 'custom' && customPrompt.trim()) ||
+     (activeTab === 'image' && imagePrompt.trim()));
+
+  // ---------------------------------------------------------------------------
+  // Loading / error states
+  // ---------------------------------------------------------------------------
+
+  if (isLoading) {
+    return (
+      <div className="flex-1 flex items-center justify-center">
+        <div className="flex flex-col items-center gap-4 text-muted-foreground">
+          <div className="flex gap-1.5">
+            {[0, 1, 2].map(i => (
+              <div
+                key={i}
+                className="h-2 w-2 rounded-full bg-muted-foreground/40 animate-bounce"
+                style={{ animationDelay: `${i * 0.15}s` }}
+              />
+            ))}
+          </div>
+          <p className="text-sm">Lade verfügbare Modelle…</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="flex-1 flex items-center justify-center">
+        <div className="text-center space-y-2 max-w-sm px-4">
+          <p className="text-sm font-medium text-destructive">Verbindungsfehler</p>
+          <p className="text-xs text-muted-foreground">{error}</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (models.length === 0) {
+    return (
+      <div className="flex-1 flex items-center justify-center">
+        <div className="text-center space-y-2 max-w-sm px-4">
+          <p className="text-sm font-medium">Keine Modelle gefunden</p>
+          <p className="text-xs text-muted-foreground">
+            Bitte stelle sicher, dass du Modelle in Ollama installiert hast.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  // ---------------------------------------------------------------------------
+  // Main render
+  // ---------------------------------------------------------------------------
 
   return (
-    <div className="flex-1 flex flex-col p-6 overflow-y-auto">
-      <Card className="w-full">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Sparkles className="h-5 w-5 text-primary" />
-            Setup Your AI Assistant
-          </CardTitle>
-          <CardDescription>
-            Select a model and choose a specialized prompt template for your task
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          {isLoading ? (
-            <div className="text-center p-4">
-              <div className="animate-pulse flex space-x-2 justify-center mb-4">
-                <div className="h-3 w-3 bg-gray-400 rounded-full"></div>
-                <div className="h-3 w-3 bg-gray-400 rounded-full"></div>
-                <div className="h-3 w-3 bg-gray-400 rounded-full"></div>
-              </div>
-              <p>Loading available models...</p>
+    <div className="flex-1 flex flex-col items-center justify-center p-4 md:p-6 overflow-y-auto">
+      <div className="w-full max-w-2xl space-y-4">
+
+        {/* ── Header ─────────────────────────────────────────────── */}
+        <div className="space-y-0.5">
+          <h1 className="text-lg font-semibold flex items-center gap-2">
+            <Sparkles className="h-4 w-4 text-primary" />
+            Neues Gespräch
+          </h1>
+          <p className="text-xs text-muted-foreground">
+            Wähle ein Modell und eine Vorlage, dann geht es los.
+          </p>
+        </div>
+
+        {/* ── Model Section ───────────────────────────────────────── */}
+        <Card className="border-border/60 bg-card/50 shadow-sm">
+          <CardContent className="p-4 space-y-2">
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+              Modell
+            </p>
+            <ModelSelector
+              models={models}
+              selectedModel={selectedModel}
+              onSelectModel={onSelectModel}
+            />
+            <ModelStatsBar model={selectedModelData} />
+          </CardContent>
+        </Card>
+
+        {/* ── System Prompt Section ───────────────────────────────── */}
+        <Card className="border-border/60 bg-card/50 shadow-sm">
+          <CardContent className="p-4 space-y-3">
+            <div className="flex items-center justify-between">
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                Systemanweisungen
+              </p>
+              {isEditingPrompt && (
+                <button
+                  onClick={onResetPrompt}
+                  className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
+                >
+                  <Wand2 className="h-3 w-3" />
+                  Zurücksetzen
+                </button>
+              )}
             </div>
-          ) : error ? (
-            <div className="text-center text-red-500 p-4">
-              {error}
-            </div>
-          ) : models.length === 0 ? (
-            <div className="text-center p-4">
-              <p>No models found. Please ensure you have models installed in Ollama.</p>
-            </div>
-          ) : (
-            <div className="space-y-6">
-              {/* Model Selection - Dropdown + Info Panel */}
-              <div>
-                <label className="block text-sm font-medium mb-2">
-                  Select Model
-                </label>
-                <ModelSelector
-                  models={models}
-                  selectedModel={selectedModel}
-                  onSelectModel={onSelectModel}
-                />
-              </div>
-              
-              {/* System Instructions with Templates */}
-              <div className="space-y-2">
-                <div className="flex justify-between items-center">
-                  <label className="block text-sm font-medium">
-                    System Instructions
-                  </label>
-                  <div className="flex gap-2">
-                    {isEditingPrompt && (
-                      <Button 
-                        variant="outline" 
-                        size="sm"
-                        onClick={onResetPrompt}
-                        title="Reset to default prompt"
-                      >
-                        <Wand2 className="h-4 w-4 mr-1" />
-                        Reset
-                      </Button>
+
+            <Tabs value={activeTab} onValueChange={onTabChange} className="w-full">
+              <TabsList className="grid w-full grid-cols-4 h-8">
+                <TabsTrigger value="templates" className="text-xs flex items-center gap-1">
+                  <Sparkles className="h-3 w-3" />
+                  <span className="hidden sm:inline">Vorlagen</span>
+                </TabsTrigger>
+                <TabsTrigger value="default" className="text-xs">Standard</TabsTrigger>
+                <TabsTrigger value="custom" className="text-xs">Custom</TabsTrigger>
+                <TabsTrigger value="image" className="text-xs flex items-center gap-1">
+                  <ImageIcon className="h-3 w-3" />
+                  <span className="hidden sm:inline">Bild</span>
+                </TabsTrigger>
+              </TabsList>
+
+              {/* ── Templates Tab ─────────────────────────────────── */}
+              <TabsContent value="templates" className="mt-3 space-y-3">
+                {/* Category filter */}
+                <div className="flex gap-2 overflow-x-auto pb-0.5 scrollbar-none">
+                  <CategoryPill
+                    label="Alle"
+                    isActive={activeCategory === 'all'}
+                    onClick={() => setActiveCategory('all')}
+                  />
+                  {getAllCategories().map(cat => (
+                    <CategoryPill
+                      key={cat}
+                      label={CATEGORY_LABELS[cat]}
+                      isActive={activeCategory === cat}
+                      onClick={() => setActiveCategory(cat)}
+                    />
+                  ))}
+                </div>
+
+                {/* Two-column: list left, preview right */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  {/* Template list */}
+                  <ScrollArea className="h-[260px] rounded-lg border border-border/40 p-1.5">
+                    <div className="space-y-1 pr-1">
+                      {filteredTemplates.map(template => (
+                        <TemplateCard
+                          key={template.id}
+                          template={template}
+                          isSelected={selectedTemplateId === template.id}
+                          onSelect={() => handleTemplateSelect(template)}
+                        />
+                      ))}
+                    </div>
+                  </ScrollArea>
+
+                  {/* Preview panel */}
+                  <div className="hidden md:flex flex-col gap-2">
+                    {selectedTemplate ? (
+                      <>
+                        <div className="flex items-center gap-2 px-2 py-1.5 rounded-md bg-accent/40 border border-border/40">
+                          <span className="text-xl leading-none">{selectedTemplate.icon}</span>
+                          <div className="min-w-0">
+                            <p className="text-sm font-medium truncate">{selectedTemplate.name}</p>
+                            <p className="text-xs text-muted-foreground line-clamp-1">
+                              {selectedTemplate.description}
+                            </p>
+                          </div>
+                        </div>
+                        <ScrollArea className="flex-1 h-[200px] rounded-md border border-border/40 bg-muted/20">
+                          <div className="p-3">
+                            <pre className="whitespace-pre-wrap font-mono text-[11px] text-muted-foreground leading-relaxed">
+                              {selectedTemplate.systemPrompt}
+                            </pre>
+                          </div>
+                        </ScrollArea>
+                        <button
+                          onClick={() => {
+                            onCustomPromptChange(selectedTemplate.systemPrompt);
+                            onTabChange('custom');
+                          }}
+                          className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
+                        >
+                          <FileEdit className="h-3 w-3" />
+                          Anpassen
+                        </button>
+                      </>
+                    ) : (
+                      <div className="h-[260px] flex items-center justify-center text-xs text-muted-foreground/60">
+                        Vorlage auswählen
+                      </div>
                     )}
                   </div>
                 </div>
-                
-                <Tabs value={activeTab} onValueChange={onTabChange} className="w-full">
-                  <TabsList className="grid w-full grid-cols-4">
-                    <TabsTrigger value="templates" className="flex items-center gap-1">
-                      <Sparkles className="h-4 w-4" />
-                      <span className="hidden sm:inline">Templates</span>
-                    </TabsTrigger>
-                    <TabsTrigger value="default">Default</TabsTrigger>
-                    <TabsTrigger value="custom">Custom</TabsTrigger>
-                    <TabsTrigger value="image" className="flex items-center gap-1">
-                      <ImageIcon className="h-4 w-4" />
-                      <span className="hidden sm:inline">Image</span>
-                    </TabsTrigger>
-                  </TabsList>
-                  
-                  {/* Templates Tab */}
-                  <TabsContent value="templates" className="space-y-4">
-                    {/* Category Filter */}
-                    <div className="flex flex-wrap gap-2">
-                      <Button
-                        variant={activeCategory === 'all' ? 'default' : 'outline'}
-                        size="sm"
-                        onClick={() => setActiveCategory('all')}
-                      >
-                        Alle
-                      </Button>
-                      {getAllCategories().map((category) => (
-                        <Button
-                          key={category}
-                          variant={activeCategory === category ? 'default' : 'outline'}
-                          size="sm"
-                          onClick={() => setActiveCategory(category)}
-                        >
-                          {CATEGORY_LABELS[category]}
-                        </Button>
-                      ))}
-                    </div>
-                    
-                    {/* Template Grid */}
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      {/* Template List */}
-                      <ScrollArea className="h-[350px] rounded-lg border p-2">
-                        <div className="space-y-2 pr-2">
-                          {filteredTemplates.map((template) => (
-                            <TemplateCard
-                              key={template.id}
-                              template={template}
-                              isSelected={selectedTemplateId === template.id}
-                              onSelect={() => handleTemplateSelect(template)}
-                            />
-                          ))}
-                        </div>
-                      </ScrollArea>
-                      
-                      {/* Template Preview */}
-                      <div className="space-y-2">
-                        {selectedTemplate ? (
-                          <>
-                            <div className="flex items-center gap-2 p-2 rounded-lg bg-accent/50">
-                              <span className="text-2xl">{selectedTemplate.icon}</span>
-                              <div>
-                                <h4 className="font-medium">{selectedTemplate.name}</h4>
-                                <p className="text-xs text-muted-foreground">
-                                  {selectedTemplate.description}
-                                </p>
-                              </div>
-                            </div>
-                            <ScrollArea className="h-[290px] rounded-lg border">
-                              <div className="p-3">
-                                <pre className="whitespace-pre-wrap font-mono text-xs text-muted-foreground">
-                                  {selectedTemplate.systemPrompt}
-                                </pre>
-                              </div>
-                            </ScrollArea>
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              className="w-full"
-                              onClick={() => {
-                                onCustomPromptChange(selectedTemplate.systemPrompt);
-                                onTabChange('custom');
-                              }}
-                            >
-                              <FileEdit className="h-4 w-4 mr-2" />
-                              Customize this template
-                              <ChevronRight className="h-4 w-4 ml-auto" />
-                            </Button>
-                          </>
-                        ) : (
-                          <div className="h-[350px] flex items-center justify-center text-muted-foreground">
-                            Select a template to preview
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  </TabsContent>
-                  
-                  <TabsContent value="default" className="space-y-2">
-                    <div className="relative">
-                      <Textarea 
-                        value={defaultPrompt}
-                        className="min-h-[350px] max-h-[350px] overflow-y-auto font-mono text-sm bg-muted" 
-                        readOnly
-                      />
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="absolute top-2 right-2"
-                        onClick={() => onTabChange("custom")}
-                      >
-                        <FileEdit className="h-4 w-4 mr-1" />
-                        Customize
-                      </Button>
-                    </div>
-                    <p className="text-xs text-muted-foreground">
-                      This is the recommended system prompt for {selectedModel}. It provides optimal instructions for this model.
-                    </p>
-                  </TabsContent>
-                  
-                  <TabsContent value="custom" className="space-y-2">
-                    <Textarea 
-                      value={customPrompt}
-                      onChange={(e) => onCustomPromptChange(e.target.value)}
-                      placeholder="Enter custom system instructions..."
-                      className="min-h-[350px] max-h-[350px] overflow-y-auto font-mono text-sm"
-                    />
-                    <p className="text-xs text-muted-foreground">
-                      Customize how the AI should behave. These instructions act as a foundation for the entire conversation.
-                    </p>
-                  </TabsContent>
-                  
-                  <TabsContent value="image" className="space-y-2">
-                    <Textarea 
-                      value={imagePrompt}
-                      onChange={(e) => onImagePromptChange(e.target.value)}
-                      placeholder="Enter image generation instructions..."
-                      className="min-h-[350px] max-h-[350px] overflow-y-auto font-mono text-sm"
-                    />
-                    <p className="text-xs text-muted-foreground">
-                      Specialized instructions for creating detailed prompts for AI image generators. Use with image generation models.
-                    </p>
-                  </TabsContent>
-                </Tabs>
-              </div>
-            </div>
-          )}
-        </CardContent>
-        <CardFooter className="flex justify-between gap-2">
+              </TabsContent>
+
+              {/* ── Default Tab ───────────────────────────────────── */}
+              <TabsContent value="default" className="mt-3 space-y-2">
+                <div className="relative">
+                  <Textarea
+                    value={defaultPrompt}
+                    className="min-h-[240px] max-h-[240px] overflow-y-auto font-mono text-xs bg-muted/30 resize-none"
+                    readOnly
+                  />
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="absolute top-2 right-2 h-7 text-xs"
+                    onClick={() => onTabChange('custom')}
+                  >
+                    <FileEdit className="h-3 w-3 mr-1" />
+                    Anpassen
+                  </Button>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Optimierter System-Prompt für {selectedModel || 'dieses Modell'}.
+                </p>
+              </TabsContent>
+
+              {/* ── Custom Tab ────────────────────────────────────── */}
+              <TabsContent value="custom" className="mt-3 space-y-2">
+                <Textarea
+                  value={customPrompt}
+                  onChange={e => onCustomPromptChange(e.target.value)}
+                  placeholder="Eigene Systemanweisungen eingeben…"
+                  className="min-h-[240px] max-h-[240px] overflow-y-auto font-mono text-xs resize-none"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Lege fest, wie die KI sich verhalten soll.
+                </p>
+              </TabsContent>
+
+              {/* ── Image Tab ─────────────────────────────────────── */}
+              <TabsContent value="image" className="mt-3 space-y-2">
+                <Textarea
+                  value={imagePrompt}
+                  onChange={e => onImagePromptChange(e.target.value)}
+                  placeholder="Anweisungen für Bildgenerierung…"
+                  className="min-h-[240px] max-h-[240px] overflow-y-auto font-mono text-xs resize-none"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Spezialisiert auf detaillierte Prompts für KI-Bildgeneratoren.
+                </p>
+              </TabsContent>
+            </Tabs>
+          </CardContent>
+        </Card>
+
+        {/* ── Start Button ────────────────────────────────────────── */}
+        <div className="flex items-center justify-between gap-3">
           {activeTab === 'templates' && selectedTemplate && (
-            <p className="text-sm text-muted-foreground">
-              <span className="font-medium">{selectedTemplate.icon} {selectedTemplate.name}</span> selected
+            <p className="text-xs text-muted-foreground truncate">
+              <span className="font-medium">{selectedTemplate.icon} {selectedTemplate.name}</span>{' '}
+              ausgewählt
             </p>
           )}
           <div className="flex-1" />
-          <Button 
-            className="w-full sm:w-auto" 
+          <Button
+            size="default"
+            className="min-w-[140px]"
             onClick={activeTab === 'templates' ? handleStartWithTemplate : onStartConversation}
             disabled={!canStart}
           >
-            Start Conversation
+            <Sparkles className="h-4 w-4 mr-2" />
+            Gespräch starten
           </Button>
-        </CardFooter>
-      </Card>
+        </div>
+
+      </div>
     </div>
   );
 }
