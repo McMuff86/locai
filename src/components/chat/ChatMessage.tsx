@@ -190,35 +190,42 @@ export function ChatMessage({ message, isLastMessage = false }: ChatMessageProps
         /* ─── Linear Layout (OpenClaw Style) ─── */
         <motion.div
           className={cn(
-            "flex flex-col w-full mb-4",
-            isUser && "pl-6 border-l-2 border-primary/20"
+            "flex flex-col w-full mb-3",
+            isUser && "pl-5 border-l-2 border-primary/25"
           )}
-          initial={{ opacity: 0, y: 20 }}
+          initial={{ opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.3 }}
+          transition={{ duration: 0.25, ease: [0.0, 0.0, 0.2, 1.0] }}
         >
           {/* Header row: Avatar + Name + Timestamp */}
-          <div className="flex items-center gap-2 mb-1">
-            <ChatAvatar type={isUser ? 'user' : 'ai'} size={36} />
-            <span className="text-sm font-medium text-foreground">{displayName}</span>
-            <span className="text-xs text-muted-foreground">{timestamp}</span>
+          <div className="flex items-center gap-2 mb-1.5">
+            <ChatAvatar type={isUser ? 'user' : 'ai'} size={32} />
+            <span className="text-[13px] font-semibold text-foreground/90 tracking-tight">{displayName}</span>
+            <span className="text-[11px] text-muted-foreground/60 font-mono ml-auto">{timestamp}</span>
           </div>
-          
+
           {/* Message content card */}
-          <div className={cn(isUser ? "pl-[44px]" : "pl-[48px]")}>
+          <div className={cn(isUser ? "pl-[40px]" : "pl-[44px]")}>
             <Card className={cn(
-              "max-w-[95%]",
-              isUser 
-                ? "bg-muted/30 text-foreground border-border/50" 
-                : "bg-muted/50 text-foreground"
+              "max-w-[95%] border",
+              isUser
+                ? [
+                    "border-primary/15",
+                    "bg-gradient-to-br from-accent/40 via-card/60 to-card/50",
+                    "shadow-sm shadow-black/20",
+                  ]
+                : [
+                    "border-border/50 bg-card/80",
+                    "shadow-sm shadow-black/20",
+                  ]
             )}>
-              <CardContent className="p-3">
+              <CardContent className="px-4 py-3">
                 <MessageContentRenderer content={finalContent} isUser={isUser} />
               </CardContent>
             </Card>
             {/* RAG Source Citations */}
             {!isUser && message.ragSources && message.ragSources.length > 0 && (
-              <SourceCitation sources={message.ragSources} className="max-w-[95%]" />
+              <SourceCitation sources={message.ragSources} className="max-w-[95%] mt-1.5" />
             )}
           </div>
         </motion.div>
@@ -226,40 +233,51 @@ export function ChatMessage({ message, isLastMessage = false }: ChatMessageProps
         /* ─── Bubbles Layout (Classic) ─── */
         <motion.div
           className={cn(
-            "flex flex-col w-full mb-4",
+            "flex flex-col w-full mb-3",
             isUser ? "items-end" : "items-start"
           )}
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.3 }}
+          initial={{ opacity: 0, y: 12, scale: 0.98 }}
+          animate={{ opacity: 1, y: 0, scale: 1 }}
+          transition={{ duration: 0.25, ease: [0.0, 0.0, 0.2, 1.0] }}
         >
+          {/* Name + timestamp */}
+          <div className={cn(
+            "flex items-center gap-1.5 mb-1 px-1",
+            isUser ? "flex-row-reverse" : "flex-row"
+          )}>
+            <ChatAvatar type={isUser ? 'user' : 'ai'} size={28} />
+            <span className="text-[12px] font-semibold text-foreground/80 tracking-tight">{displayName}</span>
+            <span className="text-[11px] text-muted-foreground/50 font-mono">{timestamp}</span>
+          </div>
+
           <div className={cn(
             "flex",
             isUser ? "justify-end" : "justify-start"
           )}>
-            {!isUser && (
-              <ChatAvatar type="ai" size={36} className="mr-3 self-start mt-1" />
-            )}
-            
             <Card className={cn(
-              "max-w-[80%]",
-              isUser 
-                ? "bg-muted/50 text-foreground" 
-                : "bg-muted/50 text-foreground"
+              "max-w-[82%] border",
+              isUser
+                ? [
+                    "rounded-2xl rounded-tr-sm",
+                    "border-primary/15",
+                    "bg-gradient-to-br from-accent/40 via-card/60 to-card/50",
+                    "shadow-sm shadow-black/20",
+                  ]
+                : [
+                    "rounded-xl rounded-tl-sm",
+                    "border-border/50 bg-card/80",
+                    "shadow-sm shadow-black/20",
+                  ]
             )}>
-              <CardContent className="p-3">
+              <CardContent className="px-4 py-3">
                 <MessageContentRenderer content={finalContent} isUser={isUser} />
               </CardContent>
             </Card>
-            
-            {isUser && (
-              <ChatAvatar type="user" size={36} className="ml-2 self-start mt-1" />
-            )}
           </div>
           {/* RAG Source Citations */}
           {!isUser && message.ragSources && message.ragSources.length > 0 && (
-            <div className="ml-[48px]">
-              <SourceCitation sources={message.ragSources} className="max-w-[80%]" />
+            <div className="mt-1.5 ml-2">
+              <SourceCitation sources={message.ragSources} className="max-w-[82%]" />
             </div>
           )}
         </motion.div>

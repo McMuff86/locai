@@ -142,7 +142,7 @@ const DEFAULT_TOOLS = [
 
 export function useAgentChat(): UseAgentChatReturn {
   const [agentTurns, setAgentTurns] = useState<AgentTurn[]>([]);
-  const [isAgentMode, setIsAgentMode] = useState(false);
+  const [isAgentMode, setIsAgentMode] = useState(true); // Agent Mode is the default
   const [enabledTools, setEnabledTools] = useState<string[]>(DEFAULT_TOOLS);
   const [isExecutingTool, setIsExecutingTool] = useState(false);
   const [isAgentLoading, setIsAgentLoading] = useState(false);

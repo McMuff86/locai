@@ -28,11 +28,17 @@ export function ChatContainer({ conversation, isLoading = false }: ChatContainer
         ))}
         
         {isLoading && (
-          <div className="flex justify-center my-4">
-            <div className="animate-pulse flex space-x-2">
-              <div className="h-2 w-2 bg-gray-400 rounded-full"></div>
-              <div className="h-2 w-2 bg-gray-400 rounded-full"></div>
-              <div className="h-2 w-2 bg-gray-400 rounded-full"></div>
+          <div className="flex flex-col w-full mb-3 pl-5">
+            {/* Skeleton header */}
+            <div className="flex items-center gap-2 mb-1.5">
+              <div className="h-8 w-8 rounded-full animate-shimmer" />
+              <div className="h-3 w-20 rounded-md animate-shimmer" />
+            </div>
+            {/* Skeleton lines */}
+            <div className="pl-[44px] space-y-2">
+              <div className="h-3.5 w-[70%] rounded-md animate-shimmer" />
+              <div className="h-3.5 w-[55%] rounded-md animate-shimmer" />
+              <div className="h-3.5 w-[40%] rounded-md animate-shimmer" />
             </div>
           </div>
         )}
