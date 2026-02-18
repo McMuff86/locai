@@ -1,10 +1,68 @@
 # LocAI Context Handoff – Sprint 5 File Canvas
 
-**Last updated:** 2026-02-18 23:xx  
-**Branch:** `sprint5/feat-file-canvas` (pushed, PR open)  
-**Commit:** `93120c7`  
+**Last updated:** 2026-02-19 00:xx  
+**Branch:** `sprint5/fix-canvas-editor` (pushed, PR ready)  
+**Commit:** `80d0c82`  
 **Build:** ✅ green (lint warnings only – all pre-existing)  
 **Tests:** ✅ 100/100  
+
+---
+
+## Sprint 5 – Fix Canvas + Editor Upgrade (2026-02-19)
+
+### Bug Fix: Doppeltes Öffnen von Dateien im Canvas
+
+**Root Cause:** In `useFileCanvas.ts` war `windows` in der `openFile` Closure captured (stale closure). Bei schnellen Doppelklicks sahen beide Aufrufe `windows = []` und erstellten zwei Fenster.
+
+**Fix:** Deduplizierung jetzt INNERHALB des `setWindows` functional updater – dieser sieht immer den aktuellen State:
+```typescript
+setWindows((currentWindows) => {
+  const existing = currentWindows.find(/* ... */);
+  if (existing) return currentWindows.map(/* bring-to-front */);
+  return [...currentWindows, newWindow];
+});
+```
+Zusätzlich: `maxZIndex` State durch `useRef` ersetzt (kein Extra-Re-render, kein stale Closure).
+
+### Feature: Editor Upgrade in FileWindow
+
+**Line Numbers (Zeilennummern)**
+- Linke Spalte mit Zeilennummern (1, 2, 3, ...)
+- Synchronisiertes Scroll über `onScroll` → `lineNumbersRef.scrollTop = textareaRef.scrollTop`
+- Gleiche Monospace-Font und Font-Size wie Textarea → perfektes Alignment
+- Dynamische Breite: 2.25rem / 2.75rem / 3.25rem / 4rem (für 2/3/4-stellige Zahlen)
+- `aria-hidden` (rein dekorativ)
+
+**Status Bar**
+- Am unteren Rand des Edit-Fensters
+- Format: `Zeichen: X | Wörter: Y | Zeilen: Z | Whitespace: W`
+- Live-Update bei jedem Keystroke
+- Zeigt "Kein Umbruch" wenn Word Wrap OFF
+
+**Tab Support**
+- Tab → 2 Leerzeichen einfügen (kein Focus-Wechsel)
+- Shift+Tab → bis zu 2 Leerzeichen am Zeilenanfang entfernen
+- Cursor-Position nach State-Update via `requestAnimationFrame`
+
+**Word Wrap Toggle**
+- WrapText-Icon in der Toolbar (Shadcn Button variant=secondary wenn AN)
+- Default: AN (pre-wrap, overflow-x: hidden)
+- AUS: pre, overflow-x: auto (horizontales Scrollen)
+
+**Font Size Zoom**
+- ZoomIn / ZoomOut Buttons in Toolbar
+- Ctrl+Plus / Ctrl+Minus im Textarea onKeyDown
+- Range: 8–24px, Default: 13px
+- Aktuelle Größe als 10px Text zwischen den Buttons angezeigt
+
+**Auto-Save Indicator**
+- Kleiner Amber-Dot (●) in der Titelleiste
+- Erscheint wenn `editedContent !== fileContent.content`
+- Verschwindet automatisch nach Speichern oder Abbrechen
+
+---
+
+## Frühere Handoff-Notes (Sprint 5 File Canvas)
 
 ---
 

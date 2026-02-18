@@ -19,11 +19,13 @@ import {
   Minus,
   Pencil,
   Save,
+  WrapText,
   X,
+  ZoomIn,
+  ZoomOut,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/components/ui/use-toast';
 import { MarkdownRenderer } from '@/components/chat/MarkdownRenderer';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
@@ -36,6 +38,9 @@ import type { FilePreviewType } from '@/lib/filebrowser/types';
 
 const syntaxTheme = oneDark as { [key: string]: CSSProperties };
 const EDITABLE_TYPES: FilePreviewType[] = ['text', 'code', 'json', 'markdown'];
+const DEFAULT_FONT_SIZE = 13;
+const MIN_FONT_SIZE = 8;
+const MAX_FONT_SIZE = 24;
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -97,6 +102,10 @@ export function FileWindow({
   const [editedContent, setEditedContent] = useState('');
   const [isSaving, setIsSaving] = useState(false);
   const [markdownTab, setMarkdownTab] = useState<'edit' | 'preview'>('preview');
+
+  // ── Editor feature state ─────────────────────────────────────────
+  const [wordWrap, setWordWrap] = useState(true);
+  const [fontSize, setFontSize] = useState(DEFAULT_FONT_SIZE);
 
   // ── Copy state ───────────────────────────────────────────────────
   const [copied, setCopied] = useState(false);
@@ -290,6 +299,16 @@ export function FileWindow({
     !fileContent.truncated &&
     EDITABLE_TYPES.includes(fileContent.type);
 
+  const hasUnsavedChanges = isEditMode && editedContent !== (fileContent?.content ?? '');
+
+  // ── Font size helpers ─────────────────────────────────────────────
+  const increaseFontSize = useCallback(() => {
+    setFontSize((s) => Math.min(MAX_FONT_SIZE, s + 1));
+  }, []);
+  const decreaseFontSize = useCallback(() => {
+    setFontSize((s) => Math.max(MIN_FONT_SIZE, s - 1));
+  }, []);
+
   // ── Render ────────────────────────────────────────────────────────
   return (
     <div
@@ -303,11 +322,10 @@ export function FileWindow({
         zIndex: win.zIndex,
         minWidth: MIN_WINDOW_SIZE.w,
         minHeight: win.isMinimized ? 40 : MIN_WINDOW_SIZE.h,
-        // Prevent text selection on the window frame itself
         userSelect: 'none',
       }}
       onMouseDown={(e) => {
-        e.stopPropagation(); // prevent canvas pan
+        e.stopPropagation();
         onBringToFront();
       }}
     >
@@ -320,6 +338,14 @@ export function FileWindow({
         <span className="text-sm font-medium truncate flex-1 select-none">
           {win.file.name}
         </span>
+
+        {/* Unsaved indicator (amber dot) */}
+        {hasUnsavedChanges && (
+          <span
+            className="w-1.5 h-1.5 rounded-full bg-amber-500 flex-shrink-0 transition-opacity"
+            title="Ungespeicherte Änderungen"
+          />
+        )}
 
         {/* macOS-style window controls */}
         <div
@@ -376,6 +402,49 @@ export function FileWindow({
                   >
                     Vorschau
                   </button>
+                </div>
+              )}
+
+              {/* ── Editor feature controls (edit mode only) ─────── */}
+              {isEditMode && (
+                <div className="flex items-center gap-1">
+                  {/* Word Wrap toggle */}
+                  <Button
+                    variant={wordWrap ? 'secondary' : 'ghost'}
+                    size="sm"
+                    className="h-6 px-1.5 text-xs"
+                    onClick={() => setWordWrap((w) => !w)}
+                    title={wordWrap ? 'Zeilenumbruch AUS' : 'Zeilenumbruch AN'}
+                  >
+                    <WrapText className="h-3 w-3" />
+                  </Button>
+
+                  {/* Font size controls */}
+                  <div className="flex items-center gap-0.5">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-6 w-6 p-0"
+                      onClick={decreaseFontSize}
+                      disabled={fontSize <= MIN_FONT_SIZE}
+                      title="Schrift kleiner (Ctrl+-)"
+                    >
+                      <ZoomOut className="h-3 w-3" />
+                    </Button>
+                    <span className="text-[10px] text-muted-foreground font-mono w-5 text-center select-none">
+                      {fontSize}
+                    </span>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-6 w-6 p-0"
+                      onClick={increaseFontSize}
+                      disabled={fontSize >= MAX_FONT_SIZE}
+                      title="Schrift größer (Ctrl++)"
+                    >
+                      <ZoomIn className="h-3 w-3" />
+                    </Button>
+                  </div>
                 </div>
               )}
 
@@ -452,7 +521,7 @@ export function FileWindow({
           <div
             className="flex-1 min-h-0 overflow-hidden"
             onMouseDown={(e) => e.stopPropagation()}
-            style={{ userSelect: 'text' }} // Allow text selection in content
+            style={{ userSelect: 'text' }}
           >
             {isLoading && (
               <div className="flex items-center justify-center h-full">
@@ -477,6 +546,9 @@ export function FileWindow({
                 isSaving={isSaving}
                 rootId={win.rootId}
                 relativePath={win.file.relativePath}
+                wordWrap={wordWrap}
+                fontSize={fontSize}
+                onFontSizeChange={setFontSize}
               />
             )}
           </div>
@@ -511,6 +583,9 @@ interface WindowContentProps {
   isSaving: boolean;
   rootId: string;
   relativePath: string;
+  wordWrap: boolean;
+  fontSize: number;
+  onFontSizeChange: (size: number) => void;
 }
 
 function WindowContent({
@@ -522,8 +597,94 @@ function WindowContent({
   isSaving,
   rootId,
   relativePath,
+  wordWrap,
+  fontSize,
+  onFontSizeChange,
 }: WindowContentProps) {
   const { content, type, language, truncated } = fileContent;
+
+  // ── Refs for editor (line numbers + textarea scroll sync) ─────────
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const lineNumbersRef = useRef<HTMLDivElement>(null);
+
+  // ── Computed text stats (for status bar) ──────────────────────────
+  const lineCount = editedContent ? editedContent.split('\n').length : 1;
+  const charCount = editedContent.length;
+  const wordCount = editedContent.trim() === '' ? 0 : editedContent.trim().split(/\s+/).length;
+  const wsCount = (editedContent.match(/\s/g) ?? []).length;
+
+  // ── Dynamic line number column width ──────────────────────────────
+  const lineNumWidth =
+    lineCount >= 10000 ? '4rem' :
+    lineCount >= 1000  ? '3.25rem' :
+    lineCount >= 100   ? '2.75rem' : '2.25rem';
+
+  // ── Scroll sync: textarea scroll → line numbers ───────────────────
+  const syncScroll = useCallback(() => {
+    if (lineNumbersRef.current && textareaRef.current) {
+      lineNumbersRef.current.scrollTop = textareaRef.current.scrollTop;
+    }
+  }, []);
+
+  // ── Keyboard handler for the editor textarea ──────────────────────
+  const handleEditorKeyDown = useCallback(
+    (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+      const ta = textareaRef.current;
+
+      // ── Font size zoom: Ctrl+Plus / Ctrl+Minus ──────────────────
+      if (e.ctrlKey) {
+        if (e.key === '+' || e.key === '=') {
+          e.preventDefault();
+          onFontSizeChange(Math.min(MAX_FONT_SIZE, fontSize + 1));
+          return;
+        }
+        if (e.key === '-') {
+          e.preventDefault();
+          onFontSizeChange(Math.max(MIN_FONT_SIZE, fontSize - 1));
+          return;
+        }
+      }
+
+      // ── Tab / Shift+Tab: indent / unindent ───────────────────────
+      if (e.key === 'Tab' && ta) {
+        e.preventDefault();
+        const start = ta.selectionStart;
+        const end = ta.selectionEnd;
+
+        if (e.shiftKey) {
+          // Shift+Tab: remove up to 2 spaces from the start of the current line
+          const lineStart = editedContent.lastIndexOf('\n', start - 1) + 1;
+          const linePrefix = editedContent.slice(lineStart, start);
+          const spacesToRemove = linePrefix.match(/^ {1,2}/)?.[0].length ?? 0;
+          if (spacesToRemove > 0) {
+            const newContent =
+              editedContent.slice(0, lineStart) +
+              editedContent.slice(lineStart + spacesToRemove);
+            onEditedContentChange(newContent);
+            requestAnimationFrame(() => {
+              if (ta) {
+                const newPos = Math.max(lineStart, start - spacesToRemove);
+                ta.selectionStart = newPos;
+                ta.selectionEnd = newPos;
+              }
+            });
+          }
+        } else {
+          // Tab: insert 2 spaces at cursor (replace selection)
+          const newContent =
+            editedContent.slice(0, start) + '  ' + editedContent.slice(end);
+          onEditedContentChange(newContent);
+          requestAnimationFrame(() => {
+            if (ta) {
+              ta.selectionStart = start + 2;
+              ta.selectionEnd = start + 2;
+            }
+          });
+        }
+      }
+    },
+    [editedContent, fontSize, onEditedContentChange, onFontSizeChange],
+  );
 
   return (
     <div className="h-full flex flex-col">
@@ -535,17 +696,81 @@ function WindowContent({
         </div>
       )}
 
-      {/* ── Textarea (edit mode) ──────────────────────────────── */}
+      {/* ── Edit Mode: line numbers + textarea + status bar ──────── */}
       {isEditMode && (type !== 'markdown' || markdownTab === 'edit') && (
-        <div className="flex-1 p-3 min-h-0">
-          <Textarea
-            value={editedContent}
-            onChange={(e) => onEditedContentChange(e.target.value)}
-            className="h-full w-full font-mono text-[0.8125rem] resize-none bg-muted/30 border-border/60 focus:border-primary/50"
-            spellCheck={false}
-            disabled={isSaving}
-            autoFocus
-          />
+        <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
+          {/* Line numbers + Textarea row */}
+          <div className="flex-1 flex min-h-0 overflow-hidden">
+            {/* Line numbers column */}
+            <div
+              ref={lineNumbersRef}
+              aria-hidden
+              style={{
+                fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace',
+                fontSize: `${fontSize}px`,
+                lineHeight: '1.5rem',
+                paddingTop: '0.5rem',
+                paddingBottom: '0.5rem',
+                paddingRight: '0.5rem',
+                paddingLeft: '0.375rem',
+                width: lineNumWidth,
+                flexShrink: 0,
+                overflowY: 'hidden',
+                overflowX: 'hidden',
+                textAlign: 'right',
+                userSelect: 'none',
+                color: 'hsl(var(--muted-foreground))',
+                backgroundColor: 'hsl(var(--muted) / 0.25)',
+                borderRight: '1px solid hsl(var(--border) / 0.4)',
+              }}
+            >
+              {Array.from({ length: lineCount }, (_, i) => (
+                <div key={i + 1} style={{ lineHeight: '1.5rem' }}>
+                  {i + 1}
+                </div>
+              ))}
+            </div>
+
+            {/* Textarea */}
+            <textarea
+              ref={textareaRef}
+              value={editedContent}
+              onChange={(e) => onEditedContentChange(e.target.value)}
+              onKeyDown={handleEditorKeyDown}
+              onScroll={syncScroll}
+              className="flex-1 font-mono bg-muted/30 text-foreground border-0 outline-none focus:outline-none resize-none"
+              style={{
+                fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace',
+                fontSize: `${fontSize}px`,
+                lineHeight: '1.5rem',
+                padding: '0.5rem 0.75rem',
+                overflowX: wordWrap ? 'hidden' : 'auto',
+                overflowY: 'auto',
+                whiteSpace: wordWrap ? 'pre-wrap' : 'pre',
+                wordWrap: wordWrap ? 'break-word' : 'normal',
+                minHeight: 0,
+                height: '100%',
+              }}
+              spellCheck={false}
+              disabled={isSaving}
+              autoFocus
+            />
+          </div>
+
+          {/* Status bar */}
+          <div className="flex-shrink-0 flex items-center justify-between px-3 py-0.5 border-t border-border/30 bg-muted/20">
+            <span className="text-xs text-muted-foreground font-mono">
+              {'Zeichen:\u00a0'}{charCount}{'\u00a0|\u00a0'}
+              {'W\u00f6rter:\u00a0'}{wordCount}{'\u00a0|\u00a0'}
+              {'Zeilen:\u00a0'}{lineCount}{'\u00a0|\u00a0'}
+              {'Whitespace:\u00a0'}{wsCount}
+            </span>
+            {!wordWrap && (
+              <span className="text-[10px] text-muted-foreground/60 select-none">
+                Kein Umbruch
+              </span>
+            )}
+          </div>
         </div>
       )}
 
