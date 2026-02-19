@@ -1,9 +1,24 @@
 "use client";
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { Loader2, X, Sparkles } from 'lucide-react';
+import {
+  ArrowDown,
+  ArrowUp,
+  Eye,
+  EyeOff,
+  History,
+  Layers,
+  Loader2,
+  Lock,
+  LockOpen,
+  Plus,
+  Sparkles,
+  X,
+} from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
   Dialog,
   DialogContent,
@@ -14,7 +29,7 @@ import {
 import { useToast } from '@/components/ui/use-toast';
 import { useImageEditor } from '@/hooks/useImageEditor';
 import { ImageToolbar } from './ImageToolbar';
-import type { ImageTool, CropRect } from '@/hooks/useImageEditor';
+import type { ImageTool, CropRect, AdjustSettings } from '@/hooks/useImageEditor';
 
 // ── Props ─────────────────────────────────────────────────────────────────────
 
@@ -24,6 +39,100 @@ interface ImageEditorProps {
   relativePath: string;
   fileName: string;
 }
+
+interface Point {
+  x: number;
+  y: number;
+}
+
+interface LayerBase {
+  id: string;
+  name: string;
+  visible: boolean;
+  locked: boolean;
+  opacity: number;
+  rotation: number;
+  scaleX: number;
+  scaleY: number;
+}
+
+interface TextLayer extends LayerBase {
+  kind: 'text';
+  text: string;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  fontSize: number;
+  fontFamily: string;
+  color: string;
+  lineHeight: number;
+  tracking: number;
+  kerning: number;
+  align: 'left' | 'center' | 'right';
+  backgroundEnabled: boolean;
+  backgroundColor: string;
+  backgroundPadding: number;
+  strokeEnabled: boolean;
+  strokeColor: string;
+  strokeWidth: number;
+  shadowEnabled: boolean;
+  shadowColor: string;
+  shadowBlur: number;
+  shadowOffsetX: number;
+  shadowOffsetY: number;
+}
+
+interface ShapeLayer extends LayerBase {
+  kind: 'shape';
+  shapeType: 'rect' | 'circle' | 'line' | 'arrow';
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  color: string;
+  filled: boolean;
+  strokeWidth: number;
+}
+
+type AdjustmentType =
+  | 'brightness'
+  | 'contrast'
+  | 'saturation'
+  | 'blur'
+  | 'sharpen'
+  | 'grayscale'
+  | 'sepia'
+  | 'invert';
+
+interface AdjustmentLayer extends LayerBase {
+  kind: 'adjustment';
+  adjustmentType: AdjustmentType;
+  enabled: boolean;
+  value: number;
+}
+
+type SceneLayer = TextLayer | ShapeLayer | AdjustmentLayer;
+
+interface HistoryEntry {
+  id: string;
+  label: string;
+  createdAt: number;
+  bitmapDataUrl: string;
+  textLayers: TextLayer[];
+  shapeLayers: ShapeLayer[];
+  adjustmentLayers: AdjustmentLayer[];
+  layerOrder: string[];
+}
+
+interface TransformBounds {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+const TEXT_LINE_HEIGHT = 1.2;
 
 // ── Utility functions ─────────────────────────────────────────────────────────
 
@@ -129,6 +238,227 @@ function boxBlur(imageData: ImageData, radius: number): ImageData {
   return output;
 }
 
+function toDataUrlSafe(canvas: HTMLCanvasElement): string {
+  try {
+    return canvas.toDataURL('image/png');
+  } catch {
+    return '';
+  }
+}
+
+function uid(prefix: string): string {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return `${prefix}-${crypto.randomUUID()}`;
+  }
+  return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+}
+
+function cloneTextLayers(layers: TextLayer[]): TextLayer[] {
+  return layers.map((layer) => ({ ...layer }));
+}
+
+function cloneShapeLayers(layers: ShapeLayer[]): ShapeLayer[] {
+  return layers.map((layer) => ({ ...layer }));
+}
+
+function cloneAdjustmentLayers(layers: AdjustmentLayer[]): AdjustmentLayer[] {
+  return layers.map((layer) => ({ ...layer }));
+}
+
+function drawTextLineWithTracking(
+  ctx: CanvasRenderingContext2D,
+  line: string,
+  x: number,
+  y: number,
+  tracking: number,
+) {
+  if (tracking === 0 || line.length <= 1) {
+    ctx.fillText(line, x, y);
+    return;
+  }
+  let cursor = x;
+  for (const ch of line) {
+    ctx.fillText(ch, cursor, y);
+    const w = ctx.measureText(ch).width;
+    cursor += w + tracking;
+  }
+}
+
+function getTextMetricsForLayer(ctx: CanvasRenderingContext2D, layer: TextLayer): TransformBounds {
+  ctx.save();
+  ctx.font = `${layer.fontSize}px ${layer.fontFamily}`;
+
+  const lines = layer.text.split('\n');
+  const lineHeightPx = layer.fontSize * layer.lineHeight;
+  const widths = lines.map((line) => {
+    if (line.length <= 1) {
+      return Math.max(1, ctx.measureText(line).width);
+    }
+    const base = ctx.measureText(line).width;
+    const trackingExtra = Math.max(0, line.length - 1) * layer.tracking;
+    return Math.max(1, base + trackingExtra);
+  });
+
+  const contentWidth = Math.max(1, ...widths);
+  const contentHeight = Math.max(lineHeightPx, lines.length * lineHeightPx);
+  const padding = layer.backgroundEnabled ? layer.backgroundPadding : 0;
+
+  ctx.restore();
+
+  return {
+    x: layer.x,
+    y: layer.y,
+    width: contentWidth + padding * 2,
+    height: contentHeight + padding * 2,
+  };
+}
+
+function getShapeBounds(layer: ShapeLayer): TransformBounds {
+  const w = Math.max(1, layer.width * layer.scaleX);
+  const h = Math.max(1, layer.height * layer.scaleY);
+  return {
+    x: layer.x,
+    y: layer.y,
+    width: w,
+    height: h,
+  };
+}
+
+function drawShapeLayer(ctx: CanvasRenderingContext2D, layer: ShapeLayer) {
+  const bounds = getShapeBounds(layer);
+  const x2 = bounds.x + bounds.width;
+  const y2 = bounds.y + bounds.height;
+
+  ctx.save();
+  ctx.globalAlpha = Math.max(0.01, Math.min(1, layer.opacity / 100));
+  ctx.strokeStyle = layer.color;
+  ctx.fillStyle = layer.color;
+  ctx.lineWidth = layer.strokeWidth;
+
+  if (layer.rotation !== 0) {
+    const cx = bounds.x + bounds.width / 2;
+    const cy = bounds.y + bounds.height / 2;
+    ctx.translate(cx, cy);
+    ctx.rotate((layer.rotation * Math.PI) / 180);
+    ctx.translate(-cx, -cy);
+  }
+
+  drawShape(ctx, layer.shapeType, { x: bounds.x, y: bounds.y }, { x: x2, y: y2 }, layer.filled);
+  ctx.restore();
+}
+
+function drawTextLayer(ctx: CanvasRenderingContext2D, layer: TextLayer) {
+  const bounds = getTextMetricsForLayer(ctx, layer);
+  const padding = layer.backgroundEnabled ? layer.backgroundPadding : 0;
+  const contentX = bounds.x + padding;
+  const contentY = bounds.y + padding;
+  const lineHeightPx = layer.fontSize * layer.lineHeight;
+  const lines = layer.text.split('\n');
+
+  ctx.save();
+  ctx.globalAlpha = Math.max(0.01, Math.min(1, layer.opacity / 100));
+  ctx.font = `${layer.fontSize}px ${layer.fontFamily}`;
+  ctx.textBaseline = 'top';
+  ctx.fillStyle = layer.color;
+
+  if (layer.rotation !== 0) {
+    const cx = bounds.x + bounds.width / 2;
+    const cy = bounds.y + bounds.height / 2;
+    ctx.translate(cx, cy);
+    ctx.rotate((layer.rotation * Math.PI) / 180);
+    ctx.translate(-cx, -cy);
+  }
+
+  if (layer.backgroundEnabled) {
+    ctx.fillStyle = layer.backgroundColor;
+    ctx.fillRect(bounds.x, bounds.y, bounds.width, bounds.height);
+    ctx.fillStyle = layer.color;
+  }
+
+  if (layer.shadowEnabled) {
+    ctx.shadowColor = layer.shadowColor;
+    ctx.shadowBlur = layer.shadowBlur;
+    ctx.shadowOffsetX = layer.shadowOffsetX;
+    ctx.shadowOffsetY = layer.shadowOffsetY;
+  }
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    const lineWidth = line.length <= 1
+      ? Math.max(1, ctx.measureText(line).width)
+      : Math.max(1, ctx.measureText(line).width + (line.length - 1) * layer.tracking);
+    let x = contentX;
+    if (layer.align === 'center') {
+      x = contentX + (bounds.width - padding * 2 - lineWidth) / 2;
+    } else if (layer.align === 'right') {
+      x = contentX + (bounds.width - padding * 2 - lineWidth);
+    }
+    const y = contentY + i * lineHeightPx;
+
+    if (layer.strokeEnabled) {
+      ctx.strokeStyle = layer.strokeColor;
+      ctx.lineWidth = layer.strokeWidth;
+      if (layer.tracking === 0 || line.length <= 1) {
+        ctx.strokeText(line, x, y);
+      } else {
+        let strokeCursor = x;
+        for (const ch of line) {
+          ctx.strokeText(ch, strokeCursor, y);
+          strokeCursor += ctx.measureText(ch).width + layer.tracking;
+        }
+      }
+    }
+
+    drawTextLineWithTracking(ctx, line, x + layer.kerning, y, layer.tracking);
+  }
+
+  ctx.restore();
+}
+
+function applyAdjustmentLayerToCanvas(canvas: HTMLCanvasElement, layer: AdjustmentLayer) {
+  if (!layer.enabled || !layer.visible) return;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return;
+
+  if (layer.adjustmentType === 'sharpen') {
+    if (layer.value <= 0) return;
+    const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    const sharpened = applySharpen(imgData);
+    ctx.putImageData(sharpened, 0, 0);
+    return;
+  }
+
+  let filterPart = '';
+  if (layer.adjustmentType === 'brightness') {
+    filterPart = `brightness(${1 + layer.value / 100})`;
+  } else if (layer.adjustmentType === 'contrast') {
+    filterPart = `contrast(${1 + layer.value / 100})`;
+  } else if (layer.adjustmentType === 'saturation') {
+    filterPart = `saturate(${layer.value / 100})`;
+  } else if (layer.adjustmentType === 'blur') {
+    filterPart = `blur(${Math.max(0, layer.value)}px)`;
+  } else if (layer.adjustmentType === 'grayscale') {
+    filterPart = layer.value > 0 ? 'grayscale(1)' : 'none';
+  } else if (layer.adjustmentType === 'sepia') {
+    filterPart = layer.value > 0 ? 'sepia(1)' : 'none';
+  } else if (layer.adjustmentType === 'invert') {
+    filterPart = layer.value > 0 ? 'invert(1)' : 'none';
+  }
+
+  if (!filterPart || filterPart === 'none') return;
+
+  const temp = document.createElement('canvas');
+  temp.width = canvas.width;
+  temp.height = canvas.height;
+  const tctx = temp.getContext('2d');
+  if (!tctx) return;
+
+  tctx.filter = filterPart;
+  tctx.drawImage(canvas, 0, 0);
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.drawImage(temp, 0, 0);
+}
+
 // ── Component ─────────────────────────────────────────────────────────────────
 
 export function ImageEditor({ imageUrl, rootId, relativePath, fileName }: ImageEditorProps) {
@@ -138,6 +468,7 @@ export function ImageEditor({ imageUrl, rootId, relativePath, fileName }: ImageE
   const containerRef = useRef<HTMLDivElement>(null);
   const overlayCanvasRef = useRef<HTMLCanvasElement>(null);
   const [imageLoaded, setImageLoaded] = useState(false);
+  const [imageLoadError, setImageLoadError] = useState<string | null>(null);
   const [dimensions, setDimensions] = useState({ w: 0, h: 0 });
   const [zoom, setZoom] = useState(1);
   const [comfyAvailable, setComfyAvailable] = useState(false);
@@ -171,7 +502,40 @@ export function ImageEditor({ imageUrl, rootId, relativePath, fileName }: ImageE
 
   // Text overlay state
   const [textInput, setTextInput] = useState('');
-  const [textPos, setTextPos] = useState<{ x: number; y: number } | null>(null);
+  const [textPos, setTextPos] = useState<Point | null>(null);
+  const [textLayers, setTextLayers] = useState<TextLayer[]>([]);
+  const [shapeLayers, setShapeLayers] = useState<ShapeLayer[]>([]);
+  const [adjustmentLayers, setAdjustmentLayers] = useState<AdjustmentLayer[]>([]);
+  const [layerOrder, setLayerOrder] = useState<string[]>([]);
+  const [activeLayerId, setActiveLayerId] = useState<string | null>(null);
+  const [activePanelTab, setActivePanelTab] = useState('layers');
+  const [snapToGuides, setSnapToGuides] = useState(true);
+  const [pixelSnap, setPixelSnap] = useState(true);
+  const [showRulers, setShowRulers] = useState(true);
+  const [guides, setGuides] = useState<Array<{ id: string; axis: 'x' | 'y'; value: number }>>([]);
+  const [smartGuide, setSmartGuide] = useState<{ x: number | null; y: number | null }>({ x: null, y: null });
+
+  const [historyEntries, setHistoryEntries] = useState<HistoryEntry[]>([]);
+  const [historyIndex, setHistoryIndex] = useState(-1);
+
+  const [maskMode, setMaskMode] = useState(false);
+  const maskCanvasesRef = useRef<Record<string, HTMLCanvasElement>>({});
+
+  const isDraggingLayerRef = useRef(false);
+  const draggingLayerIdRef = useRef<string | null>(null);
+  const layerDragOffsetRef = useRef<Point>({ x: 0, y: 0 });
+  const layerMoveChangedRef = useRef(false);
+
+  const transformModeRef = useRef<null | 'nw' | 'ne' | 'sw' | 'se' | 'rotate'>(null);
+  const transformLayerIdRef = useRef<string | null>(null);
+  const transformStartRef = useRef<Point>({ x: 0, y: 0 });
+  const transformInitialBoundsRef = useRef<TransformBounds | null>(null);
+  const transformInitialLayerRef = useRef<TextLayer | ShapeLayer | null>(null);
+
+  const isSpaceDownRef = useRef(false);
+  const isPanningRef = useRef(false);
+  const panStartRef = useRef<Point>({ x: 0, y: 0 });
+  const panScrollRef = useRef<Point>({ x: 0, y: 0 });
 
   const aspectRef = useRef(1);
 
@@ -182,25 +546,66 @@ export function ImageEditor({ imageUrl, rootId, relativePath, fileName }: ImageE
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
+    setImageLoaded(false);
+    setImageLoadError(null);
+    setTextLayers([]);
+    setShapeLayers([]);
+    setAdjustmentLayers([]);
+    setLayerOrder([]);
+    setActiveLayerId(null);
+    setTextPos(null);
+    setGuides([]);
+    setSmartGuide({ x: null, y: null });
+    setHistoryEntries([]);
+    setHistoryIndex(-1);
+    maskCanvasesRef.current = {};
+
     const img = new Image();
     img.crossOrigin = 'anonymous';
     img.onload = () => {
-      canvas.width = img.width;
-      canvas.height = img.height;
-      ctx.drawImage(img, 0, 0);
-      setDimensions({ w: img.width, h: img.height });
-      setResizeW(img.width);
-      setResizeH(img.height);
-      aspectRef.current = img.width / img.height;
-      editor.setOriginal(canvas.toDataURL('image/png'));
-      setImageLoaded(true);
+      try {
+        canvas.width = img.width;
+        canvas.height = img.height;
+        ctx.drawImage(img, 0, 0);
+        setDimensions({ w: img.width, h: img.height });
+        setResizeW(img.width);
+        setResizeH(img.height);
+        aspectRef.current = img.width / img.height;
 
-      if (containerRef.current) {
-        const cw = containerRef.current.clientWidth;
-        const ch = containerRef.current.clientHeight;
-        const z = Math.min(1, cw / img.width, ch / img.height);
-        setZoom(z);
+        try {
+          editor.setOriginal(canvas.toDataURL('image/png'));
+        } catch (err) {
+          console.warn('[ImageEditor] Could not store original image snapshot:', err);
+        }
+
+        if (containerRef.current) {
+          const cw = containerRef.current.clientWidth;
+          const ch = containerRef.current.clientHeight;
+          const z = Math.min(1, cw / img.width, ch / img.height);
+          setZoom(z);
+        }
+
+        const initialEntry: HistoryEntry = {
+          id: uid('history'),
+          label: 'Initialzustand',
+          createdAt: Date.now(),
+          bitmapDataUrl: toDataUrlSafe(canvas),
+          textLayers: [],
+          shapeLayers: [],
+          adjustmentLayers: [],
+          layerOrder: [],
+        };
+        setHistoryEntries([initialEntry]);
+        setHistoryIndex(0);
+
+        setImageLoaded(true);
+      } catch (err) {
+        console.error('[ImageEditor] Failed to draw loaded image:', err);
+        setImageLoadError('Bild konnte nicht im Editor gerendert werden.');
       }
+    };
+    img.onerror = () => {
+      setImageLoadError('Bild konnte nicht geladen werden.');
     };
     img.src = imageUrl;
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -214,57 +619,233 @@ export function ImageEditor({ imageUrl, rootId, relativePath, fileName }: ImageE
       .catch(() => setComfyAvailable(false));
   }, []);
 
-  // ── Keyboard shortcuts ──────────────────────────────────────────
-  useEffect(() => {
-    const handler = (e: KeyboardEvent) => {
-      if (e.ctrlKey && e.key === 'z' && !e.shiftKey) { e.preventDefault(); editor.undo(); }
-      if (e.ctrlKey && (e.key === 'y' || (e.key === 'z' && e.shiftKey))) { e.preventDefault(); editor.redo(); }
+  const getLayerNamePrefix = useCallback((kind: SceneLayer['kind']) => {
+    if (kind === 'text') return 'Text';
+    if (kind === 'shape') return 'Shape';
+    return 'Adjust';
+  }, []);
+
+  const pushHistory = useCallback((label: string) => {
+    const canvas = editor.canvasRef.current;
+    if (!canvas) return;
+
+    const entry: HistoryEntry = {
+      id: uid('history'),
+      label,
+      createdAt: Date.now(),
+      bitmapDataUrl: toDataUrlSafe(canvas),
+      textLayers: cloneTextLayers(textLayers),
+      shapeLayers: cloneShapeLayers(shapeLayers),
+      adjustmentLayers: cloneAdjustmentLayers(adjustmentLayers),
+      layerOrder: [...layerOrder],
     };
-    window.addEventListener('keydown', handler);
-    return () => window.removeEventListener('keydown', handler);
-  }, [editor]);
 
-  // ── CSS filter string ───────────────────────────────────────────
-  const getFilterString = useCallback(() => {
-    const { brightness, contrast, saturation, blur, grayscale, sepia, invert } = editor.adjustSettings;
-    const parts: string[] = [];
-    if (brightness !== 0) parts.push(`brightness(${1 + brightness / 100})`);
-    if (contrast !== 0) parts.push(`contrast(${1 + contrast / 100})`);
-    if (saturation !== 100) parts.push(`saturate(${saturation / 100})`);
-    if (blur > 0) parts.push(`blur(${blur}px)`);
-    if (grayscale) parts.push('grayscale(1)');
-    if (sepia) parts.push('sepia(1)');
-    if (invert) parts.push('invert(1)');
-    return parts.join(' ') || 'none';
-  }, [editor.adjustSettings]);
+    setHistoryEntries((prev) => {
+      const trimmed = historyIndex >= 0 ? prev.slice(0, historyIndex + 1) : prev;
+      const next = [...trimmed, entry];
+      if (next.length > 60) {
+        return next.slice(next.length - 60);
+      }
+      return next;
+    });
+    setHistoryIndex((prev) => {
+      if (prev < 0) return 0;
+      return Math.min(prev + 1, 59);
+    });
+    editor.setIsDirty(true);
+  }, [editor, textLayers, shapeLayers, adjustmentLayers, layerOrder, historyIndex]);
 
-  // ── Apply adjustments permanently ───────────────────────────────
-  const applyAdjustments = useCallback(() => {
+  const restoreHistoryEntry = useCallback((entry: HistoryEntry) => {
     const canvas = editor.canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    editor.saveState();
+    const img = new Image();
+    img.onload = () => {
+      canvas.width = img.width;
+      canvas.height = img.height;
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.drawImage(img, 0, 0);
+      setDimensions({ w: img.width, h: img.height });
+      setResizeW(img.width);
+      setResizeH(img.height);
+      setTextLayers(cloneTextLayers(entry.textLayers));
+      setShapeLayers(cloneShapeLayers(entry.shapeLayers));
+      setAdjustmentLayers(cloneAdjustmentLayers(entry.adjustmentLayers));
+      setLayerOrder([...entry.layerOrder]);
+      setActiveLayerId(null);
+      setTextPos(null);
+      setSmartGuide({ x: null, y: null });
+      editor.setIsDirty(true);
+    };
+    img.src = entry.bitmapDataUrl;
+  }, [editor]);
 
+  const jumpToHistory = useCallback((index: number) => {
+    if (index < 0 || index >= historyEntries.length) return;
+    const entry = historyEntries[index];
+    restoreHistoryEntry(entry);
+    setHistoryIndex(index);
+  }, [historyEntries, restoreHistoryEntry]);
+
+  const undoFromHistory = useCallback(() => {
+    if (historyIndex <= 0) return;
+    jumpToHistory(historyIndex - 1);
+  }, [historyIndex, jumpToHistory]);
+
+  const redoFromHistory = useCallback(() => {
+    if (historyIndex < 0 || historyIndex >= historyEntries.length - 1) return;
+    jumpToHistory(historyIndex + 1);
+  }, [historyEntries.length, historyIndex, jumpToHistory]);
+
+  const getFilterString = useCallback(() => {
+    const ordered = [...adjustmentLayers].filter((layer) => layer.enabled && layer.visible);
+    const parts: string[] = [];
+    for (const layer of ordered) {
+      if (layer.adjustmentType === 'brightness') parts.push(`brightness(${1 + layer.value / 100})`);
+      if (layer.adjustmentType === 'contrast') parts.push(`contrast(${1 + layer.value / 100})`);
+      if (layer.adjustmentType === 'saturation') parts.push(`saturate(${layer.value / 100})`);
+      if (layer.adjustmentType === 'blur' && layer.value > 0) parts.push(`blur(${layer.value}px)`);
+      if (layer.adjustmentType === 'grayscale' && layer.value > 0) parts.push('grayscale(1)');
+      if (layer.adjustmentType === 'sepia' && layer.value > 0) parts.push('sepia(1)');
+      if (layer.adjustmentType === 'invert' && layer.value > 0) parts.push('invert(1)');
+    }
+    return parts.join(' ') || 'none';
+  }, [adjustmentLayers]);
+
+  const addAdjustmentLayer = useCallback((adjustmentType: AdjustmentType) => {
+    const defaults: Record<AdjustmentType, number> = {
+      brightness: 0,
+      contrast: 0,
+      saturation: 100,
+      blur: 0,
+      sharpen: 0,
+      grayscale: 100,
+      sepia: 100,
+      invert: 100,
+    };
+    const layer: AdjustmentLayer = {
+      id: uid('adj'),
+      kind: 'adjustment',
+      name: `${getLayerNamePrefix('adjustment')} ${adjustmentLayers.length + 1}`,
+      visible: true,
+      locked: false,
+      opacity: 100,
+      rotation: 0,
+      scaleX: 1,
+      scaleY: 1,
+      adjustmentType,
+      enabled: true,
+      value: defaults[adjustmentType],
+    };
+    setAdjustmentLayers((prev) => [...prev, layer]);
+    setLayerOrder((prev) => [...prev, layer.id]);
+    setActiveLayerId(layer.id);
+    pushHistory(`Adjustment: ${adjustmentType}`);
+  }, [adjustmentLayers.length, getLayerNamePrefix, pushHistory]);
+
+  // ── Keyboard shortcuts ──────────────────────────────────────────
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement | null;
+      const typing = target?.tagName === 'INPUT' || target?.tagName === 'TEXTAREA' || target?.isContentEditable;
+
+      if (e.key === ' ' && !typing) {
+        e.preventDefault();
+        isSpaceDownRef.current = true;
+      }
+
+      if ((e.ctrlKey || e.metaKey) && e.key === 'z' && !e.shiftKey) {
+        e.preventDefault();
+        undoFromHistory();
+      }
+      if ((e.ctrlKey || e.metaKey) && (e.key === 'y' || (e.key === 'z' && e.shiftKey))) {
+        e.preventDefault();
+        redoFromHistory();
+      }
+      if ((e.ctrlKey || e.metaKey) && e.key === '0') {
+        e.preventDefault();
+        const canvas = editor.canvasRef.current;
+        const container = containerRef.current;
+        if (canvas && container) {
+          const fit = Math.min(1, container.clientWidth / canvas.width, container.clientHeight / canvas.height);
+          setZoom(fit);
+        }
+      }
+
+      if (!typing && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        const key = e.key.toLowerCase();
+        if (key === 'b') editor.setActiveTool('draw');
+        if (key === 'e') editor.setActiveTool('eraser');
+        if (key === 't') editor.setActiveTool('text');
+        if (key === 'v') editor.setActiveTool('select');
+        if (key === '[') {
+          e.preventDefault();
+          editor.updateDrawSetting('brushSize', Math.max(1, editor.drawSettings.brushSize - 1));
+        }
+        if (key === ']') {
+          e.preventDefault();
+          editor.updateDrawSetting('brushSize', Math.min(200, editor.drawSettings.brushSize + 1));
+        }
+      }
+
+      if (activeLayerId && !typing && (e.key === 'Delete' || e.key === 'Backspace')) {
+        e.preventDefault();
+        const removedText = textLayers.some((layer) => layer.id === activeLayerId);
+        const removedShape = shapeLayers.some((layer) => layer.id === activeLayerId);
+        if (removedText) {
+          setTextLayers((prev) => prev.filter((layer) => layer.id !== activeLayerId));
+          setActiveLayerId(null);
+          pushHistory('Text-Layer gelöscht');
+        } else if (removedShape) {
+          setShapeLayers((prev) => prev.filter((layer) => layer.id !== activeLayerId));
+          setActiveLayerId(null);
+          pushHistory('Shape-Layer gelöscht');
+        }
+      }
+    };
+
+    const upHandler = (e: KeyboardEvent) => {
+      if (e.key === ' ') {
+        isSpaceDownRef.current = false;
+        isPanningRef.current = false;
+      }
+    };
+
+    window.addEventListener('keydown', handler);
+    window.addEventListener('keyup', upHandler);
+    return () => {
+      window.removeEventListener('keydown', handler);
+      window.removeEventListener('keyup', upHandler);
+    };
+  }, [activeLayerId, editor, pushHistory, redoFromHistory, shapeLayers, textLayers, undoFromHistory]);
+
+  // ── Apply adjustments permanently ───────────────────────────────
+  const applyAdjustments = useCallback(() => {
+    const canvas = editor.canvasRef.current;
+    if (!canvas) return;
     const temp = document.createElement('canvas');
     temp.width = canvas.width;
     temp.height = canvas.height;
-    const tctx = temp.getContext('2d')!;
-    tctx.filter = getFilterString();
-    tctx.drawImage(canvas, 0, 0);
+    const tctx = temp.getContext('2d');
+    if (!tctx) return;
 
-    if (editor.adjustSettings.sharpen) {
-      const imgData = tctx.getImageData(0, 0, temp.width, temp.height);
-      const sharpened = applySharpen(imgData);
-      tctx.putImageData(sharpened, 0, 0);
+    tctx.drawImage(canvas, 0, 0);
+    for (const layer of adjustmentLayers) {
+      applyAdjustmentLayerToCanvas(temp, layer);
     }
 
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     ctx.drawImage(temp, 0, 0);
+
+    setAdjustmentLayers([]);
     editor.resetAdjustments();
+    pushHistory('Adjustments angewendet');
     setDimensions({ w: canvas.width, h: canvas.height });
-  }, [editor, getFilterString]);
+  }, [adjustmentLayers, editor, pushHistory]);
 
   // ── Rotate ──────────────────────────────────────────────────────
   const handleRotate = useCallback((deg: number) => {
@@ -273,7 +854,10 @@ export function ImageEditor({ imageUrl, rootId, relativePath, fileName }: ImageE
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    editor.saveState();
+    const historyCtx = canvas.getContext('2d');
+    if (!historyCtx) return;
+    const oldW = canvas.width;
+    const oldH = canvas.height;
 
     const temp = document.createElement('canvas');
     const tctx = temp.getContext('2d')!;
@@ -295,8 +879,60 @@ export function ImageEditor({ imageUrl, rootId, relativePath, fileName }: ImageE
     canvas.width = temp.width;
     canvas.height = temp.height;
     ctx.drawImage(temp, 0, 0);
+
+    const normalized = ((deg % 360) + 360) % 360;
+    setTextLayers(prev => prev.map((layer) => {
+      const bounds = getTextMetricsForLayer(historyCtx, layer);
+
+      if (normalized === 90) {
+        return { ...layer, x: oldH - bounds.y - bounds.height, y: bounds.x, rotation: layer.rotation + 90 };
+      }
+      if (normalized === 270) {
+        return { ...layer, x: bounds.y, y: oldW - bounds.x - bounds.width, rotation: layer.rotation - 90 };
+      }
+      if (normalized === 180) {
+        return {
+          ...layer,
+          x: oldW - bounds.x - bounds.width,
+          y: oldH - bounds.y - bounds.height,
+          rotation: layer.rotation + 180,
+        };
+      }
+      return layer;
+    }));
+
+    setShapeLayers(prev => prev.map((layer) => {
+      const bounds = getShapeBounds(layer);
+      if (normalized === 90) {
+        return {
+          ...layer,
+          x: oldH - bounds.y - bounds.height,
+          y: bounds.x,
+          rotation: layer.rotation + 90,
+        };
+      }
+      if (normalized === 270) {
+        return {
+          ...layer,
+          x: bounds.y,
+          y: oldW - bounds.x - bounds.width,
+          rotation: layer.rotation - 90,
+        };
+      }
+      if (normalized === 180) {
+        return {
+          ...layer,
+          x: oldW - bounds.x - bounds.width,
+          y: oldH - bounds.y - bounds.height,
+          rotation: layer.rotation + 180,
+        };
+      }
+      return layer;
+    }));
+
     setDimensions({ w: canvas.width, h: canvas.height });
-  }, [editor]);
+    pushHistory(`Rotation ${deg}°`);
+  }, [editor, pushHistory]);
 
   // ── Flip ────────────────────────────────────────────────────────
   const handleFlip = useCallback((dir: 'h' | 'v') => {
@@ -304,8 +940,8 @@ export function ImageEditor({ imageUrl, rootId, relativePath, fileName }: ImageE
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
-
-    editor.saveState();
+    const metricsCtx = canvas.getContext('2d');
+    if (!metricsCtx) return;
 
     const temp = document.createElement('canvas');
     temp.width = canvas.width;
@@ -323,7 +959,25 @@ export function ImageEditor({ imageUrl, rootId, relativePath, fileName }: ImageE
       ctx.drawImage(temp, 0, -canvas.height);
     }
     ctx.restore();
-  }, [editor]);
+
+    setTextLayers(prev => prev.map((layer) => {
+      const bounds = getTextMetricsForLayer(metricsCtx, layer);
+      if (dir === 'h') {
+        return { ...layer, x: canvas.width - bounds.x - bounds.width };
+      }
+      return { ...layer, y: canvas.height - bounds.y - bounds.height };
+    }));
+
+    setShapeLayers(prev => prev.map((layer) => {
+      const bounds = getShapeBounds(layer);
+      if (dir === 'h') {
+        return { ...layer, x: canvas.width - bounds.x - bounds.width };
+      }
+      return { ...layer, y: canvas.height - bounds.y - bounds.height };
+    }));
+
+    pushHistory(`Spiegeln ${dir === 'h' ? 'horizontal' : 'vertikal'}`);
+  }, [editor, pushHistory]);
 
   // ── Crop ────────────────────────────────────────────────────────
   const applyCrop = useCallback(() => {
@@ -331,8 +985,6 @@ export function ImageEditor({ imageUrl, rootId, relativePath, fileName }: ImageE
     if (!canvas || !cropRect) return;
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
-
-    editor.saveState();
 
     const cx = Math.round(cropRect.x / zoom);
     const cy = Math.round(cropRect.y / zoom);
@@ -343,9 +995,40 @@ export function ImageEditor({ imageUrl, rootId, relativePath, fileName }: ImageE
     canvas.width = cw;
     canvas.height = ch;
     ctx.putImageData(imgData, 0, 0);
+
+    const cropCtx = canvas.getContext('2d');
+    if (!cropCtx) return;
+
+    setTextLayers(prev => prev
+      .map((layer) => ({ ...layer, x: layer.x - cx, y: layer.y - cy }))
+      .filter((layer) => {
+        const b = getTextMetricsForLayer(cropCtx, layer);
+        return (
+          b.x + b.width > 0 &&
+          b.y + b.height > 0 &&
+          b.x < cw &&
+          b.y < ch
+        );
+      }),
+    );
+
+    setShapeLayers(prev => prev
+      .map((layer) => ({ ...layer, x: layer.x - cx, y: layer.y - cy }))
+      .filter((layer) => {
+        const b = getShapeBounds(layer);
+        return (
+          b.x + b.width > 0 &&
+          b.y + b.height > 0 &&
+          b.x < cw &&
+          b.y < ch
+        );
+      }),
+    );
+
     setCropRect(null);
     setDimensions({ w: cw, h: ch });
-  }, [editor, cropRect, zoom]);
+    pushHistory('Crop angewendet');
+  }, [editor, cropRect, zoom, pushHistory]);
 
   // ── Resize ──────────────────────────────────────────────────────
   const applyResize = useCallback(() => {
@@ -353,8 +1036,8 @@ export function ImageEditor({ imageUrl, rootId, relativePath, fileName }: ImageE
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
-
-    editor.saveState();
+    const oldW = canvas.width;
+    const oldH = canvas.height;
 
     const temp = document.createElement('canvas');
     temp.width = canvas.width;
@@ -365,30 +1048,175 @@ export function ImageEditor({ imageUrl, rootId, relativePath, fileName }: ImageE
     canvas.width = resizeW;
     canvas.height = resizeH;
     ctx.drawImage(temp, 0, 0, temp.width, temp.height, 0, 0, resizeW, resizeH);
+
+    const scaleX = oldW > 0 ? resizeW / oldW : 1;
+    const scaleY = oldH > 0 ? resizeH / oldH : 1;
+    const fontScale = (scaleX + scaleY) / 2;
+    setTextLayers(prev => prev.map((layer) => ({
+      ...layer,
+      x: layer.x * scaleX,
+      y: layer.y * scaleY,
+      fontSize: Math.max(8, layer.fontSize * fontScale),
+      width: layer.width * scaleX,
+      height: layer.height * scaleY,
+    })));
+
+    setShapeLayers(prev => prev.map((layer) => ({
+      ...layer,
+      x: layer.x * scaleX,
+      y: layer.y * scaleY,
+      width: layer.width * scaleX,
+      height: layer.height * scaleY,
+    })));
+
     setDimensions({ w: resizeW, h: resizeH });
     setShowResize(false);
-  }, [editor, resizeW, resizeH]);
+    pushHistory(`Resize ${resizeW}×${resizeH}`);
+  }, [editor, resizeW, resizeH, pushHistory]);
 
   // ── Canvas coordinate helpers ───────────────────────────────────
-  const getCanvasPos = useCallback((e: React.MouseEvent) => {
+  const clamp = useCallback((value: number, min: number, max: number) => {
+    return Math.max(min, Math.min(max, value));
+  }, []);
+
+  const getCanvasPointFromClient = useCallback((clientX: number, clientY: number) => {
     const canvas = editor.canvasRef.current;
-    if (!canvas) return { x: 0, y: 0 };
+    if (!canvas) return { x: 0, y: 0, displayX: 0, displayY: 0 };
+
     const rect = canvas.getBoundingClientRect();
+    const displayX = clientX - rect.left;
+    const displayY = clientY - rect.top;
+    const scaleX = rect.width > 0 ? canvas.width / rect.width : 1;
+    const scaleY = rect.height > 0 ? canvas.height / rect.height : 1;
+
     return {
-      x: e.clientX - rect.left,
-      y: e.clientY - rect.top,
+      x: displayX * scaleX,
+      y: displayY * scaleY,
+      displayX,
+      displayY,
     };
   }, [editor.canvasRef]);
 
+  const getCanvasPos = useCallback((e: React.MouseEvent) => {
+    const p = getCanvasPointFromClient(e.clientX, e.clientY);
+    return { x: p.displayX, y: p.displayY };
+  }, [getCanvasPointFromClient]);
+
   const getCanvasRealPos = useCallback((e: React.MouseEvent) => {
+    const p = getCanvasPointFromClient(e.clientX, e.clientY);
+    return { x: p.x, y: p.y };
+  }, [getCanvasPointFromClient]);
+
+  const getTextLayerMetrics = useCallback((layer: TextLayer) => {
     const canvas = editor.canvasRef.current;
-    if (!canvas) return { x: 0, y: 0 };
-    const rect = canvas.getBoundingClientRect();
-    return {
-      x: (e.clientX - rect.left) / zoom,
-      y: (e.clientY - rect.top) / zoom,
-    };
-  }, [editor.canvasRef, zoom]);
+    if (!canvas) {
+      const fallback = Math.max(1, layer.text.length * layer.fontSize * 0.58);
+      return { x: layer.x, y: layer.y, width: fallback, height: layer.fontSize * layer.lineHeight };
+    }
+
+    const ctx = canvas.getContext('2d');
+    if (!ctx) {
+      const fallback = Math.max(1, layer.text.length * layer.fontSize * 0.58);
+      return { x: layer.x, y: layer.y, width: fallback, height: layer.fontSize * layer.lineHeight };
+    }
+    return getTextMetricsForLayer(ctx, layer);
+  }, [editor.canvasRef]);
+
+  const findTextLayerById = useCallback((id: string) => {
+    return textLayers.find((layer) => layer.id === id) || null;
+  }, [textLayers]);
+
+  const findShapeLayerById = useCallback((id: string) => {
+    return shapeLayers.find((layer) => layer.id === id) || null;
+  }, [shapeLayers]);
+
+  const getLayerBounds = useCallback((layerId: string): TransformBounds | null => {
+    const text = findTextLayerById(layerId);
+    if (text) return getTextLayerMetrics(text);
+    const shape = findShapeLayerById(layerId);
+    if (shape) return getShapeBounds(shape);
+    return null;
+  }, [findShapeLayerById, findTextLayerById, getTextLayerMetrics]);
+
+  const getObjectLayerAtPoint = useCallback((point: Point): TextLayer | ShapeLayer | null => {
+    const order = layerOrder.filter((id) => findTextLayerById(id) || findShapeLayerById(id));
+    for (let i = order.length - 1; i >= 0; i--) {
+      const id = order[i];
+      const text = findTextLayerById(id);
+      if (text && text.visible) {
+        const b = getTextLayerMetrics(text);
+        if (point.x >= b.x && point.x <= b.x + b.width && point.y >= b.y && point.y <= b.y + b.height) {
+          return text;
+        }
+      }
+      const shape = findShapeLayerById(id);
+      if (shape && shape.visible) {
+        const b = getShapeBounds(shape);
+        if (point.x >= b.x && point.x <= b.x + b.width && point.y >= b.y && point.y <= b.y + b.height) {
+          return shape;
+        }
+      }
+    }
+    return null;
+  }, [findShapeLayerById, findTextLayerById, getTextLayerMetrics, layerOrder]);
+
+  const createCompositeCanvas = useCallback(() => {
+    const canvas = editor.canvasRef.current;
+    if (!canvas) return null;
+
+    const composite = document.createElement('canvas');
+    composite.width = canvas.width;
+    composite.height = canvas.height;
+    const cctx = composite.getContext('2d');
+    if (!cctx) return null;
+
+    cctx.drawImage(canvas, 0, 0);
+    for (const layerId of layerOrder) {
+      const text = textLayers.find((layer) => layer.id === layerId);
+      if (text && text.visible) {
+        const mask = maskCanvasesRef.current[text.id];
+        if (mask) {
+          const layerCanvas = document.createElement('canvas');
+          layerCanvas.width = composite.width;
+          layerCanvas.height = composite.height;
+          const lctx = layerCanvas.getContext('2d');
+          if (lctx) {
+            drawTextLayer(lctx, text);
+            lctx.globalCompositeOperation = 'destination-in';
+            lctx.drawImage(mask, 0, 0);
+            cctx.drawImage(layerCanvas, 0, 0);
+          }
+        } else {
+          drawTextLayer(cctx, text);
+        }
+        continue;
+      }
+      const shape = shapeLayers.find((layer) => layer.id === layerId);
+      if (shape && shape.visible) {
+        const mask = maskCanvasesRef.current[shape.id];
+        if (mask) {
+          const layerCanvas = document.createElement('canvas');
+          layerCanvas.width = composite.width;
+          layerCanvas.height = composite.height;
+          const lctx = layerCanvas.getContext('2d');
+          if (lctx) {
+            drawShapeLayer(lctx, shape);
+            lctx.globalCompositeOperation = 'destination-in';
+            lctx.drawImage(mask, 0, 0);
+            cctx.drawImage(layerCanvas, 0, 0);
+          }
+        } else {
+          drawShapeLayer(cctx, shape);
+        }
+        continue;
+      }
+      const adjustment = adjustmentLayers.find((layer) => layer.id === layerId);
+      if (adjustment) {
+        applyAdjustmentLayerToCanvas(composite, adjustment);
+      }
+    }
+    return composite;
+  }, [editor.canvasRef, layerOrder, textLayers, shapeLayers, adjustmentLayers]);
 
   // ── Shape preview on overlay ────────────────────────────────────
   const drawShapePreview = useCallback((endPos: { x: number; y: number }) => {
@@ -405,18 +1233,6 @@ export function ImageEditor({ imageUrl, rootId, relativePath, fileName }: ImageE
     drawShape(ctx, editor.drawSettings.shapeType, startPosRef.current, endPos, editor.drawSettings.shapeFilled);
   }, [editor.drawSettings]);
 
-  const drawShapeOnCanvas = useCallback((start: { x: number; y: number }, end: { x: number; y: number }) => {
-    const canvas = editor.canvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-
-    ctx.strokeStyle = editor.drawSettings.color;
-    ctx.fillStyle = editor.drawSettings.color;
-    ctx.lineWidth = editor.drawSettings.strokeWidth;
-    drawShape(ctx, editor.drawSettings.shapeType, start, end, editor.drawSettings.shapeFilled);
-  }, [editor.canvasRef, editor.drawSettings]);
-
   const clearOverlay = useCallback(() => {
     const overlay = overlayCanvasRef.current;
     if (!overlay) return;
@@ -424,10 +1240,184 @@ export function ImageEditor({ imageUrl, rootId, relativePath, fileName }: ImageE
     if (ctx) ctx.clearRect(0, 0, overlay.width, overlay.height);
   }, []);
 
+  const ensureLayerMaskCanvas = useCallback((layerId: string) => {
+    const existing = maskCanvasesRef.current[layerId];
+    if (existing) return existing;
+    const canvas = editor.canvasRef.current;
+    if (!canvas) return null;
+
+    const mask = document.createElement('canvas');
+    mask.width = canvas.width;
+    mask.height = canvas.height;
+    const mctx = mask.getContext('2d');
+    if (!mctx) return null;
+    mctx.fillStyle = '#ffffff';
+    mctx.fillRect(0, 0, mask.width, mask.height);
+    maskCanvasesRef.current[layerId] = mask;
+    return mask;
+  }, [editor.canvasRef]);
+
+  const paintBrushSegment = useCallback((
+    ctx: CanvasRenderingContext2D,
+    from: Point,
+    to: Point,
+    erasing: boolean,
+  ) => {
+    const {
+      brushSize,
+      brushOpacity,
+      brushFlow,
+      brushSpacing,
+      brushJitter,
+      brushSmoothing,
+      brushPreset,
+      brushHardness,
+      color,
+    } = editor.drawSettings;
+    const radius = Math.max(0.5, brushSize / 2);
+    const spacing = Math.max(0.5, brushSize * (brushSpacing / 100));
+    const smoothFactor = 1 - clamp(brushSmoothing / 100, 0, 0.92);
+    const smoothedTo = {
+      x: from.x + (to.x - from.x) * smoothFactor,
+      y: from.y + (to.y - from.y) * smoothFactor,
+    };
+    const dx = smoothedTo.x - from.x;
+    const dy = smoothedTo.y - from.y;
+    const distance = Math.hypot(dx, dy);
+    const steps = Math.max(1, Math.ceil(distance / spacing));
+    const alpha = clamp((brushOpacity / 100) * (brushFlow / 100), 0.01, 1);
+    const jitterPx = brushSize * (brushJitter / 100);
+
+    ctx.save();
+    ctx.globalCompositeOperation = erasing ? 'destination-out' : 'source-over';
+    ctx.globalAlpha = alpha;
+
+    const drawDab = (x: number, y: number, angle: number) => {
+      const jx = jitterPx > 0 ? (Math.random() - 0.5) * jitterPx : 0;
+      const jy = jitterPx > 0 ? (Math.random() - 0.5) * jitterPx : 0;
+      const px = x + jx;
+      const py = y + jy;
+
+      if (brushPreset === 'softRound') {
+        const gradient = ctx.createRadialGradient(
+          px,
+          py,
+          radius * Math.max(0.1, brushHardness / 100),
+          px,
+          py,
+          radius,
+        );
+        gradient.addColorStop(0, erasing ? 'rgba(0,0,0,1)' : color);
+        gradient.addColorStop(1, erasing ? 'rgba(0,0,0,0)' : `${color}00`);
+        ctx.fillStyle = gradient;
+        ctx.beginPath();
+        ctx.arc(px, py, radius, 0, Math.PI * 2);
+        ctx.fill();
+        return;
+      }
+
+      if (brushPreset === 'marker') {
+        ctx.save();
+        ctx.translate(px, py);
+        ctx.rotate(angle);
+        ctx.scale(1.8, 0.6);
+        ctx.fillStyle = erasing ? 'rgba(0,0,0,1)' : color;
+        ctx.beginPath();
+        ctx.arc(0, 0, radius, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+        return;
+      }
+
+      ctx.fillStyle = erasing ? 'rgba(0,0,0,1)' : color;
+      ctx.beginPath();
+      ctx.arc(px, py, radius, 0, Math.PI * 2);
+      ctx.fill();
+    };
+
+    const angle = Math.atan2(dy, dx);
+    for (let i = 0; i <= steps; i++) {
+      const t = i / steps;
+      const x = from.x + dx * t;
+      const y = from.y + dy * t;
+      drawDab(x, y, angle);
+    }
+
+    ctx.restore();
+  }, [editor.drawSettings, clamp]);
+
+  const applySnap = useCallback((next: TransformBounds) => {
+    const canvas = editor.canvasRef.current;
+    if (!canvas) return { x: next.x, y: next.y };
+    let x = next.x;
+    let y = next.y;
+    let guideX: number | null = null;
+    let guideY: number | null = null;
+    if (snapToGuides) {
+      const threshold = 6;
+      const xCandidates = [
+        canvas.width / 2 - next.width / 2,
+        0,
+        canvas.width - next.width,
+        ...guides.filter((guide) => guide.axis === 'x').map((guide) => guide.value),
+      ];
+      for (const candidate of xCandidates) {
+        if (Math.abs(x - candidate) <= threshold) {
+          x = candidate;
+          guideX = candidate;
+          break;
+        }
+      }
+      const yCandidates = [
+        canvas.height / 2 - next.height / 2,
+        0,
+        canvas.height - next.height,
+        ...guides.filter((guide) => guide.axis === 'y').map((guide) => guide.value),
+      ];
+      for (const candidate of yCandidates) {
+        if (Math.abs(y - candidate) <= threshold) {
+          y = candidate;
+          guideY = candidate;
+          break;
+        }
+      }
+    }
+    if (pixelSnap) {
+      x = Math.round(x);
+      y = Math.round(y);
+    }
+    setSmartGuide({ x: guideX, y: guideY });
+    return { x, y };
+  }, [editor.canvasRef, guides, pixelSnap, snapToGuides]);
+
+  const beginLayerTransform = useCallback((mode: 'nw' | 'ne' | 'sw' | 'se' | 'rotate', layerId: string, e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const point = getCanvasPointFromClient(e.clientX, e.clientY);
+    const bounds = getLayerBounds(layerId);
+    if (!bounds) return;
+
+    transformModeRef.current = mode;
+    transformLayerIdRef.current = layerId;
+    transformStartRef.current = { x: point.x, y: point.y };
+    transformInitialBoundsRef.current = bounds;
+    transformInitialLayerRef.current = findTextLayerById(layerId) || findShapeLayerById(layerId);
+  }, [findShapeLayerById, findTextLayerById, getCanvasPointFromClient, getLayerBounds]);
+
   // ── Mouse handlers ──────────────────────────────────────────────
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
     const pos = getCanvasPos(e);
     const realPos = getCanvasRealPos(e);
+    const canvas = editor.canvasRef.current;
+    if (!canvas) return;
+    if (e.button !== 0) return;
+
+    if (isSpaceDownRef.current && containerRef.current) {
+      isPanningRef.current = true;
+      panStartRef.current = { x: e.clientX, y: e.clientY };
+      panScrollRef.current = { x: containerRef.current.scrollLeft, y: containerRef.current.scrollTop };
+      return;
+    }
 
     if (editor.activeTool === 'crop' || editor.activeTool === 'blurRegion') {
       isCroppingRef.current = true;
@@ -437,45 +1427,47 @@ export function ImageEditor({ imageUrl, rootId, relativePath, fileName }: ImageE
     }
 
     if (editor.activeTool === 'colorPicker') {
-      const canvas = editor.canvasRef.current;
-      if (!canvas) return;
       const ctx = canvas.getContext('2d');
       if (!ctx) return;
       const pixel = ctx.getImageData(Math.round(realPos.x), Math.round(realPos.y), 1, 1).data;
-      const hex = '#' + [pixel[0], pixel[1], pixel[2]].map(v => v.toString(16).padStart(2, '0')).join('');
+      const hex = '#' + [pixel[0], pixel[1], pixel[2]].map((v) => v.toString(16).padStart(2, '0')).join('');
       editor.updateDrawSetting('color', hex);
       toast({ title: 'Farbe aufgenommen', description: hex });
       return;
     }
 
-    if (editor.activeTool === 'text') {
-      setTextPos(realPos);
-      setTextInput('');
+    if (editor.activeTool === 'select' || editor.activeTool === 'text') {
+      const hit = getObjectLayerAtPoint(realPos);
+      if (hit && !hit.locked) {
+        setActiveLayerId(hit.id);
+        isDraggingLayerRef.current = true;
+        draggingLayerIdRef.current = hit.id;
+        const bounds = getLayerBounds(hit.id);
+        if (bounds) layerDragOffsetRef.current = { x: realPos.x - bounds.x, y: realPos.y - bounds.y };
+        layerMoveChangedRef.current = false;
+        return;
+      }
+      setActiveLayerId(null);
+      if (editor.activeTool === 'text') {
+        setTextPos(realPos);
+        setTextInput('');
+      }
       return;
     }
 
     if (editor.activeTool === 'draw' || editor.activeTool === 'eraser') {
-      const canvas = editor.canvasRef.current;
-      if (!canvas) return;
-      const ctx = canvas.getContext('2d');
-      if (!ctx) return;
+      const targetCtx = (() => {
+        if (maskMode && activeLayerId) {
+          const mask = ensureLayerMaskCanvas(activeLayerId);
+          return mask?.getContext('2d') ?? null;
+        }
+        return canvas.getContext('2d');
+      })();
+      if (!targetCtx) return;
 
-      editor.saveState();
       isDrawingRef.current = true;
       lastPosRef.current = realPos;
-
-      ctx.lineCap = 'round';
-      ctx.lineJoin = 'round';
-      ctx.lineWidth = editor.drawSettings.brushSize;
-
-      if (editor.activeTool === 'eraser') {
-        ctx.globalCompositeOperation = 'destination-out';
-      } else {
-        ctx.globalCompositeOperation = 'source-over';
-        ctx.strokeStyle = editor.drawSettings.color;
-      }
-      ctx.beginPath();
-      ctx.moveTo(realPos.x, realPos.y);
+      paintBrushSegment(targetCtx, realPos, realPos, editor.activeTool === 'eraser');
       return;
     }
 
@@ -483,14 +1475,109 @@ export function ImageEditor({ imageUrl, rootId, relativePath, fileName }: ImageE
       isDrawingRef.current = true;
       startPosRef.current = realPos;
       lastPosRef.current = realPos;
-      editor.saveState();
       return;
     }
-  }, [editor, getCanvasPos, getCanvasRealPos, toast]);
+  }, [
+    activeLayerId,
+    editor,
+    ensureLayerMaskCanvas,
+    getCanvasPos,
+    getCanvasRealPos,
+    getLayerBounds,
+    getObjectLayerAtPoint,
+    maskMode,
+    paintBrushSegment,
+    toast,
+  ]);
 
   const handleMouseMove = useCallback((e: React.MouseEvent) => {
     const pos = getCanvasPos(e);
     const realPos = getCanvasRealPos(e);
+    const canvas = editor.canvasRef.current;
+    if (!canvas) return;
+
+    if (isPanningRef.current && containerRef.current) {
+      const dx = e.clientX - panStartRef.current.x;
+      const dy = e.clientY - panStartRef.current.y;
+      containerRef.current.scrollLeft = panScrollRef.current.x - dx;
+      containerRef.current.scrollTop = panScrollRef.current.y - dy;
+      return;
+    }
+
+    if (
+      transformModeRef.current &&
+      transformLayerIdRef.current &&
+      transformInitialBoundsRef.current &&
+      transformInitialLayerRef.current
+    ) {
+      const mode = transformModeRef.current;
+      const id = transformLayerIdRef.current;
+      const initialBounds = transformInitialBoundsRef.current;
+      const initialLayer = transformInitialLayerRef.current;
+      const dx = realPos.x - transformStartRef.current.x;
+      const dy = realPos.y - transformStartRef.current.y;
+
+      if (mode === 'rotate') {
+        const cx = initialBounds.x + initialBounds.width / 2;
+        const cy = initialBounds.y + initialBounds.height / 2;
+        const a0 = Math.atan2(transformStartRef.current.y - cy, transformStartRef.current.x - cx);
+        const a1 = Math.atan2(realPos.y - cy, realPos.x - cx);
+        const delta = ((a1 - a0) * 180) / Math.PI;
+        const nextRotation = initialLayer.rotation + delta;
+
+        setTextLayers((prev) => prev.map((layer) => layer.id === id ? { ...layer, rotation: nextRotation } : layer));
+        setShapeLayers((prev) => prev.map((layer) => layer.id === id ? { ...layer, rotation: nextRotation } : layer));
+        layerMoveChangedRef.current = true;
+        return;
+      }
+
+      let x = initialBounds.x;
+      let y = initialBounds.y;
+      let width = initialBounds.width;
+      let height = initialBounds.height;
+      if (mode === 'se') { width += dx; height += dy; }
+      if (mode === 'sw') { x += dx; width -= dx; height += dy; }
+      if (mode === 'ne') { y += dy; width += dx; height -= dy; }
+      if (mode === 'nw') { x += dx; y += dy; width -= dx; height -= dy; }
+      width = Math.max(8, width);
+      height = Math.max(8, height);
+      const snapped = applySnap({ x, y, width, height });
+
+      setShapeLayers((prev) => prev.map((layer) => layer.id === id ? { ...layer, x: snapped.x, y: snapped.y, width, height } : layer));
+      setTextLayers((prev) => prev.map((layer) => {
+        if (layer.id !== id) return layer;
+        const source = transformInitialLayerRef.current;
+        if (!source || source.kind !== 'text') return layer;
+        const factor = initialBounds.height > 0 ? height / initialBounds.height : 1;
+        return {
+          ...layer,
+          x: snapped.x,
+          y: snapped.y,
+          fontSize: Math.max(8, source.fontSize * factor),
+        };
+      }));
+      layerMoveChangedRef.current = true;
+      return;
+    }
+
+    if (isDraggingLayerRef.current && draggingLayerIdRef.current) {
+      const dragId = draggingLayerIdRef.current;
+      const bounds = getLayerBounds(dragId);
+      if (!bounds) return;
+      const next = {
+        x: realPos.x - layerDragOffsetRef.current.x,
+        y: realPos.y - layerDragOffsetRef.current.y,
+        width: bounds.width,
+        height: bounds.height,
+      };
+      const snapped = applySnap(next);
+      const x = clamp(snapped.x, 0, Math.max(0, canvas.width - bounds.width));
+      const y = clamp(snapped.y, 0, Math.max(0, canvas.height - bounds.height));
+      setTextLayers((prev) => prev.map((layer) => layer.id === dragId ? { ...layer, x, y } : layer));
+      setShapeLayers((prev) => prev.map((layer) => layer.id === dragId ? { ...layer, x, y } : layer));
+      layerMoveChangedRef.current = true;
+      return;
+    }
 
     if ((editor.activeTool === 'crop' || editor.activeTool === 'blurRegion') && isCroppingRef.current) {
       const x = Math.min(startPosRef.current.x, pos.x);
@@ -502,12 +1589,15 @@ export function ImageEditor({ imageUrl, rootId, relativePath, fileName }: ImageE
     }
 
     if ((editor.activeTool === 'draw' || editor.activeTool === 'eraser') && isDrawingRef.current) {
-      const canvas = editor.canvasRef.current;
-      if (!canvas) return;
-      const ctx = canvas.getContext('2d');
-      if (!ctx) return;
-      ctx.lineTo(realPos.x, realPos.y);
-      ctx.stroke();
+      const targetCtx = (() => {
+        if (maskMode && activeLayerId) {
+          const mask = ensureLayerMaskCanvas(activeLayerId);
+          return mask?.getContext('2d') ?? null;
+        }
+        return canvas.getContext('2d');
+      })();
+      if (!targetCtx) return;
+      paintBrushSegment(targetCtx, lastPosRef.current, realPos, editor.activeTool === 'eraser');
       lastPosRef.current = realPos;
       return;
     }
@@ -515,31 +1605,67 @@ export function ImageEditor({ imageUrl, rootId, relativePath, fileName }: ImageE
     if (editor.activeTool === 'shapes' && isDrawingRef.current) {
       lastPosRef.current = realPos;
       drawShapePreview(realPos);
-      return;
     }
-  }, [editor, getCanvasPos, getCanvasRealPos, drawShapePreview]);
+  }, [
+    activeLayerId,
+    applySnap,
+    clamp,
+    drawShapePreview,
+    editor,
+    ensureLayerMaskCanvas,
+    getCanvasPos,
+    getCanvasRealPos,
+    getLayerBounds,
+    maskMode,
+    paintBrushSegment,
+  ]);
 
   const handleMouseUp = useCallback((e: React.MouseEvent) => {
     const realPos = getCanvasRealPos(e);
+    const canvas = editor.canvasRef.current;
+    if (!canvas) return;
+
+    if (isPanningRef.current) {
+      isPanningRef.current = false;
+      return;
+    }
+
+    if (transformModeRef.current) {
+      transformModeRef.current = null;
+      transformLayerIdRef.current = null;
+      transformInitialBoundsRef.current = null;
+      transformInitialLayerRef.current = null;
+      setSmartGuide({ x: null, y: null });
+      if (layerMoveChangedRef.current) {
+        pushHistory('Layer transformiert');
+      }
+      layerMoveChangedRef.current = false;
+      return;
+    }
+
+    if (isDraggingLayerRef.current) {
+      isDraggingLayerRef.current = false;
+      draggingLayerIdRef.current = null;
+      setSmartGuide({ x: null, y: null });
+      if (layerMoveChangedRef.current) pushHistory('Layer verschoben');
+      layerMoveChangedRef.current = false;
+      return;
+    }
 
     if (editor.activeTool === 'blurRegion' && isCroppingRef.current && cropRect) {
       isCroppingRef.current = false;
-      const canvas = editor.canvasRef.current;
-      if (!canvas || cropRect.w < 2 || cropRect.h < 2) { setCropRect(null); return; }
+      if (cropRect.w < 2 || cropRect.h < 2) { setCropRect(null); return; }
       const ctx = canvas.getContext('2d');
       if (!ctx) { setCropRect(null); return; }
-
-      editor.saveState();
-
       const rx = Math.round(cropRect.x / zoom);
       const ry = Math.round(cropRect.y / zoom);
       const rw = Math.round(cropRect.w / zoom);
       const rh = Math.round(cropRect.h / zoom);
-
       const imgData = ctx.getImageData(rx, ry, rw, rh);
       const blurred = boxBlur(imgData, 8);
       ctx.putImageData(blurred, rx, ry);
       setCropRect(null);
+      pushHistory('Blur Region');
       return;
     }
 
@@ -549,49 +1675,111 @@ export function ImageEditor({ imageUrl, rootId, relativePath, fileName }: ImageE
     }
 
     if ((editor.activeTool === 'draw' || editor.activeTool === 'eraser') && isDrawingRef.current) {
-      const canvas = editor.canvasRef.current;
-      if (canvas) {
-        const ctx = canvas.getContext('2d');
-        if (ctx) {
-          ctx.closePath();
-          ctx.globalCompositeOperation = 'source-over';
-        }
-      }
       isDrawingRef.current = false;
+      pushHistory(maskMode && activeLayerId ? 'Layer-Maske' : editor.activeTool === 'eraser' ? 'Radierer' : 'Brush');
       return;
     }
 
     if (editor.activeTool === 'shapes' && isDrawingRef.current) {
       isDrawingRef.current = false;
-      drawShapeOnCanvas(startPosRef.current, realPos);
+      const x = Math.min(startPosRef.current.x, realPos.x);
+      const y = Math.min(startPosRef.current.y, realPos.y);
+      const width = Math.abs(realPos.x - startPosRef.current.x);
+      const height = Math.abs(realPos.y - startPosRef.current.y);
       clearOverlay();
-      return;
+      if (width < 2 || height < 2) return;
+
+      const shapeLayer: ShapeLayer = {
+        id: uid('shape'),
+        kind: 'shape',
+        name: `${getLayerNamePrefix('shape')} ${shapeLayers.length + 1}`,
+        visible: true,
+        locked: false,
+        opacity: editor.drawSettings.brushOpacity,
+        rotation: 0,
+        scaleX: 1,
+        scaleY: 1,
+        shapeType: editor.drawSettings.shapeType,
+        x,
+        y,
+        width,
+        height,
+        color: editor.drawSettings.color,
+        filled: editor.drawSettings.shapeFilled,
+        strokeWidth: editor.drawSettings.strokeWidth,
+      };
+      setShapeLayers((prev) => [...prev, shapeLayer]);
+      setLayerOrder((prev) => [...prev, shapeLayer.id]);
+      setActiveLayerId(shapeLayer.id);
+      pushHistory('Shape hinzugefügt');
     }
-  }, [editor, cropRect, zoom, getCanvasRealPos, drawShapeOnCanvas, clearOverlay]);
+  }, [
+    activeLayerId,
+    clearOverlay,
+    cropRect,
+    editor,
+    getCanvasRealPos,
+    getLayerNamePrefix,
+    maskMode,
+    pushHistory,
+    shapeLayers.length,
+    zoom,
+  ]);
 
   // ── Text finalize ───────────────────────────────────────────────
   const finalizeText = useCallback(() => {
     if (!textPos || !textInput.trim()) { setTextPos(null); return; }
-    const canvas = editor.canvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
+    const id = uid('text');
+    const lineCount = Math.max(1, textInput.split('\n').length);
 
-    editor.saveState();
-    ctx.font = `${editor.drawSettings.fontSize}px ${editor.drawSettings.fontFamily}`;
-    ctx.fillStyle = editor.drawSettings.color;
-    ctx.textBaseline = 'top';
-    ctx.fillText(textInput, textPos.x, textPos.y);
+    const layer: TextLayer = {
+      id,
+      kind: 'text',
+      name: `${getLayerNamePrefix('text')} ${textLayers.length + 1}`,
+      visible: true,
+      locked: false,
+      opacity: editor.drawSettings.brushOpacity,
+      rotation: 0,
+      scaleX: 1,
+      scaleY: 1,
+      text: textInput,
+      x: textPos.x,
+      y: textPos.y,
+      width: Math.max(1, textInput.length * editor.drawSettings.fontSize * 0.58),
+      height: Math.max(1, lineCount * editor.drawSettings.fontSize * TEXT_LINE_HEIGHT),
+      fontSize: editor.drawSettings.fontSize,
+      fontFamily: editor.drawSettings.fontFamily,
+      color: editor.drawSettings.color,
+      lineHeight: TEXT_LINE_HEIGHT,
+      tracking: 0,
+      kerning: 0,
+      align: 'left',
+      backgroundEnabled: false,
+      backgroundColor: 'rgba(0,0,0,0.35)',
+      backgroundPadding: 4,
+      strokeEnabled: false,
+      strokeColor: '#000000',
+      strokeWidth: 1,
+      shadowEnabled: false,
+      shadowColor: 'rgba(0,0,0,0.55)',
+      shadowBlur: 4,
+      shadowOffsetX: 1,
+      shadowOffsetY: 1,
+    };
+
+    setTextLayers((prev) => [...prev, layer]);
+    setLayerOrder((prev) => [...prev, layer.id]);
+    setActiveLayerId(id);
     setTextPos(null);
     setTextInput('');
-  }, [editor, textInput, textPos]);
+    pushHistory('Text hinzugefügt');
+  }, [editor.drawSettings, getLayerNamePrefix, pushHistory, textInput, textLayers.length, textPos]);
 
   // ── Save ────────────────────────────────────────────────────────
   const handleSave = useCallback(async () => {
-    const canvas = editor.canvasRef.current;
-    if (!canvas) return;
-
-    const dataUrl = canvas.toDataURL('image/png');
+    const composite = createCompositeCanvas();
+    if (!composite) return;
+    const dataUrl = composite.toDataURL('image/png');
     const base64 = dataUrl.split(',')[1];
 
     try {
@@ -607,14 +1795,13 @@ export function ImageEditor({ imageUrl, rootId, relativePath, fileName }: ImageE
     } catch (err) {
       toast({ title: 'Fehler', description: err instanceof Error ? err.message : 'Speichern fehlgeschlagen', variant: 'destructive' });
     }
-  }, [editor, rootId, relativePath, fileName, toast]);
+  }, [editor, rootId, relativePath, fileName, toast, createCompositeCanvas]);
 
   const handleSaveAs = useCallback(async () => {
     if (!saveAsName.trim()) return;
-    const canvas = editor.canvasRef.current;
-    if (!canvas) return;
-
-    const dataUrl = canvas.toDataURL('image/png');
+    const composite = createCompositeCanvas();
+    if (!composite) return;
+    const dataUrl = composite.toDataURL('image/png');
     const base64 = dataUrl.split(',')[1];
     const dir = relativePath.includes('/') ? relativePath.substring(0, relativePath.lastIndexOf('/') + 1) : '';
     const newPath = dir + saveAsName;
@@ -632,14 +1819,14 @@ export function ImageEditor({ imageUrl, rootId, relativePath, fileName }: ImageE
     } catch (err) {
       toast({ title: 'Fehler', description: err instanceof Error ? err.message : 'Fehler', variant: 'destructive' });
     }
-  }, [saveAsName, rootId, relativePath, toast]);
+  }, [saveAsName, rootId, relativePath, toast, createCompositeCanvas]);
 
   const handleExport = useCallback(() => {
-    const canvas = editor.canvasRef.current;
-    if (!canvas) return;
+    const composite = createCompositeCanvas();
+    if (!composite) return;
     const mime = exportFormat === 'jpeg' ? 'image/jpeg' : 'image/png';
     const q = exportFormat === 'jpeg' ? exportQuality / 100 : undefined;
-    const dataUrl = canvas.toDataURL(mime, q);
+    const dataUrl = composite.toDataURL(mime, q);
 
     const a = document.createElement('a');
     a.href = dataUrl;
@@ -647,18 +1834,18 @@ export function ImageEditor({ imageUrl, rootId, relativePath, fileName }: ImageE
     a.download = fileName.replace(/\.[^.]+$/, '') + '_edited' + ext;
     a.click();
     setShowExport(false);
-  }, [editor.canvasRef, exportFormat, exportQuality, fileName]);
+  }, [createCompositeCanvas, exportFormat, exportQuality, fileName]);
 
   // ── AI Describe ─────────────────────────────────────────────────
   const handleAiDescribe = useCallback(async () => {
-    const canvas = editor.canvasRef.current;
-    if (!canvas) return;
+    const composite = createCompositeCanvas();
+    if (!composite) return;
 
     setAiLoading(true);
     setAiDescription('');
 
     try {
-      const dataUrl = canvas.toDataURL('image/png');
+      const dataUrl = composite.toDataURL('image/png');
       const base64 = dataUrl.split(',')[1];
 
       const res = await fetch('/api/image-editor/ai-describe', {
@@ -674,17 +1861,18 @@ export function ImageEditor({ imageUrl, rootId, relativePath, fileName }: ImageE
     } finally {
       setAiLoading(false);
     }
-  }, [editor.canvasRef, toast]);
+  }, [toast, createCompositeCanvas]);
 
   // ── AI Edit ─────────────────────────────────────────────────────
   const handleAiEdit = useCallback(async () => {
     if (!aiEditPrompt.trim()) return;
     const canvas = editor.canvasRef.current;
-    if (!canvas) return;
+    const composite = createCompositeCanvas();
+    if (!canvas || !composite) return;
 
     setAiEditLoading(true);
     try {
-      const dataUrl = canvas.toDataURL('image/png');
+      const dataUrl = composite.toDataURL('image/png');
       const base64 = dataUrl.split(',')[1];
 
       const res = await fetch('/api/image-editor/ai-edit', {
@@ -696,7 +1884,6 @@ export function ImageEditor({ imageUrl, rootId, relativePath, fileName }: ImageE
       if (!data.success) throw new Error(data.error);
 
       if (data.resultImage) {
-        editor.saveState();
         const img = new Image();
         img.onload = () => {
           canvas.width = img.width;
@@ -704,6 +1891,7 @@ export function ImageEditor({ imageUrl, rootId, relativePath, fileName }: ImageE
           const ctx = canvas.getContext('2d');
           if (ctx) ctx.drawImage(img, 0, 0);
           setDimensions({ w: img.width, h: img.height });
+          pushHistory('AI Edit');
         };
         img.src = 'data:image/png;base64,' + data.resultImage;
       }
@@ -713,13 +1901,14 @@ export function ImageEditor({ imageUrl, rootId, relativePath, fileName }: ImageE
     } finally {
       setAiEditLoading(false);
     }
-  }, [editor, aiEditPrompt, aiEditDenoise, toast]);
+  }, [editor, aiEditPrompt, aiEditDenoise, toast, createCompositeCanvas, pushHistory]);
 
   // ── Tool change ─────────────────────────────────────────────────
   const handleToolChange = useCallback((tool: ImageTool) => {
     editor.setActiveTool(tool);
     setCropRect(null);
     setTextPos(null);
+    setSmartGuide({ x: null, y: null });
 
     if (tool === 'resize') {
       const canvas = editor.canvasRef.current;
@@ -731,22 +1920,230 @@ export function ImageEditor({ imageUrl, rootId, relativePath, fileName }: ImageE
       setShowResize(true);
     }
     if (tool === 'aiDescribe') handleAiDescribe();
-  }, [editor, handleAiDescribe]);
+    if (tool === 'marquee' || tool === 'lasso' || tool === 'magicWand') {
+      toast({ title: 'Auswahl-Tool aktiv', description: 'Wird als Layer-Auswahl/Transform-Basis verwendet.' });
+    }
+    if (tool === 'healing' || tool === 'cloneStamp' || tool === 'spotRemove') {
+      toast({ title: 'Retusche-Tool', description: 'Basismodus aktiv (Brush-Engine + History + Layer-Mask).' });
+    }
+  }, [editor, handleAiDescribe, toast]);
 
-  // ── Render ──────────────────────────────────────────────────────
-  if (!imageLoaded) {
-    return (
-      <div className="flex items-center justify-center h-full">
-        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-      </div>
-    );
-  }
+  const handleResetAll = useCallback(() => {
+    editor.resetToOriginal();
+    setTextLayers([]);
+    setShapeLayers([]);
+    setAdjustmentLayers([]);
+    setLayerOrder([]);
+    setActiveLayerId(null);
+    setTextPos(null);
+    setTextInput('');
+    setSmartGuide({ x: null, y: null });
+    pushHistory('Reset');
+  }, [editor, pushHistory]);
 
   const canvasStyle: React.CSSProperties = {
-    width: dimensions.w * zoom,
-    height: dimensions.h * zoom,
-    filter: getFilterString(),
+    width: Math.max(1, dimensions.w * zoom),
+    height: Math.max(1, dimensions.h * zoom),
     imageRendering: zoom > 2 ? 'pixelated' : 'auto',
+  };
+
+  const canUndo = historyIndex > 0;
+  const canRedo = historyIndex >= 0 && historyIndex < historyEntries.length - 1;
+
+  useEffect(() => {
+    setLayerOrder((prev) => {
+      const knownIds = [
+        ...textLayers.map((layer) => layer.id),
+        ...shapeLayers.map((layer) => layer.id),
+        ...adjustmentLayers.map((layer) => layer.id),
+      ];
+      const filtered = prev.filter((id) => knownIds.includes(id));
+      const missing = knownIds.filter((id) => !filtered.includes(id));
+      if (missing.length === 0 && filtered.length === prev.length) {
+        return prev;
+      }
+      return [...filtered, ...missing];
+    });
+  }, [textLayers, shapeLayers, adjustmentLayers]);
+
+  useEffect(() => {
+    const applyPreset = (spacing: number, jitter: number, smoothing: number, hardness: number) => {
+      if (editor.drawSettings.brushSpacing !== spacing) editor.updateDrawSetting('brushSpacing', spacing);
+      if (editor.drawSettings.brushJitter !== jitter) editor.updateDrawSetting('brushJitter', jitter);
+      if (editor.drawSettings.brushSmoothing !== smoothing) editor.updateDrawSetting('brushSmoothing', smoothing);
+      if (editor.drawSettings.brushHardness !== hardness) editor.updateDrawSetting('brushHardness', hardness);
+    };
+
+    if (editor.drawSettings.brushPreset === 'hardRound') applyPreset(12, 0, 20, 95);
+    if (editor.drawSettings.brushPreset === 'softRound') applyPreset(10, 5, 35, 45);
+    if (editor.drawSettings.brushPreset === 'marker') applyPreset(22, 8, 55, 85);
+  }, [
+    editor,
+    editor.drawSettings.brushHardness,
+    editor.drawSettings.brushJitter,
+    editor.drawSettings.brushPreset,
+    editor.drawSettings.brushSmoothing,
+    editor.drawSettings.brushSpacing,
+    editor.updateDrawSetting,
+  ]);
+
+  const layerMap = new Map<string, SceneLayer>();
+  for (const layer of textLayers) layerMap.set(layer.id, layer);
+  for (const layer of shapeLayers) layerMap.set(layer.id, layer);
+  for (const layer of adjustmentLayers) layerMap.set(layer.id, layer);
+
+  const orderedLayers = layerOrder
+    .map((id) => layerMap.get(id))
+    .filter((layer): layer is SceneLayer => Boolean(layer));
+
+  const activeTextLayer = activeLayerId ? textLayers.find((layer) => layer.id === activeLayerId) || null : null;
+  const activeLayerBounds = activeLayerId ? getLayerBounds(activeLayerId) : null;
+
+  const updateLayerVisibility = (layerId: string, visible: boolean) => {
+    setTextLayers((prev) => prev.map((layer) => layer.id === layerId ? { ...layer, visible } : layer));
+    setShapeLayers((prev) => prev.map((layer) => layer.id === layerId ? { ...layer, visible } : layer));
+    setAdjustmentLayers((prev) => prev.map((layer) => layer.id === layerId ? { ...layer, visible } : layer));
+    pushHistory(`Layer ${visible ? 'sichtbar' : 'versteckt'}`);
+  };
+
+  const updateLayerLock = (layerId: string, locked: boolean) => {
+    setTextLayers((prev) => prev.map((layer) => layer.id === layerId ? { ...layer, locked } : layer));
+    setShapeLayers((prev) => prev.map((layer) => layer.id === layerId ? { ...layer, locked } : layer));
+    setAdjustmentLayers((prev) => prev.map((layer) => layer.id === layerId ? { ...layer, locked } : layer));
+  };
+
+  const moveLayer = (layerId: string, direction: -1 | 1) => {
+    setLayerOrder((prev) => {
+      const index = prev.indexOf(layerId);
+      if (index < 0) return prev;
+      const target = index + direction;
+      if (target < 0 || target >= prev.length) return prev;
+      const next = [...prev];
+      [next[index], next[target]] = [next[target], next[index]];
+      return next;
+    });
+    pushHistory('Layer-Reihenfolge');
+  };
+
+  const removeLayer = (layerId: string) => {
+    setTextLayers((prev) => prev.filter((layer) => layer.id !== layerId));
+    setShapeLayers((prev) => prev.filter((layer) => layer.id !== layerId));
+    setAdjustmentLayers((prev) => prev.filter((layer) => layer.id !== layerId));
+    setLayerOrder((prev) => prev.filter((id) => id !== layerId));
+    if (activeLayerId === layerId) setActiveLayerId(null);
+    pushHistory('Layer gelöscht');
+  };
+
+  const updateTextLayer = <K extends keyof TextLayer>(key: K, value: TextLayer[K]) => {
+    if (!activeTextLayer) return;
+    setTextLayers((prev) => prev.map((layer) => layer.id === activeTextLayer.id ? { ...layer, [key]: value } : layer));
+  };
+
+  const upsertAdjustmentLayer = (adjustmentType: AdjustmentType, value: number) => {
+    let createdId: string | null = null;
+    setAdjustmentLayers((prev) => {
+      const index = prev.findIndex((layer) => layer.adjustmentType === adjustmentType);
+      if (index >= 0) {
+        return prev.map((layer) => layer.adjustmentType === adjustmentType ? { ...layer, value, enabled: true, visible: true } : layer);
+      }
+      createdId = uid('adj');
+      return [
+        ...prev,
+        {
+          id: createdId,
+          kind: 'adjustment',
+          name: `${getLayerNamePrefix('adjustment')} ${prev.length + 1}`,
+          visible: true,
+          locked: false,
+          opacity: 100,
+          rotation: 0,
+          scaleX: 1,
+          scaleY: 1,
+          adjustmentType,
+          enabled: true,
+          value,
+        },
+      ];
+    });
+    if (createdId) {
+      setLayerOrder((prev) => [...prev, createdId!]);
+    }
+  };
+
+  const handleAdjustSettingChange = <K extends keyof AdjustSettings>(key: K, value: AdjustSettings[K]) => {
+    editor.updateAdjustSetting(key, value);
+    if (key === 'brightness' || key === 'contrast' || key === 'saturation' || key === 'blur') {
+      upsertAdjustmentLayer(key, Number(value));
+    }
+    if (key === 'sharpen' || key === 'grayscale' || key === 'sepia' || key === 'invert') {
+      upsertAdjustmentLayer(key, value ? 100 : 0);
+    }
+  };
+
+  const resetAdjustmentsLayered = () => {
+    const idsToRemove = adjustmentLayers.map((layer) => layer.id);
+    editor.resetAdjustments();
+    setAdjustmentLayers([]);
+    setLayerOrder((prev) => prev.filter((id) => !idsToRemove.includes(id)));
+    pushHistory('Adjustments reset');
+  };
+
+  const exportSession = () => {
+    const canvas = editor.canvasRef.current;
+    if (!canvas) return;
+    const payload = {
+      version: 1,
+      createdAt: new Date().toISOString(),
+      width: canvas.width,
+      height: canvas.height,
+      bitmap: toDataUrlSafe(canvas),
+      textLayers,
+      shapeLayers,
+      adjustmentLayers,
+      layerOrder,
+      guides,
+      zoom,
+    };
+    const data = JSON.stringify(payload, null, 2);
+    const blob = new Blob([data], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${fileName.replace(/\.[^.]+$/, '')}.locai-session.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const importSessionFromFile = async (file: File) => {
+    const text = await file.text();
+    const parsed = JSON.parse(text) as {
+      bitmap: string;
+      textLayers: TextLayer[];
+      shapeLayers: ShapeLayer[];
+      adjustmentLayers: AdjustmentLayer[];
+      layerOrder: string[];
+      guides?: Array<{ id: string; axis: 'x' | 'y'; value: number }>;
+      zoom?: number;
+    };
+    const canvas = editor.canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+    const img = new Image();
+    img.onload = () => {
+      canvas.width = img.width;
+      canvas.height = img.height;
+      ctx.drawImage(img, 0, 0);
+      setDimensions({ w: img.width, h: img.height });
+      setTextLayers(cloneTextLayers(parsed.textLayers || []));
+      setShapeLayers(cloneShapeLayers(parsed.shapeLayers || []));
+      setAdjustmentLayers(cloneAdjustmentLayers(parsed.adjustmentLayers || []));
+      setLayerOrder([...(parsed.layerOrder || [])]);
+      setGuides(parsed.guides || []);
+      if (typeof parsed.zoom === 'number') setZoom(parsed.zoom);
+      pushHistory('Session importiert');
+    };
+    img.src = parsed.bitmap;
   };
 
   return (
@@ -757,14 +2154,14 @@ export function ImageEditor({ imageUrl, rootId, relativePath, fileName }: ImageE
         drawSettings={editor.drawSettings}
         onDrawSettingChange={editor.updateDrawSetting}
         adjustSettings={editor.adjustSettings}
-        onAdjustSettingChange={editor.updateAdjustSetting}
+        onAdjustSettingChange={handleAdjustSettingChange}
         onApplyAdjustments={applyAdjustments}
-        onResetAdjustments={editor.resetAdjustments}
-        canUndo={editor.canUndo}
-        canRedo={editor.canRedo}
-        onUndo={editor.undo}
-        onRedo={editor.redo}
-        onReset={editor.resetToOriginal}
+        onResetAdjustments={resetAdjustmentsLayered}
+        canUndo={canUndo}
+        canRedo={canRedo}
+        onUndo={undoFromHistory}
+        onRedo={redoFromHistory}
+        onReset={handleResetAll}
         onSave={handleSave}
         onSaveAs={() => { setSaveAsName(fileName); setShowSaveAs(true); }}
         onExport={() => setShowExport(true)}
@@ -786,7 +2183,21 @@ export function ImageEditor({ imageUrl, rootId, relativePath, fileName }: ImageE
         className="flex-1 min-h-0 overflow-auto bg-[repeating-conic-gradient(hsl(var(--muted))_0%_25%,transparent_0%_50%)] bg-[length:16px_16px] flex items-center justify-center relative"
         onMouseDown={(e) => e.stopPropagation()}
       >
-        <div className="relative inline-block" style={{ width: dimensions.w * zoom, height: dimensions.h * zoom }}>
+        <div
+          className="relative inline-block"
+          style={{
+            width: imageLoaded ? Math.max(1, dimensions.w * zoom) : 320,
+            height: imageLoaded ? Math.max(1, dimensions.h * zoom) : 220,
+            filter: getFilterString(),
+          }}
+        >
+          {showRulers && (
+            <>
+              <div className="absolute -top-6 left-0 right-0 h-6 bg-background/90 border border-border/60 pointer-events-none" />
+              <div className="absolute top-0 -left-6 bottom-0 w-6 bg-background/90 border border-border/60 pointer-events-none" />
+            </>
+          )}
+
           <canvas
             ref={editor.canvasRef}
             style={canvasStyle}
@@ -794,7 +2205,17 @@ export function ImageEditor({ imageUrl, rootId, relativePath, fileName }: ImageE
             onMouseDown={handleMouseDown}
             onMouseMove={handleMouseMove}
             onMouseUp={handleMouseUp}
-            onMouseLeave={() => { isDrawingRef.current = false; isCroppingRef.current = false; }}
+            onMouseLeave={() => {
+              isDrawingRef.current = false;
+              isCroppingRef.current = false;
+              isDraggingLayerRef.current = false;
+              draggingLayerIdRef.current = null;
+              isPanningRef.current = false;
+              transformModeRef.current = null;
+              transformLayerIdRef.current = null;
+              transformInitialBoundsRef.current = null;
+              transformInitialLayerRef.current = null;
+            }}
           />
 
           <canvas
@@ -803,6 +2224,146 @@ export function ImageEditor({ imageUrl, rootId, relativePath, fileName }: ImageE
             height={dimensions.h}
             style={{ ...canvasStyle, position: 'absolute', top: 0, left: 0, pointerEvents: 'none' }}
           />
+
+          {orderedLayers.map((layer) => {
+            if (!layer.visible) return null;
+            if (layer.kind === 'text') {
+              const bounds = getTextLayerMetrics(layer);
+              const maskData = maskCanvasesRef.current[layer.id]?.toDataURL('image/png');
+              return (
+                <div
+                  key={layer.id}
+                  className="absolute whitespace-pre-wrap select-none pointer-events-none"
+                  style={{
+                    left: bounds.x * zoom,
+                    top: bounds.y * zoom,
+                    width: Math.max(1, bounds.width * zoom),
+                    minHeight: Math.max(1, bounds.height * zoom),
+                    color: layer.color,
+                    opacity: clamp(layer.opacity / 100, 0.01, 1),
+                    fontSize: `${layer.fontSize * zoom}px`,
+                    lineHeight: `${layer.lineHeight}`,
+                    fontFamily: layer.fontFamily,
+                    letterSpacing: `${layer.tracking * zoom}px`,
+                    textAlign: layer.align,
+                    background: layer.backgroundEnabled ? layer.backgroundColor : 'transparent',
+                    padding: `${layer.backgroundEnabled ? layer.backgroundPadding * zoom : 0}px`,
+                    transform: `rotate(${layer.rotation}deg)`,
+                    transformOrigin: 'center',
+                    WebkitTextStroke: layer.strokeEnabled ? `${Math.max(1, layer.strokeWidth * zoom)}px ${layer.strokeColor}` : undefined,
+                    textShadow: layer.shadowEnabled
+                      ? `${layer.shadowOffsetX * zoom}px ${layer.shadowOffsetY * zoom}px ${layer.shadowBlur * zoom}px ${layer.shadowColor}`
+                      : undefined,
+                    WebkitMaskImage: maskData ? `url(${maskData})` : undefined,
+                  }}
+                >
+                  {layer.text}
+                </div>
+              );
+            }
+            if (layer.kind === 'shape') {
+              const bounds = getShapeBounds(layer);
+              const maskData = maskCanvasesRef.current[layer.id]?.toDataURL('image/png');
+              const stroke = layer.color;
+              const fill = layer.filled ? layer.color : 'transparent';
+              return (
+                <svg
+                  key={layer.id}
+                  className="absolute pointer-events-none overflow-visible"
+                  style={{
+                    left: bounds.x * zoom,
+                    top: bounds.y * zoom,
+                    width: Math.max(1, bounds.width * zoom),
+                    height: Math.max(1, bounds.height * zoom),
+                    opacity: clamp(layer.opacity / 100, 0.01, 1),
+                    transform: `rotate(${layer.rotation}deg)`,
+                    transformOrigin: 'center',
+                    WebkitMaskImage: maskData ? `url(${maskData})` : undefined,
+                  }}
+                  viewBox={`0 0 ${Math.max(1, bounds.width)} ${Math.max(1, bounds.height)}`}
+                >
+                  {layer.shapeType === 'rect' && (
+                    <rect x={0} y={0} width={Math.max(1, bounds.width)} height={Math.max(1, bounds.height)} fill={fill} stroke={stroke} strokeWidth={layer.strokeWidth} />
+                  )}
+                  {layer.shapeType === 'circle' && (
+                    <ellipse
+                      cx={Math.max(1, bounds.width) / 2}
+                      cy={Math.max(1, bounds.height) / 2}
+                      rx={Math.max(1, bounds.width) / 2}
+                      ry={Math.max(1, bounds.height) / 2}
+                      fill={fill}
+                      stroke={stroke}
+                      strokeWidth={layer.strokeWidth}
+                    />
+                  )}
+                  {layer.shapeType === 'line' && (
+                    <line x1={0} y1={0} x2={Math.max(1, bounds.width)} y2={Math.max(1, bounds.height)} stroke={stroke} strokeWidth={layer.strokeWidth} />
+                  )}
+                  {layer.shapeType === 'arrow' && (
+                    <>
+                      <line x1={0} y1={0} x2={Math.max(1, bounds.width)} y2={Math.max(1, bounds.height)} stroke={stroke} strokeWidth={layer.strokeWidth} />
+                      <polygon
+                        points={`${Math.max(1, bounds.width)},${Math.max(1, bounds.height)} ${Math.max(1, bounds.width) - 10},${Math.max(1, bounds.height) - 4} ${Math.max(1, bounds.width) - 4},${Math.max(1, bounds.height) - 10}`}
+                        fill={stroke}
+                      />
+                    </>
+                  )}
+                </svg>
+              );
+            }
+            return null;
+          })}
+
+          {activeLayerId && activeLayerBounds && (editor.activeTool === 'select' || editor.activeTool === 'text') && (
+            <div
+              className="absolute border border-primary border-dashed pointer-events-none"
+              style={{
+                left: activeLayerBounds.x * zoom,
+                top: activeLayerBounds.y * zoom,
+                width: activeLayerBounds.width * zoom,
+                height: activeLayerBounds.height * zoom,
+              }}
+            >
+              {(['nw', 'ne', 'sw', 'se'] as const).map((handle) => {
+                const handleStyle: Record<typeof handle, React.CSSProperties> = {
+                  nw: { left: -6, top: -6, cursor: 'nwse-resize' },
+                  ne: { right: -6, top: -6, cursor: 'nesw-resize' },
+                  sw: { left: -6, bottom: -6, cursor: 'nesw-resize' },
+                  se: { right: -6, bottom: -6, cursor: 'nwse-resize' },
+                };
+                return (
+                  <button
+                    key={handle}
+                    type="button"
+                    className="absolute w-3 h-3 rounded-sm bg-primary border border-background pointer-events-auto"
+                    style={handleStyle[handle]}
+                    onMouseDown={(e) => activeLayerId && beginLayerTransform(handle, activeLayerId, e)}
+                  />
+                );
+              })}
+              <button
+                type="button"
+                className="absolute left-1/2 -translate-x-1/2 -top-5 w-3 h-3 rounded-full bg-primary border border-background pointer-events-auto cursor-grab"
+                onMouseDown={(e) => activeLayerId && beginLayerTransform('rotate', activeLayerId, e)}
+              />
+            </div>
+          )}
+
+          {guides.map((guide) => (
+            <div
+              key={guide.id}
+              className="absolute pointer-events-none bg-cyan-500/70"
+              style={guide.axis === 'x'
+                ? { left: guide.value * zoom, top: 0, bottom: 0, width: 1 }
+                : { top: guide.value * zoom, left: 0, right: 0, height: 1 }}
+            />
+          ))}
+          {smartGuide.x !== null && (
+            <div className="absolute top-0 bottom-0 w-px bg-fuchsia-500/80 pointer-events-none" style={{ left: smartGuide.x * zoom }} />
+          )}
+          {smartGuide.y !== null && (
+            <div className="absolute left-0 right-0 h-px bg-fuchsia-500/80 pointer-events-none" style={{ top: smartGuide.y * zoom }} />
+          )}
 
           {/* Crop overlay */}
           {cropRect && editor.activeTool === 'crop' && (
@@ -863,24 +2424,152 @@ export function ImageEditor({ imageUrl, rootId, relativePath, fileName }: ImageE
           {/* Text input overlay */}
           {textPos && editor.activeTool === 'text' && (
             <div className="absolute" style={{ left: textPos.x * zoom, top: textPos.y * zoom }}>
-              <div className="flex items-center gap-1 bg-background border border-border rounded shadow-lg p-1">
-                <input
-                  type="text"
+              <div className="flex flex-col gap-1 bg-background border border-border rounded shadow-lg p-1.5">
+                <textarea
                   value={textInput}
                   onChange={(e) => setTextInput(e.target.value)}
-                  onKeyDown={(e) => { if (e.key === 'Enter') finalizeText(); if (e.key === 'Escape') setTextPos(null); }}
-                  className="bg-transparent border-none outline-none text-sm px-1 w-40"
-                  placeholder="Text eingeben..."
+                  className="bg-transparent border border-border/40 rounded outline-none text-xs px-1.5 py-1 w-52 min-h-16"
+                  placeholder="Mehrzeiligen Text eingeben..."
                   autoFocus
                 />
-                <Button size="sm" className="h-5 px-1.5 text-xs" onClick={finalizeText}>OK</Button>
-                <Button size="sm" variant="ghost" className="h-5 px-1 text-xs" onClick={() => setTextPos(null)}>
-                  <X className="h-3 w-3" />
-                </Button>
+                <div className="flex items-center justify-end gap-1">
+                  <Button size="sm" className="h-5 px-1.5 text-xs" onClick={finalizeText}>Einfügen</Button>
+                  <Button size="sm" variant="ghost" className="h-5 px-1 text-xs" onClick={() => setTextPos(null)}>
+                    <X className="h-3 w-3" />
+                  </Button>
+                </div>
               </div>
             </div>
           )}
+
+          <div className="absolute right-2 top-2 w-72 max-h-[calc(100%-1rem)] border border-border/60 rounded bg-background/95 backdrop-blur-sm shadow-lg overflow-hidden">
+            <Tabs value={activePanelTab} onValueChange={setActivePanelTab} className="h-full">
+              <TabsList className="w-full rounded-none border-b border-border/40 bg-transparent p-1">
+                <TabsTrigger value="layers" className="text-[11px]"><Layers className="h-3 w-3 mr-1" />Ebenen</TabsTrigger>
+                <TabsTrigger value="history" className="text-[11px]"><History className="h-3 w-3 mr-1" />History</TabsTrigger>
+                <TabsTrigger value="text" className="text-[11px]">Text</TabsTrigger>
+                <TabsTrigger value="guides" className="text-[11px]">Guides</TabsTrigger>
+                <TabsTrigger value="session" className="text-[11px]">Session</TabsTrigger>
+              </TabsList>
+
+              <TabsContent value="layers" className="h-[22rem]">
+                <ScrollArea className="h-full">
+                  <div className="p-2 space-y-2">
+                    <div className="grid grid-cols-4 gap-1">
+                      {(['brightness', 'contrast', 'saturation', 'blur', 'grayscale', 'sepia', 'invert', 'sharpen'] as AdjustmentType[]).map((type) => (
+                        <Button key={type} size="sm" variant="outline" className="h-6 px-1 text-[10px]" onClick={() => addAdjustmentLayer(type)}>
+                          +{type.slice(0, 3)}
+                        </Button>
+                      ))}
+                    </div>
+                    {orderedLayers.slice().reverse().map((layer) => (
+                      <div key={layer.id} className={`border rounded px-2 py-1 ${activeLayerId === layer.id ? 'border-primary bg-primary/5' : 'border-border/40'}`}>
+                        <div className="flex items-center gap-1">
+                          <button type="button" className="text-muted-foreground hover:text-foreground" onClick={() => updateLayerVisibility(layer.id, !layer.visible)}>
+                            {layer.visible ? <Eye className="h-3 w-3" /> : <EyeOff className="h-3 w-3" />}
+                          </button>
+                          <button type="button" className="text-muted-foreground hover:text-foreground" onClick={() => updateLayerLock(layer.id, !layer.locked)}>
+                            {layer.locked ? <Lock className="h-3 w-3" /> : <LockOpen className="h-3 w-3" />}
+                          </button>
+                          <button type="button" className="text-[11px] truncate text-left flex-1" onClick={() => setActiveLayerId(layer.id)}>{layer.name}</button>
+                          <button type="button" className="text-muted-foreground hover:text-foreground" onClick={() => moveLayer(layer.id, -1)}><ArrowUp className="h-3 w-3" /></button>
+                          <button type="button" className="text-muted-foreground hover:text-foreground" onClick={() => moveLayer(layer.id, 1)}><ArrowDown className="h-3 w-3" /></button>
+                          <button type="button" className="text-muted-foreground hover:text-destructive" onClick={() => removeLayer(layer.id)}><X className="h-3 w-3" /></button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </ScrollArea>
+              </TabsContent>
+
+              <TabsContent value="history" className="h-[22rem]">
+                <ScrollArea className="h-full">
+                  <div className="p-2 space-y-1">
+                    {historyEntries.map((entry, idx) => (
+                      <button
+                        key={entry.id}
+                        type="button"
+                        className={`w-full rounded px-2 py-1 text-left text-xs ${historyIndex === idx ? 'bg-primary/15 text-primary' : 'hover:bg-muted'}`}
+                        onClick={() => jumpToHistory(idx)}
+                      >
+                        {entry.label}
+                      </button>
+                    ))}
+                  </div>
+                </ScrollArea>
+              </TabsContent>
+
+              <TabsContent value="text" className="h-[22rem]">
+                <ScrollArea className="h-full">
+                  <div className="p-2 space-y-2 text-xs">
+                    {!activeTextLayer ? (
+                      <p className="text-muted-foreground">Kein Text-Layer ausgewählt.</p>
+                    ) : (
+                      <>
+                        <label className="block">Tracking</label>
+                        <Slider value={[activeTextLayer.tracking]} onValueChange={([v]) => updateTextLayer('tracking', v)} min={-2} max={20} step={0.5} />
+                        <label className="block">Kerning</label>
+                        <Slider value={[activeTextLayer.kerning]} onValueChange={([v]) => updateTextLayer('kerning', v)} min={-10} max={10} step={0.5} />
+                        <div className="flex items-center gap-1">
+                          <Button size="sm" variant={activeTextLayer.align === 'left' ? 'default' : 'outline'} className="h-6 text-[11px]" onClick={() => updateTextLayer('align', 'left')}>L</Button>
+                          <Button size="sm" variant={activeTextLayer.align === 'center' ? 'default' : 'outline'} className="h-6 text-[11px]" onClick={() => updateTextLayer('align', 'center')}>C</Button>
+                          <Button size="sm" variant={activeTextLayer.align === 'right' ? 'default' : 'outline'} className="h-6 text-[11px]" onClick={() => updateTextLayer('align', 'right')}>R</Button>
+                        </div>
+                        <label className="flex items-center gap-2"><input type="checkbox" checked={activeTextLayer.backgroundEnabled} onChange={(e) => updateTextLayer('backgroundEnabled', e.target.checked)} />Hintergrundbox</label>
+                        <label className="flex items-center gap-2"><input type="checkbox" checked={activeTextLayer.strokeEnabled} onChange={(e) => updateTextLayer('strokeEnabled', e.target.checked)} />Stroke</label>
+                        <label className="flex items-center gap-2"><input type="checkbox" checked={activeTextLayer.shadowEnabled} onChange={(e) => updateTextLayer('shadowEnabled', e.target.checked)} />Shadow</label>
+                      </>
+                    )}
+                  </div>
+                </ScrollArea>
+              </TabsContent>
+
+              <TabsContent value="guides" className="h-[22rem]">
+                <div className="p-2 space-y-2 text-xs">
+                  <label className="flex items-center gap-2"><input type="checkbox" checked={showRulers} onChange={(e) => setShowRulers(e.target.checked)} />Lineale</label>
+                  <label className="flex items-center gap-2"><input type="checkbox" checked={snapToGuides} onChange={(e) => setSnapToGuides(e.target.checked)} />Smart Guides</label>
+                  <label className="flex items-center gap-2"><input type="checkbox" checked={pixelSnap} onChange={(e) => setPixelSnap(e.target.checked)} />Pixel Snap</label>
+                  <div className="flex items-center gap-1">
+                    <Button size="sm" className="h-6 text-[11px]" onClick={() => setGuides((prev) => [...prev, { id: uid('guide'), axis: 'x', value: dimensions.w / 2 }])}><Plus className="h-3 w-3 mr-1" />V</Button>
+                    <Button size="sm" className="h-6 text-[11px]" onClick={() => setGuides((prev) => [...prev, { id: uid('guide'), axis: 'y', value: dimensions.h / 2 }])}><Plus className="h-3 w-3 mr-1" />H</Button>
+                    <Button size="sm" variant="ghost" className="h-6 text-[11px]" onClick={() => setGuides([])}>Clear</Button>
+                  </div>
+                </div>
+              </TabsContent>
+
+              <TabsContent value="session" className="h-[22rem]">
+                <div className="p-2 space-y-2 text-xs">
+                  <Button size="sm" className="h-7 text-xs w-full" onClick={exportSession}>Session exportieren</Button>
+                  <label className="block">
+                    <span className="text-[11px] text-muted-foreground">Session importieren</span>
+                    <input
+                      type="file"
+                      accept=".json,.locai-session.json"
+                      className="mt-1 block w-full text-[11px]"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (!file) return;
+                        void importSessionFromFile(file);
+                        e.currentTarget.value = '';
+                      }}
+                    />
+                  </label>
+                  <label className="flex items-center gap-2"><input type="checkbox" checked={maskMode} onChange={(e) => setMaskMode(e.target.checked)} />Layer-Mask-Modus</label>
+                </div>
+              </TabsContent>
+            </Tabs>
+          </div>
         </div>
+
+        {!imageLoaded && (
+          <div className="absolute inset-0 z-20 flex items-center justify-center bg-background/60">
+            {imageLoadError ? (
+              <p className="text-xs text-destructive px-4 text-center max-w-xs">{imageLoadError}</p>
+            ) : (
+              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+            )}
+          </div>
+        )}
       </div>
 
       {/* Status bar */}

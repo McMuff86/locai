@@ -1,9 +1,73 @@
 # LocAI Context Handoff – Sprint 5 Image Editor
 
-**Last updated:** 2026-02-19 00:52  
-**Branch:** `sprint5/feat-image-editor` (pushed)  
-**Commit:** `81cc612`  
+**Last updated:** 2026-02-19 02:10  
+**Branch:** `fix/image-editor-pointer-brush-text` (pushed)  
+**Commit:** `2ca7dcd`  
 **Build:** ✅ green (lint warnings only – all pre-existing)  
+
+## ✏️ Sprint 5 – Pointer/Brush/Text Upgrade (2026-02-19)
+
+### Symptom
+- In image edit mode, brush strokes were offset from the mouse cursor.
+- Text could only be stamped once and was not movable after placement.
+- Brush controls were too basic (only size), missing strength/flow feel.
+
+### Root Cause
+- Pointer-to-canvas mapping used only `zoom` math and ignored real rendered canvas scale (`getBoundingClientRect` vs internal canvas pixel size), causing coordinate drift.
+- Text was drawn directly into the bitmap immediately, so no post-placement transform/move was possible.
+
+### Fix
+- Reworked coordinate mapping in `ImageEditor` to use display-to-canvas scale factors:
+  - `scaleX = canvas.width / rect.width`
+  - `scaleY = canvas.height / rect.height`
+- Replaced line-only brush drawing with dab-based stroke rendering (more natural brush feel).
+- Added draw parameters:
+  - `brushSize`
+  - `brushOpacity` (Stärke)
+  - `brushFlow` (Fluss)
+- Implemented movable text layers with visible selection box in text mode.
+- Save/Save As/Export/AI inputs now use a composite canvas (bitmap + text layers).
+- Kept text layers aligned during transform operations (resize/rotate/flip/crop).
+
+### Modified Files
+- `src/components/filebrowser/ImageEditor.tsx`
+- `src/components/filebrowser/ImageToolbar.tsx`
+- `src/hooks/useImageEditor.ts`
+
+### Verification
+```bash
+npm run build
+```
+- Result: build successful.
+
+### Known Limitation
+- Undo/Redo currently tracks canvas bitmap history only; text-layer move/add/delete history is not yet integrated in the undo stack.
+
+## 🚑 Hotfix – Radix UI Module Resolution (2026-02-18)
+
+### Symptom
+- Build fails with `Module not found: Can't resolve '@radix-ui/react-slider'` (and similar for tooltip/select/popover) in Next.js 15 + Turbopack.
+
+### Root Cause
+- PR #28 fixed Radix import paths.
+- PR #29 added Radix packages as direct dependencies.
+- Local `node_modules` was stale after pull, so the new direct deps were in `package.json`/`package-lock.json` but not installed on disk.
+
+### Fix
+```bash
+npm install
+# or clean install:
+npm ci
+```
+
+### Verification
+```bash
+npm ls @radix-ui/react-slider @radix-ui/react-tooltip @radix-ui/react-select @radix-ui/react-popover
+npm run build
+```
+
+### Notes
+- If this appears again right after merging dependency PRs: remove stale install state and reinstall (`rm -rf node_modules && npm ci` on macOS/Linux, or delete `node_modules` manually on Windows then run `npm ci`).
 
 ## 🖼️ Image Editor Feature (NEW)
 
