@@ -33,6 +33,8 @@ export type ShapeType = 'rect' | 'circle' | 'line' | 'arrow';
 export interface DrawSettings {
   color: string;
   brushSize: number;
+  brushOpacity: number;
+  brushFlow: number;
   fontSize: number;
   fontFamily: string;
   shapeType: ShapeType;
@@ -63,6 +65,8 @@ const MAX_UNDO = 20;
 const DEFAULT_DRAW: DrawSettings = {
   color: '#ff0000',
   brushSize: 4,
+  brushOpacity: 100,
+  brushFlow: 70,
   fontSize: 24,
   fontFamily: 'sans-serif',
   shapeType: 'rect',

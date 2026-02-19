@@ -338,6 +338,38 @@ export function ImageToolbar({
               </div>
             )}
 
+            {/* Brush opacity / strength */}
+            {(activeTool === 'draw' || activeTool === 'eraser') && (
+              <div className="flex items-center gap-1">
+                <span className="text-xs text-muted-foreground">Stärke</span>
+                <Slider
+                  value={[drawSettings.brushOpacity]}
+                  onValueChange={([v]) => onDrawSettingChange('brushOpacity', v)}
+                  min={1}
+                  max={100}
+                  step={1}
+                  className="w-24"
+                />
+                <span className="text-xs font-mono w-8 text-right">{drawSettings.brushOpacity}%</span>
+              </div>
+            )}
+
+            {/* Brush flow */}
+            {(activeTool === 'draw' || activeTool === 'eraser') && (
+              <div className="flex items-center gap-1">
+                <span className="text-xs text-muted-foreground">Fluss</span>
+                <Slider
+                  value={[drawSettings.brushFlow]}
+                  onValueChange={([v]) => onDrawSettingChange('brushFlow', v)}
+                  min={1}
+                  max={100}
+                  step={1}
+                  className="w-24"
+                />
+                <span className="text-xs font-mono w-8 text-right">{drawSettings.brushFlow}%</span>
+              </div>
+            )}
+
             {/* Font size for text */}
             {activeTool === 'text' && (
               <div className="flex items-center gap-1">
