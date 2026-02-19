@@ -46,6 +46,8 @@ export interface WorkflowEngineOptions {
   config?: Partial<WorkflowConfig>;
   /** Conversation ID for state tracking */
   conversationId?: string;
+  /** Optional externally compiled plan (e.g. visual flow) */
+  initialPlan?: WorkflowPlan;
   /** Ollama host override */
   host?: string;
 }
@@ -264,7 +266,7 @@ export class WorkflowEngine {
       conversationId,
       status: 'idle',
       userMessage: message,
-      plan: null,
+      plan: options.initialPlan ?? null,
       steps: [],
       currentStepIndex: 0,
       replanCount: 0,

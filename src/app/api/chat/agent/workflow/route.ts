@@ -17,7 +17,7 @@ import { getRelevantMemories, formatMemories } from '@/lib/memory/store';
 import { getPresetById } from '@/lib/agents/presets';
 import { resolveWorkspacePath } from '@/lib/settings/store';
 import type { OllamaChatMessage } from '@/lib/ollama';
-import type { WorkflowApiRequest } from '@/lib/agents/workflowTypes';
+import type { WorkflowApiRequest, WorkflowPlan } from '@/lib/agents/workflowTypes';
 import { WORKFLOW_DEFAULTS } from '@/lib/agents/workflowTypes';
 
 // ---------------------------------------------------------------------------
@@ -48,6 +48,54 @@ function buildDefaultAgentPrompt(enabledToolNames: string[]): string {
   );
 }
 
+function normalizeInitialPlan(
+  plan: WorkflowApiRequest['initialPlan'],
+  availableTools: string[],
+): WorkflowPlan | undefined {
+  if (!plan || typeof plan.goal !== 'string' || !Array.isArray(plan.steps)) {
+    return undefined;
+  }
+
+  const steps = plan.steps
+    .filter(
+      (step) =>
+        !!step &&
+        typeof step.id === 'string' &&
+        step.id.trim().length > 0 &&
+        typeof step.description === 'string',
+    )
+    .slice(0, 32)
+    .map((step) => ({
+      id: step.id,
+      description: step.description,
+      expectedTools: Array.isArray(step.expectedTools)
+        ? step.expectedTools.filter((tool) => availableTools.includes(tool))
+        : [],
+      dependsOn: Array.isArray(step.dependsOn)
+        ? step.dependsOn.filter((dep) => typeof dep === 'string')
+        : [],
+      successCriteria:
+        typeof step.successCriteria === 'string' && step.successCriteria.trim().length > 0
+          ? step.successCriteria
+          : 'Schritt erfolgreich abgeschlossen',
+    }));
+
+  if (steps.length === 0) {
+    return undefined;
+  }
+
+  return {
+    goal: plan.goal,
+    steps,
+    maxSteps:
+      typeof plan.maxSteps === 'number' && plan.maxSteps > 0
+        ? Math.min(plan.maxSteps, steps.length)
+        : steps.length,
+    createdAt: typeof plan.createdAt === 'string' ? plan.createdAt : new Date().toISOString(),
+    version: typeof plan.version === 'number' ? plan.version : 1,
+  };
+}
+
 // ---------------------------------------------------------------------------
 // Route Handler
 // ---------------------------------------------------------------------------
@@ -61,13 +109,14 @@ export async function POST(request: NextRequest) {
       model = 'llama3',
       conversationId,
       enabledTools,
-      maxSteps = WORKFLOW_DEFAULTS.maxSteps,
+      maxSteps,
       timeoutMs = WORKFLOW_DEFAULTS.timeoutMs,
       enablePlanning = WORKFLOW_DEFAULTS.enablePlanning,
       enableReflection = WORKFLOW_DEFAULTS.enableReflection,
       host,
       conversationHistory = [],
       presetId,
+      initialPlan,
     } = body;
 
     if (!message?.trim()) {
@@ -80,6 +129,12 @@ export async function POST(request: NextRequest) {
 
     // Determine which tools will be available
     const resolvedTools = enabledTools ?? registry.listNames();
+    const resolvedInitialPlan = normalizeInitialPlan(initialPlan, resolvedTools);
+    const resolvedMaxSteps =
+      maxSteps ??
+      (resolvedInitialPlan?.steps.length && resolvedInitialPlan.steps.length > 0
+        ? resolvedInitialPlan.steps.length
+        : WORKFLOW_DEFAULTS.maxSteps);
 
     // Build conversation messages
     const messages: OllamaChatMessage[] = [
@@ -122,9 +177,10 @@ export async function POST(request: NextRequest) {
       registry,
       conversationId,
       host,
+      initialPlan: resolvedInitialPlan,
       config: {
         enabledTools: resolvedTools,
-        maxSteps,
+        maxSteps: resolvedMaxSteps,
         timeoutMs,
         enablePlanning,
         enableReflection,

@@ -364,6 +364,7 @@ export interface WorkflowApiRequest {
   model: string;
   conversationId?: string;
   workflowId?: string;
+  initialPlan?: WorkflowPlan;
   enabledTools?: string[];
   maxSteps?: number;
   timeoutMs?: number;

@@ -17,6 +17,7 @@ import {
   Search,
   PanelLeftClose,
   PanelLeftOpen,
+  Workflow,
 } from 'lucide-react';
 import Link from 'next/link';
 import NextImage from 'next/image';
@@ -34,6 +35,7 @@ const navSections = [
     label: 'Tools',
     items: [
       { href: '/search',    label: 'Suche',     icon: Search },
+      { href: '/flow',      label: 'Flow',      icon: Workflow },
       { href: '/documents', label: 'Dokumente', icon: Files },
       { href: '/gallery',   label: 'Galerie',   icon: Image },
       { href: '/notes',     label: 'Notizen',   icon: FileText },

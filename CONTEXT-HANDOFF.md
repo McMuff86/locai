@@ -1,3 +1,70 @@
+# LocAI Context Handoff - Flow MVP (Execution Pack Complete)
+
+**Last updated:** 2026-02-19 16:48  
+**Branch:** `main`  
+**Build:** OK (`typecheck`, `lint`, `build` pass; lint warnings are pre-existing)  
+**Tests:** Partial OK (`npm run test` still has 4 known Windows-incompatible `run_command` failures in `src/lib/agents/tools/tools.test.ts`; flow compiler tests pass)
+
+## Flow MVP Status
+
+### Scope and decision
+- Source docs:
+  - `docs/adr/ADR-003-locai-flow-mvp.md`
+  - `docs/task-briefs/M3-flow-mvp.md`
+  - `docs/task-briefs/M3-T1-flow-next-execution-pack.md`
+- `/flow` stays a visual front-end that compiles into existing workflow engine plans.
+- MVP keeps linear execution semantics.
+
+### Completed in this round (M3-T1.1 to M3-T1.5)
+- **T1.1 Palette Drag and Drop**
+  - Drag payload from palette via `application/locai-flow-node`.
+  - Canvas drop with `screenToFlowPosition` mapping.
+  - Click-to-add preserved.
+- **T1.2 Wire Typing + Validation**
+  - Port schema and wire types added (`string`, `json`, `any`, `stream`).
+  - Connection validation (`isValidConnection`) blocks incompatible links.
+  - Invalid connection shows toast.
+  - Edge style is typed/colorized by wire type.
+- **T1.3 Cmd/Ctrl+K Node Command Palette**
+  - Global shortcut in `/flow` opens palette.
+  - Live search/filter over node types.
+  - Enter inserts selected node into viewport center.
+  - Escape closes cleanly.
+- **T1.4 Run History Panel**
+  - New bottom panel lists latest runs with status, duration, start time, and error.
+  - Clicking a run reapplies stored node runtime status snapshot (read-only replay light).
+  - Latest 30 runs limit is still enforced.
+- **T1.5 Compiler Tests**
+  - Added `src/lib/flow/__tests__/engine.test.ts` with coverage for:
+    - linear graph compile
+    - cycle detection
+    - missing agent error
+    - dependsOn mapping
+
+### Key files touched
+- `src/app/(app)/flow/page.tsx`
+- `src/components/flow/FlowCanvas.tsx`
+- `src/components/flow/NodeCommandPalette.tsx`
+- `src/components/flow/RunHistoryPanel.tsx`
+- `src/lib/flow/types.ts`
+- `src/lib/flow/registry.ts`
+- `src/lib/flow/__tests__/engine.test.ts`
+- `src/stores/flowStore.ts`
+
+### Validation in this round
+- `npm run typecheck` PASS
+- `npm run lint` PASS (warnings only, pre-existing)
+- `npm run build` PASS
+- `npm run test` WARN (fails on known Windows-specific `run_command` tests)
+- `npx vitest run src/lib/flow/__tests__/engine.test.ts` PASS
+
+### Next recommended work
+1. Start Phase 2 control-flow nodes (`if/else`, `loop`, `merge`, `parallel`) with explicit compile/runtime rules.
+2. Add runtime timeline/event panel wired to workflow stream events.
+3. Address cross-platform `run_command` tests to make full `npm run test` green on Windows.
+
+---
+
 # LocAI Context Handoff – Sprint 5 Image Editor
 
 **Last updated:** 2026-02-19 02:10  
@@ -317,3 +384,4 @@ FileBrowser: User klickt Datei
 
 ### NEW API: `/api/filebrowser/write` ✅
 - POST `{ rootId, path, content }` → überschreibt Workspace-Datei
+
