@@ -118,23 +118,23 @@ export function NoteEditor({
   }, [form, onFormChange, textareaRef]);
 
   return (
-    <div className="flex-1 flex flex-col rounded-lg border border-border overflow-hidden min-h-0">
-      <div className="flex items-center justify-between p-3 border-b border-border bg-muted/30 flex-shrink-0">
-        <h2 className="text-sm font-medium">
+    <div className="flex-1 flex flex-col rounded-xl border border-border/40 bg-background/60 backdrop-blur-sm shadow-sm overflow-hidden min-h-0">
+      <div className="flex items-center justify-between px-3 py-2.5 border-b border-border/30 bg-muted/20 flex-shrink-0">
+        <h2 className="text-xs font-semibold tracking-tight">
           {selectedId ? 'Notiz bearbeiten' : 'Neue Notiz'}
         </h2>
         {selectedId && (
           <Button
             size="sm"
             variant="ghost"
-            className="h-7 w-7 p-0"
+            className="h-6 w-6 p-0 rounded-md"
             onClick={onToggleMinimize}
             title={isMinimized ? 'Erweitern' : 'Minimieren'}
           >
             {isMinimized ? (
-              <ChevronDown className="h-4 w-4" />
+              <ChevronDown className="h-3.5 w-3.5" />
             ) : (
-              <ChevronUp className="h-4 w-4" />
+              <ChevronUp className="h-3.5 w-3.5" />
             )}
           </Button>
         )}
@@ -170,59 +170,59 @@ export function NoteEditor({
           {!isMinimized && (
             <>
               {/* Markdown Toolbar */}
-              <div className="flex items-center gap-0.5 p-1 bg-muted/30 rounded-md border border-border/60">
-                <ToolbarButton 
-                  icon={<Heading1 className="h-4 w-4" />} 
-                  label="Überschrift 1" 
-                  onClick={() => insertAtLineStart('# ')} 
+              <div className="flex items-center gap-0.5 px-1.5 py-1 bg-muted/20 rounded-lg border border-border/30">
+                <ToolbarButton
+                  icon={<Heading1 className="h-3.5 w-3.5" />}
+                  label="Überschrift 1"
+                  onClick={() => insertAtLineStart('# ')}
                 />
-                <ToolbarButton 
-                  icon={<Heading2 className="h-4 w-4" />} 
-                  label="Überschrift 2" 
-                  onClick={() => insertAtLineStart('## ')} 
+                <ToolbarButton
+                  icon={<Heading2 className="h-3.5 w-3.5" />}
+                  label="Überschrift 2"
+                  onClick={() => insertAtLineStart('## ')}
                 />
-                <ToolbarButton 
-                  icon={<Heading3 className="h-4 w-4" />} 
-                  label="Überschrift 3" 
-                  onClick={() => insertAtLineStart('### ')} 
+                <ToolbarButton
+                  icon={<Heading3 className="h-3.5 w-3.5" />}
+                  label="Überschrift 3"
+                  onClick={() => insertAtLineStart('### ')}
                 />
-                <div className="w-px h-5 bg-border mx-1" />
-                <ToolbarButton 
-                  icon={<Bold className="h-4 w-4" />} 
-                  label="Fett (Ctrl+B)" 
-                  onClick={() => insertMarkdown('**', '**', 'fett')} 
+                <div className="w-px h-4 bg-border/40 mx-0.5" />
+                <ToolbarButton
+                  icon={<Bold className="h-3.5 w-3.5" />}
+                  label="Fett (Ctrl+B)"
+                  onClick={() => insertMarkdown('**', '**', 'fett')}
                 />
-                <ToolbarButton 
-                  icon={<Italic className="h-4 w-4" />} 
-                  label="Kursiv (Ctrl+I)" 
-                  onClick={() => insertMarkdown('*', '*', 'kursiv')} 
+                <ToolbarButton
+                  icon={<Italic className="h-3.5 w-3.5" />}
+                  label="Kursiv (Ctrl+I)"
+                  onClick={() => insertMarkdown('*', '*', 'kursiv')}
                 />
-                <div className="w-px h-5 bg-border mx-1" />
-                <ToolbarButton 
-                  icon={<List className="h-4 w-4" />} 
-                  label="Liste" 
-                  onClick={() => insertAtLineStart('- ')} 
+                <div className="w-px h-4 bg-border/40 mx-0.5" />
+                <ToolbarButton
+                  icon={<List className="h-3.5 w-3.5" />}
+                  label="Liste"
+                  onClick={() => insertAtLineStart('- ')}
                 />
-                <ToolbarButton 
-                  icon={<ListOrdered className="h-4 w-4" />} 
-                  label="Nummerierte Liste" 
-                  onClick={() => insertAtLineStart('1. ')} 
+                <ToolbarButton
+                  icon={<ListOrdered className="h-3.5 w-3.5" />}
+                  label="Nummerierte Liste"
+                  onClick={() => insertAtLineStart('1. ')}
                 />
-                <ToolbarButton 
-                  icon={<Quote className="h-4 w-4" />} 
-                  label="Zitat" 
-                  onClick={() => insertAtLineStart('> ')} 
+                <ToolbarButton
+                  icon={<Quote className="h-3.5 w-3.5" />}
+                  label="Zitat"
+                  onClick={() => insertAtLineStart('> ')}
                 />
-                <div className="w-px h-5 bg-border mx-1" />
-                <ToolbarButton 
-                  icon={<Link2 className="h-4 w-4" />} 
-                  label="[[Wikilink]]" 
-                  onClick={() => insertMarkdown('[[', ']]', 'Notiz-Titel')} 
+                <div className="w-px h-4 bg-border/40 mx-0.5" />
+                <ToolbarButton
+                  icon={<Link2 className="h-3.5 w-3.5" />}
+                  label="[[Wikilink]]"
+                  onClick={() => insertMarkdown('[[', ']]', 'Notiz-Titel')}
                 />
-                <ToolbarButton 
-                  icon={<Hash className="h-4 w-4" />} 
-                  label="#Tag" 
-                  onClick={() => insertMarkdown('#', '', 'tag')} 
+                <ToolbarButton
+                  icon={<Hash className="h-3.5 w-3.5" />}
+                  label="#Tag"
+                  onClick={() => insertMarkdown('#', '', 'tag')}
                 />
               </div>
               
@@ -231,7 +231,7 @@ export function NoteEditor({
                 placeholder="Inhalt (Markdown, [[Links]], #tags)"
                 value={form.content}
                 onChange={(e) => onFormChange({ ...form, content: e.target.value })}
-                className="min-h-[140px] font-mono text-sm"
+                className="min-h-[140px] font-mono text-sm rounded-lg border-border/40 bg-muted/10 focus-visible:bg-background"
                 onKeyDown={(e) => {
                   // Keyboard shortcuts
                   if (e.ctrlKey || e.metaKey) {
@@ -247,13 +247,14 @@ export function NoteEditor({
               />
               
               <div className="flex flex-wrap items-center gap-2">
-                <Button onClick={onSave} disabled={saving}>
-                  {saving ? 'Speichere...' : selectedId ? 'Änderungen speichern' : 'Notiz speichern'}
+                <Button size="sm" className="rounded-lg" onClick={onSave} disabled={saving}>
+                  {saving ? 'Speichere...' : selectedId ? 'Speichern' : 'Notiz speichern'}
                 </Button>
                 {selectedId && (
                   <Button
                     variant="outline"
                     size="sm"
+                    className="rounded-lg border-border/40"
                     onClick={onDelete}
                     disabled={saving}
                   >

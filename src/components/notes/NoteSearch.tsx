@@ -28,9 +28,9 @@ export function NoteSearch({
   highlightText,
 }: NoteSearchProps) {
   return (
-    <div className="relative mb-4 flex-shrink-0 px-1">
+    <div className="relative mb-3 flex-shrink-0">
       <div className="relative">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground/60" />
         <Input
           type="text"
           placeholder="Notizen durchsuchen..."
@@ -38,7 +38,7 @@ export function NoteSearch({
           onChange={(e) => onSearchChange(e.target.value)}
           onFocus={() => onFocusChange(true)}
           onBlur={() => setTimeout(() => onFocusChange(false), 150)}
-          className="pl-10 pr-10 bg-muted/30 border-muted focus:bg-background"
+          className="pl-9 pr-9 h-9 rounded-xl bg-muted/20 border-border/40 focus-visible:bg-background text-sm"
         />
         {searchQuery && (
           <Button
@@ -54,7 +54,7 @@ export function NoteSearch({
       
       {/* Search Results Dropdown */}
       {searchFocused && searchQuery.length >= 2 && (
-        <div className="absolute top-full left-0 right-0 mt-2 bg-popover border border-border rounded-lg shadow-lg z-50 overflow-hidden">
+        <div className="absolute top-full left-0 right-0 mt-1.5 bg-popover/95 backdrop-blur-md border border-border/40 rounded-xl shadow-xl z-50 overflow-hidden">
           <ScrollArea className="max-h-[350px]">
             {isSearching ? (
               <div className="p-4 text-center text-muted-foreground">

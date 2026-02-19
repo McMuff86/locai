@@ -1,3 +1,65 @@
+# LocAI Context Handoff – UI Polish: Image Editor, File Browser, Notes
+
+**Last updated:** 2026-02-20
+**Branch:** `feat/ui-polish-editor-browser-notes`
+**Build:** OK (`tsc --noEmit` pass, no errors)
+
+## Scope of this round
+Comprehensive UI/UX polish across three major areas: Image Editor fixes, Agent Workspace (file browser/canvas) polish, and Notes/Graph controls compaction.
+
+## Completed changes
+
+### 1. Image Editor – Layer Panel Fix & Polish
+- **Invert filter bug fix**: Moved the layer panel JSX from inside the CSS-filtered `<div style={{ filter: getFilterString() }}>` wrapper to a sibling position inside `containerRef`. The panel was previously being affected by image filters (invert, grayscale, sepia).
+- **Edge-docking**: Layer panel now snaps to left/right container edge when dragged within 30px threshold. Visual indicator (ring) shows docked state.
+- **Panel UI polish**: Backdrop-blur, improved grip handle with dot-pattern, polished tabs/buttons/layer items.
+- **Toolbar polish**: Larger tool buttons (`h-8 w-8`), bigger icons (`h-4 w-4`), visual grouping with `bg-muted/30` containers, better separators.
+- **Ruler fix**: Changed `showRulers` default from `true` to `false` — ruler divs were creating visible dark bands on left/top of image.
+- **Text layer re-editing**: Double-click on text layers (400ms threshold) reopens the text input overlay for editing. Previously text was permanent once placed.
+
+### 2. Agent Workspace – Professional UI Polish
+- **Documents page**: Tighter padding, polished tabs with active shadow, `rounded-xl` containers with `backdrop-blur-sm`.
+- **FileBrowser**: Compact header with outline buttons, smaller breadcrumbs with active highlighting, condensed search (`h-8`), compact filter/sort controls (`h-7`, `text-[11px]`), shorter action button labels, `rounded-xl` file list with tighter row spacing.
+- **FileEntryRow**: Icon wrapped in `w-7 h-7 rounded-md bg-muted/40` container, `text-xs` names, `text-[10px]` metadata, compact `h-6 w-6` action buttons.
+- **FileCanvas**: Subtler dot grid (0.15 opacity, 1px), polished empty state with bordered icon container, combined Reset+Zoom controls with `backdrop-blur-sm`.
+- **FileWindow**: `backdrop-blur-sm` + `ring-1` subtle outline, compact 38px title bar, smaller window control dots, `animate-pulse` on unsaved indicator, segmented-control style markdown tabs, diagonal-line resize handle.
+
+### 3. Notes & Graph – Slider Compaction & Polish
+- **GraphControls advanced settings**: Restructured from 2-column stacked layout to 3-column inline layout. Each slider is now `Label | Slider | Value` on one line. Toggles consolidated into a single row. Label color picker inline.
+- **Graph legend + threshold**: Combined into one compact row.
+- **Graph settings buttons**: Smaller padding (`py-0.5`), `text-[11px]`, subtler borders.
+- **3D/2D graph height**: Changed from fixed `h-[500px]` to dynamic `h-[calc(100vh-280px)]` to fill available space below controls. Expanded mode increased to `h-[85vh]`.
+- **NotesList**: `rounded-xl`, `backdrop-blur-sm`, compact header, tighter note cards without borders.
+- **NoteEditor**: `rounded-xl`, polished markdown toolbar with smaller icons, subtler textarea, compact save button.
+- **NoteSearch**: `rounded-xl` input with `bg-muted/20`, `backdrop-blur-md` dropdown.
+- **Graph page container**: `rounded-xl border-border/40 bg-background/60 backdrop-blur-sm shadow-sm`.
+
+## Key files touched
+- `src/components/filebrowser/ImageEditor.tsx` – Layer panel fix, docking, text editing, UI polish
+- `src/components/filebrowser/ImageToolbar.tsx` – Toolbar size/spacing polish
+- `src/app/(app)/documents/page.tsx` – Layout polish
+- `src/components/filebrowser/FileBrowser.tsx` – Full component polish
+- `src/components/filebrowser/FileEntryRow.tsx` – Row styling polish
+- `src/components/filebrowser/FileCanvas.tsx` – Grid, empty state, controls polish
+- `src/components/filebrowser/FileWindow.tsx` – Window chrome, toolbar, resize handle polish
+- `src/components/notes/GraphControls.tsx` – Complete slider/toggle compaction
+- `src/components/notes/KnowledgeGraph.tsx` – Dynamic height
+- `src/components/notes/KnowledgeGraph2D.tsx` – Dynamic height
+- `src/components/notes/NotesList.tsx` – Sidebar polish
+- `src/components/notes/NoteEditor.tsx` – Editor/toolbar polish
+- `src/components/notes/NoteSearch.tsx` – Search bar polish
+- `src/app/(app)/notes/page.tsx` – Layout spacing
+- `src/app/(app)/notes/graph/page.tsx` – Container polish
+
+## Validation
+- `npx tsc --noEmit` PASS (no errors)
+
+## Known caveats
+- Pre-existing `package-lock.json` diff is unrelated to this round.
+- Global lint warnings still exist outside this scope (unchanged).
+
+---
+
 # LocAI Context Handoff - Flow Runtime UX + Run Controls
 
 **Last updated:** 2026-02-19 21:30  

@@ -274,7 +274,7 @@ export default function NotesPage() {
   }
 
   return (
-    <div className="flex flex-col h-full overflow-hidden p-4">
+    <div className="flex flex-col h-full overflow-hidden p-3 md:p-4 gap-0">
       {/* Search Bar */}
       <NoteSearch
         searchQuery={searchQuery}
@@ -288,7 +288,7 @@ export default function NotesPage() {
       />
       
       {/* Split View: Notes List + Editor */}
-      <div className="flex-1 flex gap-4 min-h-0 overflow-hidden">
+      <div className="flex-1 flex gap-3 min-h-0 overflow-hidden">
         {/* Left Panel: Notes List */}
         <NotesList
           notes={notes}

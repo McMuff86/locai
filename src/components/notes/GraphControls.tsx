@@ -48,13 +48,13 @@ export function GraphControls({
   const theme = getThemeColors(settings.graphTheme);
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-2">
       {/* Header with stats */}
       <div className="flex items-center justify-between flex-wrap gap-2">
         <div>
           <h2 className="text-sm font-medium">Verknüpfungen</h2>
-          <p className="text-xs text-muted-foreground">
-            {nodeCount} Notes / {wikiLinkCount} Wiki-Links / {semanticLinks.length} Semantische Links
+          <p className="text-[11px] text-muted-foreground/70">
+            {nodeCount} Notes · {wikiLinkCount} Wiki · {semanticLinks.length} Semantisch
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -213,24 +213,19 @@ export function GraphControls({
         </div>
       )}
       
-      {/* Legend */}
-      <div className="flex items-center gap-4 text-xs flex-wrap">
-        <div className="flex items-center gap-1.5">
-          <div className="w-4 h-0.5" style={{ backgroundColor: theme.wikiLink }} />
-          <span className="text-muted-foreground">[[Wikilinks]]</span>
+      {/* Legend + Threshold - single compact row */}
+      <div className="flex items-center gap-3 flex-wrap text-[11px]">
+        <div className="flex items-center gap-1">
+          <div className="w-3 h-0.5" style={{ backgroundColor: theme.wikiLink }} />
+          <span className="text-muted-foreground/70">Wiki</span>
         </div>
-        <div className="flex items-center gap-1.5">
-          <div className="w-4 h-0.5" style={{ borderTop: '2px dashed', borderColor: theme.semanticLink }} />
-          <span className="text-muted-foreground">Semantisch ähnlich ({semanticLinks.length})</span>
+        <div className="flex items-center gap-1">
+          <div className="w-3 h-0.5" style={{ borderTop: '2px dashed', borderColor: theme.semanticLink }} />
+          <span className="text-muted-foreground/70">Semantisch ({semanticLinks.length})</span>
         </div>
-      </div>
-      
-      {/* Controls Row */}
-      <div className="flex items-center gap-4 flex-wrap">
-        {/* Threshold Slider */}
         {semanticLinks.length > 0 && (
-          <div className="flex items-center gap-2">
-            <span className="text-xs text-muted-foreground">Schwellenwert:</span>
+          <div className="flex items-center gap-1.5 ml-auto">
+            <span className="text-muted-foreground/70">Schwelle:</span>
             <input
               type="range"
               min="0.5"
@@ -238,349 +233,237 @@ export function GraphControls({
               step="0.05"
               value={semanticThreshold}
               onChange={(e) => onThresholdChange(parseFloat(e.target.value))}
-              className="w-24 h-1.5"
+              className="w-20 h-1"
               style={{ accentColor: theme.semanticLink }}
             />
-            <span className="text-xs font-mono text-muted-foreground">{Math.round(semanticThreshold * 100)}%</span>
+            <span className="font-mono text-muted-foreground/70">{Math.round(semanticThreshold * 100)}%</span>
           </div>
         )}
         
-        {/* Graph Settings (only in visual mode) */}
-        {(graphViewMode === '2d' || graphViewMode === '3d') && (
-          <div className="flex items-center gap-2 ml-auto flex-wrap">
-            <button
-              onClick={() => onSettingsChange({ showLabels: !settings.showLabels })}
-              className={`px-2 py-1 text-xs rounded-md border transition-colors flex items-center gap-1 ${
-                settings.showLabels 
-                  ? 'border-primary bg-primary/10 text-primary' 
-                  : 'border-border bg-muted/50 text-muted-foreground hover:bg-muted'
-              }`}
-              title="Labels immer anzeigen"
-            >
-              <Hash className="h-3 w-3" />
-              Labels
-            </button>
-            
-            <select
-              value={settings.graphTheme}
-              onChange={(e) => onSettingsChange({ graphTheme: e.target.value as any })}
-              className="px-2 py-1 text-xs rounded-md border border-border bg-muted/50 text-muted-foreground hover:bg-muted"
-            >
-              <option value="cyber">Cyber</option>
-              <option value="obsidian">Obsidian</option>
-              <option value="neon">Neon</option>
-              <option value="minimal">Minimal</option>
-            </select>
-            
-            <select
-              value={settings.nodeGeometry}
-              onChange={(e) => onSettingsChange({ nodeGeometry: e.target.value as any })}
-              className="px-2 py-1 text-xs rounded-md border border-border bg-muted/50 text-muted-foreground hover:bg-muted"
-              title="Node Geometrie"
-            >
-              <option value="sphere">Kugel</option>
-              <option value="box">Würfel</option>
-              <option value="octahedron">Oktaeder</option>
-              <option value="tetrahedron">Tetraeder</option>
-              <option value="icon">Icon</option>
-            </select>
-            
-            <button
-              onClick={() => onSettingsChange({ nodeGlow: !settings.nodeGlow })}
-              className={`px-2 py-1 text-xs rounded-md border transition-colors ${
-                settings.nodeGlow 
-                  ? 'border-primary bg-primary/10 text-primary' 
-                  : 'border-border bg-muted/50 text-muted-foreground hover:bg-muted'
-              }`}
-              title="Node Glow"
-            >
-              {settings.nodeGlow ? <Zap className="h-3 w-3" /> : <ZapOff className="h-3 w-3" />}
-            </button>
-            
-            <button
-              onClick={() => onSettingsChange({ showAdvancedSettings: !settings.showAdvancedSettings })}
-              className={`px-2 py-1 text-xs rounded-md border transition-colors ${
-                settings.showAdvancedSettings 
-                  ? 'border-primary bg-primary/10 text-primary' 
-                  : 'border-border bg-muted/50 text-muted-foreground hover:bg-muted'
-              }`}
-              title="Erweiterte Einstellungen"
-            >
-              <Settings className="h-3 w-3" />
-            </button>
-          </div>
-        )}
       </div>
+
+      {/* Graph Settings (only in visual mode) */}
+      {(graphViewMode === '2d' || graphViewMode === '3d') && (
+        <div className="flex items-center gap-1.5 flex-wrap">
+          <button
+            onClick={() => onSettingsChange({ showLabels: !settings.showLabels })}
+            className={`px-2 py-0.5 text-[11px] rounded-md border transition-colors flex items-center gap-1 ${
+              settings.showLabels
+                ? 'border-primary/40 bg-primary/10 text-primary'
+                : 'border-border/40 bg-muted/30 text-muted-foreground hover:bg-muted/50'
+            }`}
+            title="Labels immer anzeigen"
+          >
+            <Hash className="h-3 w-3" />
+            Labels
+          </button>
+
+          <select
+            value={settings.graphTheme}
+            onChange={(e) => onSettingsChange({ graphTheme: e.target.value as any })}
+            className="px-1.5 py-0.5 text-[11px] rounded-md border border-border/40 bg-muted/30 text-muted-foreground hover:bg-muted/50"
+          >
+            <option value="cyber">Cyber</option>
+            <option value="obsidian">Obsidian</option>
+            <option value="neon">Neon</option>
+            <option value="minimal">Minimal</option>
+          </select>
+
+          <select
+            value={settings.nodeGeometry}
+            onChange={(e) => onSettingsChange({ nodeGeometry: e.target.value as any })}
+            className="px-1.5 py-0.5 text-[11px] rounded-md border border-border/40 bg-muted/30 text-muted-foreground hover:bg-muted/50"
+            title="Node Geometrie"
+          >
+            <option value="sphere">Kugel</option>
+            <option value="box">Würfel</option>
+            <option value="octahedron">Oktaeder</option>
+            <option value="tetrahedron">Tetraeder</option>
+            <option value="icon">Icon</option>
+          </select>
+
+          <button
+            onClick={() => onSettingsChange({ nodeGlow: !settings.nodeGlow })}
+            className={`px-1.5 py-0.5 text-[11px] rounded-md border transition-colors ${
+              settings.nodeGlow
+                ? 'border-primary/40 bg-primary/10 text-primary'
+                : 'border-border/40 bg-muted/30 text-muted-foreground hover:bg-muted/50'
+            }`}
+            title="Node Glow"
+          >
+            {settings.nodeGlow ? <Zap className="h-3 w-3" /> : <ZapOff className="h-3 w-3" />}
+          </button>
+
+          <button
+            onClick={() => onSettingsChange({ showAdvancedSettings: !settings.showAdvancedSettings })}
+            className={`px-1.5 py-0.5 text-[11px] rounded-md border transition-colors ${
+              settings.showAdvancedSettings
+                ? 'border-primary/40 bg-primary/10 text-primary'
+                : 'border-border/40 bg-muted/30 text-muted-foreground hover:bg-muted/50'
+            }`}
+            title="Erweiterte Einstellungen"
+          >
+            <Settings className="h-3 w-3" />
+          </button>
+        </div>
+      )}
       
       {/* Advanced Settings Panel */}
       {(graphViewMode === '2d' || graphViewMode === '3d') && settings.showAdvancedSettings && (
-        <div className="rounded-md border border-border/60 bg-muted/20 p-3 space-y-3">
-          <div className="grid grid-cols-2 gap-4">
+        <div className="rounded-md border border-border/60 bg-muted/20 px-3 py-2.5 space-y-2">
+          {/* Sliders - compact inline layout, 3 per row */}
+          <div className="grid grid-cols-3 gap-x-3 gap-y-1.5">
             {/* Node Opacity */}
-            <div className="space-y-1">
-              <div className="flex items-center justify-between">
-                <span className="text-xs text-muted-foreground">Node Transparenz</span>
-                <span className="text-xs font-mono text-muted-foreground">{Math.round(settings.nodeOpacity * 100)}%</span>
-              </div>
-              <input
-                type="range"
-                min="0.1"
-                max="1"
-                step="0.05"
-                value={settings.nodeOpacity}
+            <div className="flex items-center gap-1.5">
+              <span className="text-[11px] text-muted-foreground whitespace-nowrap w-16 flex-shrink-0">Transparenz</span>
+              <input type="range" min="0.1" max="1" step="0.05" value={settings.nodeOpacity}
                 onChange={(e) => onSettingsChange({ nodeOpacity: parseFloat(e.target.value) })}
-                className="w-full h-1.5"
-                style={{ accentColor: theme.wikiLink }}
-              />
-            </div>
-            
-            {/* Link Opacity */}
-            <div className="space-y-1">
-              <div className="flex items-center justify-between">
-                <span className="text-xs text-muted-foreground">Link Sichtbarkeit</span>
-                <span className="text-xs font-mono text-muted-foreground">{Math.round(settings.linkOpacity * 100)}%</span>
-              </div>
-              <input
-                type="range"
-                min="0.1"
-                max="1"
-                step="0.05"
-                value={settings.linkOpacity}
-                onChange={(e) => onSettingsChange({ linkOpacity: parseFloat(e.target.value) })}
-                className="w-full h-1.5"
-                style={{ accentColor: theme.semanticLink }}
-              />
-            </div>
-            
-            {/* Glow Intensity */}
-            {settings.nodeGlow && (
-              <div className="space-y-1 col-span-2">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs text-muted-foreground flex items-center gap-1">
-                    <Zap className="h-3 w-3" />
-                    Glow Intensität
-                  </span>
-                  <span className="text-xs font-mono text-muted-foreground">{Math.round(settings.glowIntensity * 100)}%</span>
-                </div>
-                <input
-                  type="range"
-                  min="0.1"
-                  max="1"
-                  step="0.05"
-                  value={settings.glowIntensity}
-                  onChange={(e) => onSettingsChange({ glowIntensity: parseFloat(e.target.value) })}
-                  className="w-full h-1.5"
-                  style={{ accentColor: theme.wikiLink }}
-                />
-              </div>
-            )}
-            
-            {/* Node Size */}
-            <div className="space-y-1">
-              <div className="flex items-center justify-between">
-                <span className="text-xs text-muted-foreground">Node Größe</span>
-                <span className="text-xs font-mono text-muted-foreground">{Math.round(settings.nodeSize * 100)}%</span>
-              </div>
-              <input
-                type="range"
-                min="0.3"
-                max="3.0"
-                step="0.1"
-                value={settings.nodeSize}
-                onChange={(e) => onSettingsChange({ nodeSize: parseFloat(e.target.value) })}
-                className="w-full h-1.5"
-                style={{ accentColor: theme.wikiLink }}
-              />
-            </div>
-            
-            {/* Label Size */}
-            {settings.showLabels && (
-              <div className="space-y-1">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs text-muted-foreground flex items-center gap-1">
-                    <Hash className="h-3 w-3" />
-                    Label Größe
-                  </span>
-                  <span className="text-xs font-mono text-muted-foreground">{Math.round(settings.labelSize * 100)}%</span>
-                </div>
-                <input
-                  type="range"
-                  min="0.3"
-                  max="2.0"
-                  step="0.1"
-                  value={settings.labelSize}
-                  onChange={(e) => onSettingsChange({ labelSize: parseFloat(e.target.value) })}
-                  className="w-full h-1.5"
-                  style={{ accentColor: theme.semanticLink }}
-                />
-              </div>
-            )}
-            
-            {/* Label Color */}
-            {settings.showLabels && (
-              <div className="space-y-2 col-span-2">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs text-muted-foreground flex items-center gap-1">
-                    <Palette className="h-3 w-3" />
-                    Label Farbe
-                  </span>
-                  <div className="flex items-center gap-1">
-                    {labelColorPresets.map((preset) => (
-                      <button
-                        key={preset.color}
-                        onClick={() => onSettingsChange({ labelColor: preset.color })}
-                        className={`w-5 h-5 rounded-full border-2 transition-all hover:scale-110 ${
-                          settings.labelColor === preset.color ? 'border-white shadow-lg scale-110' : 'border-transparent'
-                        }`}
-                        style={{ backgroundColor: preset.color }}
-                        title={preset.name}
-                      />
-                    ))}
-                    <div className="relative ml-2">
-                      <input
-                        type="color"
-                        value={settings.labelColor}
-                        onChange={(e) => onSettingsChange({ labelColor: e.target.value })}
-                        className="w-6 h-6 rounded cursor-pointer border border-border"
-                        title="Eigene Farbe"
-                      />
-                    </div>
-                  </div>
-                </div>
-              </div>
-            )}
-            
-            {/* Label Glow Toggle */}
-            {settings.showLabels && (
-              <div className="space-y-1">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs text-muted-foreground flex items-center gap-1">
-                    <Sparkles className="h-3 w-3" />
-                    Label Glow
-                  </span>
-                  <button
-                    onClick={() => onSettingsChange({ labelGlow: !settings.labelGlow })}
-                    className={`px-3 py-1 text-xs rounded-md transition-colors ${
-                      settings.labelGlow 
-                        ? 'bg-primary/20 text-primary border border-primary/30' 
-                        : 'bg-muted text-muted-foreground border border-border'
-                    }`}
-                  >
-                    {settings.labelGlow ? 'An' : 'Aus'}
-                  </button>
-                </div>
-              </div>
-            )}
-            
-            {/* Link Width */}
-            <div className="space-y-1">
-              <div className="flex items-center justify-between">
-                <span className="text-xs text-muted-foreground">Link Dicke</span>
-                <span className="text-xs font-mono text-muted-foreground">{Math.round(settings.linkWidth * 100)}%</span>
-              </div>
-              <input
-                type="range"
-                min="0.2"
-                max="2"
-                step="0.1"
-                value={settings.linkWidth}
-                onChange={(e) => onSettingsChange({ linkWidth: parseFloat(e.target.value) })}
-                className="w-full h-1.5"
-                style={{ accentColor: theme.semanticLink }}
-              />
-            </div>
-            
-            {/* Bloom Strength */}
-            {settings.nodeGlow && (
-              <div className="space-y-1">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs text-muted-foreground flex items-center gap-1">
-                    <Sparkles className="h-3 w-3" />
-                    Bloom
-                  </span>
-                  <span className="text-xs font-mono text-muted-foreground">{Math.round(settings.bloomStrength * 100)}%</span>
-                </div>
-                <input
-                  type="range"
-                  min="0.2"
-                  max="2"
-                  step="0.1"
-                  value={settings.bloomStrength}
-                  onChange={(e) => onSettingsChange({ bloomStrength: parseFloat(e.target.value) })}
-                  className="w-full h-1.5"
-                  style={{ accentColor: theme.wikiLink }}
-                />
-              </div>
-            )}
-            
-            {/* Show Arrows Toggle */}
-            <div className="space-y-1">
-              <div className="flex items-center justify-between">
-                <span className="text-xs text-muted-foreground">Pfeile</span>
-                <button
-                  onClick={() => onSettingsChange({ showArrows: !settings.showArrows })}
-                  className={`px-3 py-1 text-xs rounded-md transition-colors ${
-                    settings.showArrows 
-                      ? 'bg-primary/20 text-primary border border-primary/30' 
-                      : 'bg-muted text-muted-foreground border border-border'
-                  }`}
-                >
-                  {settings.showArrows ? 'An' : 'Aus'}
-                </button>
-              </div>
-            </div>
-            
-            {/* Curved Links Toggle */}
-            <div className="space-y-1">
-              <div className="flex items-center justify-between">
-                <span className="text-xs text-muted-foreground">Linien</span>
-                <button
-                  onClick={() => onSettingsChange({ curvedLinks: !settings.curvedLinks })}
-                  className={`px-3 py-1 text-xs rounded-md transition-colors ${
-                    settings.curvedLinks 
-                      ? 'bg-primary/20 text-primary border border-primary/30' 
-                      : 'bg-muted text-muted-foreground border border-border'
-                  }`}
-                >
-                  {settings.curvedLinks ? 'Kurvig' : 'Gerade'}
-                </button>
-              </div>
-            </div>
-            
-            {/* Semantic Links Cap */}
-            <div className="space-y-1">
-              <div className="flex items-center justify-between">
-                <span className="text-xs text-muted-foreground">Semantic Links Max</span>
-                <span className="text-xs font-mono text-muted-foreground">{settings.semanticLinksCap}</span>
-              </div>
-              <input
-                type="range"
-                min="10"
-                max="500"
-                step="10"
-                value={settings.semanticLinksCap}
-                onChange={(e) => onSettingsChange({ semanticLinksCap: parseInt(e.target.value) })}
-                className="w-full h-1.5"
-                style={{ accentColor: theme.semanticLink }}
-              />
+                className="flex-1 h-1 min-w-0" style={{ accentColor: theme.wikiLink }} />
+              <span className="text-[10px] font-mono text-muted-foreground/70 w-7 text-right flex-shrink-0">{Math.round(settings.nodeOpacity * 100)}%</span>
             </div>
 
-            {/* Show Orphans Toggle */}
-            <div className="space-y-1">
-              <div className="flex items-center justify-between">
-                <span className="text-xs text-muted-foreground">Verwaiste Nodes</span>
-                <button
-                  onClick={() => onSettingsChange({ showOrphans: !settings.showOrphans })}
-                  className={`px-3 py-1 text-xs rounded-md transition-colors ${
-                    settings.showOrphans 
-                      ? 'bg-primary/20 text-primary border border-primary/30' 
-                      : 'bg-muted text-muted-foreground border border-border'
-                  }`}
-                >
-                  {settings.showOrphans ? 'Anzeigen' : 'Versteckt'}
-                </button>
-              </div>
+            {/* Link Opacity */}
+            <div className="flex items-center gap-1.5">
+              <span className="text-[11px] text-muted-foreground whitespace-nowrap w-16 flex-shrink-0">Link Sicht.</span>
+              <input type="range" min="0.1" max="1" step="0.05" value={settings.linkOpacity}
+                onChange={(e) => onSettingsChange({ linkOpacity: parseFloat(e.target.value) })}
+                className="flex-1 h-1 min-w-0" style={{ accentColor: theme.semanticLink }} />
+              <span className="text-[10px] font-mono text-muted-foreground/70 w-7 text-right flex-shrink-0">{Math.round(settings.linkOpacity * 100)}%</span>
             </div>
+
+            {/* Node Size */}
+            <div className="flex items-center gap-1.5">
+              <span className="text-[11px] text-muted-foreground whitespace-nowrap w-16 flex-shrink-0">Node Größe</span>
+              <input type="range" min="0.3" max="3.0" step="0.1" value={settings.nodeSize}
+                onChange={(e) => onSettingsChange({ nodeSize: parseFloat(e.target.value) })}
+                className="flex-1 h-1 min-w-0" style={{ accentColor: theme.wikiLink }} />
+              <span className="text-[10px] font-mono text-muted-foreground/70 w-7 text-right flex-shrink-0">{Math.round(settings.nodeSize * 100)}%</span>
+            </div>
+
+            {/* Link Width */}
+            <div className="flex items-center gap-1.5">
+              <span className="text-[11px] text-muted-foreground whitespace-nowrap w-16 flex-shrink-0">Link Dicke</span>
+              <input type="range" min="0.2" max="2" step="0.1" value={settings.linkWidth}
+                onChange={(e) => onSettingsChange({ linkWidth: parseFloat(e.target.value) })}
+                className="flex-1 h-1 min-w-0" style={{ accentColor: theme.semanticLink }} />
+              <span className="text-[10px] font-mono text-muted-foreground/70 w-7 text-right flex-shrink-0">{Math.round(settings.linkWidth * 100)}%</span>
+            </div>
+
+            {/* Semantic Links Cap */}
+            <div className="flex items-center gap-1.5">
+              <span className="text-[11px] text-muted-foreground whitespace-nowrap w-16 flex-shrink-0">AI Max</span>
+              <input type="range" min="10" max="500" step="10" value={settings.semanticLinksCap}
+                onChange={(e) => onSettingsChange({ semanticLinksCap: parseInt(e.target.value) })}
+                className="flex-1 h-1 min-w-0" style={{ accentColor: theme.semanticLink }} />
+              <span className="text-[10px] font-mono text-muted-foreground/70 w-7 text-right flex-shrink-0">{settings.semanticLinksCap}</span>
+            </div>
+
+            {/* Glow Intensity */}
+            {settings.nodeGlow && (
+              <div className="flex items-center gap-1.5">
+                <span className="text-[11px] text-muted-foreground whitespace-nowrap w-16 flex-shrink-0">Glow</span>
+                <input type="range" min="0.1" max="1" step="0.05" value={settings.glowIntensity}
+                  onChange={(e) => onSettingsChange({ glowIntensity: parseFloat(e.target.value) })}
+                  className="flex-1 h-1 min-w-0" style={{ accentColor: theme.wikiLink }} />
+                <span className="text-[10px] font-mono text-muted-foreground/70 w-7 text-right flex-shrink-0">{Math.round(settings.glowIntensity * 100)}%</span>
+              </div>
+            )}
+
+            {/* Bloom Strength */}
+            {settings.nodeGlow && (
+              <div className="flex items-center gap-1.5">
+                <span className="text-[11px] text-muted-foreground whitespace-nowrap w-16 flex-shrink-0">Bloom</span>
+                <input type="range" min="0.2" max="2" step="0.1" value={settings.bloomStrength}
+                  onChange={(e) => onSettingsChange({ bloomStrength: parseFloat(e.target.value) })}
+                  className="flex-1 h-1 min-w-0" style={{ accentColor: theme.wikiLink }} />
+                <span className="text-[10px] font-mono text-muted-foreground/70 w-7 text-right flex-shrink-0">{Math.round(settings.bloomStrength * 100)}%</span>
+              </div>
+            )}
+
+            {/* Label Size */}
+            {settings.showLabels && (
+              <div className="flex items-center gap-1.5">
+                <span className="text-[11px] text-muted-foreground whitespace-nowrap w-16 flex-shrink-0">Label Gr.</span>
+                <input type="range" min="0.3" max="2.0" step="0.1" value={settings.labelSize}
+                  onChange={(e) => onSettingsChange({ labelSize: parseFloat(e.target.value) })}
+                  className="flex-1 h-1 min-w-0" style={{ accentColor: theme.semanticLink }} />
+                <span className="text-[10px] font-mono text-muted-foreground/70 w-7 text-right flex-shrink-0">{Math.round(settings.labelSize * 100)}%</span>
+              </div>
+            )}
+          </div>
+
+          {/* Toggles + Label Color - compact row */}
+          <div className="flex items-center gap-1.5 flex-wrap pt-1 border-t border-border/30">
+            <button
+              onClick={() => onSettingsChange({ showArrows: !settings.showArrows })}
+              className={`px-2 py-0.5 text-[11px] rounded-md transition-colors ${
+                settings.showArrows
+                  ? 'bg-primary/15 text-primary border border-primary/30'
+                  : 'bg-muted/50 text-muted-foreground border border-border/40 hover:bg-muted'
+              }`}
+            >
+              Pfeile {settings.showArrows ? 'An' : 'Aus'}
+            </button>
+            <button
+              onClick={() => onSettingsChange({ curvedLinks: !settings.curvedLinks })}
+              className={`px-2 py-0.5 text-[11px] rounded-md transition-colors ${
+                settings.curvedLinks
+                  ? 'bg-primary/15 text-primary border border-primary/30'
+                  : 'bg-muted/50 text-muted-foreground border border-border/40 hover:bg-muted'
+              }`}
+            >
+              {settings.curvedLinks ? 'Kurvig' : 'Gerade'}
+            </button>
+            <button
+              onClick={() => onSettingsChange({ showOrphans: !settings.showOrphans })}
+              className={`px-2 py-0.5 text-[11px] rounded-md transition-colors ${
+                settings.showOrphans
+                  ? 'bg-primary/15 text-primary border border-primary/30'
+                  : 'bg-muted/50 text-muted-foreground border border-border/40 hover:bg-muted'
+              }`}
+            >
+              Verwaiste {settings.showOrphans ? 'An' : 'Aus'}
+            </button>
+            {settings.showLabels && (
+              <button
+                onClick={() => onSettingsChange({ labelGlow: !settings.labelGlow })}
+                className={`px-2 py-0.5 text-[11px] rounded-md transition-colors ${
+                  settings.labelGlow
+                    ? 'bg-primary/15 text-primary border border-primary/30'
+                    : 'bg-muted/50 text-muted-foreground border border-border/40 hover:bg-muted'
+                }`}
+              >
+                Label Glow {settings.labelGlow ? 'An' : 'Aus'}
+              </button>
+            )}
+
+            {/* Label Color - inline */}
+            {settings.showLabels && (
+              <>
+                <div className="w-px h-4 bg-border/40 mx-0.5" />
+                <span className="text-[11px] text-muted-foreground">Farbe:</span>
+                <div className="flex items-center gap-0.5">
+                  {labelColorPresets.map((preset) => (
+                    <button
+                      key={preset.color}
+                      onClick={() => onSettingsChange({ labelColor: preset.color })}
+                      className={`w-4 h-4 rounded-full border-2 transition-all hover:scale-110 ${
+                        settings.labelColor === preset.color ? 'border-white shadow-md scale-110' : 'border-transparent'
+                      }`}
+                      style={{ backgroundColor: preset.color }}
+                      title={preset.name}
+                    />
+                  ))}
+                  <input
+                    type="color"
+                    value={settings.labelColor}
+                    onChange={(e) => onSettingsChange({ labelColor: e.target.value })}
+                    className="w-4 h-4 rounded cursor-pointer border border-border/40 ml-0.5"
+                    title="Eigene Farbe"
+                  />
+                </div>
+              </>
+            )}
           </div>
         </div>
       )}

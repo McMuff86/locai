@@ -504,19 +504,23 @@ export function ImageEditor({ imageUrl, rootId, relativePath, fileName }: ImageE
   // Text overlay state
   const [textInput, setTextInput] = useState('');
   const [textPos, setTextPos] = useState<Point | null>(null);
+  const [editingLayerId, setEditingLayerId] = useState<string | null>(null);
+  const lastClickTimeRef = useRef(0);
+  const lastClickLayerRef = useRef<string | null>(null);
   const [textLayers, setTextLayers] = useState<TextLayer[]>([]);
   const [shapeLayers, setShapeLayers] = useState<ShapeLayer[]>([]);
   const [adjustmentLayers, setAdjustmentLayers] = useState<AdjustmentLayer[]>([]);
   const [layerOrder, setLayerOrder] = useState<string[]>([]);
   const [activeLayerId, setActiveLayerId] = useState<string | null>(null);
   const [activePanelTab, setActivePanelTab] = useState('layers');
-  const [panelPos, setPanelPos] = useState<{ right: number; bottom: number } | { left: number; top: number }>({ right: 8, bottom: 8 });
+  const [panelPos, setPanelPos] = useState<Record<string, number>>({ right: 8, top: 8 });
+  const [panelDocked, setPanelDocked] = useState<'right' | 'left' | null>('right');
   const panelRef = useRef<HTMLDivElement | null>(null);
   const panelDragging = useRef(false);
   const panelDragOffset = useRef({ x: 0, y: 0 });
   const [snapToGuides, setSnapToGuides] = useState(true);
   const [pixelSnap, setPixelSnap] = useState(true);
-  const [showRulers, setShowRulers] = useState(true);
+  const [showRulers, setShowRulers] = useState(false);
   const [guides, setGuides] = useState<Array<{ id: string; axis: 'x' | 'y'; value: number }>>([]);
   const [smartGuide, setSmartGuide] = useState<{ x: number | null; y: number | null }>({ x: null, y: null });
 
@@ -1444,6 +1448,22 @@ export function ImageEditor({ imageUrl, rootId, relativePath, fileName }: ImageE
     if (editor.activeTool === 'select' || editor.activeTool === 'text') {
       const hit = getObjectLayerAtPoint(realPos);
       if (hit && !hit.locked) {
+        const now = Date.now();
+        const isDoubleClick = lastClickLayerRef.current === hit.id && now - lastClickTimeRef.current < 400;
+        lastClickTimeRef.current = now;
+        lastClickLayerRef.current = hit.id;
+
+        if (isDoubleClick && hit.kind === 'text') {
+          const textLayer = textLayers.find((l) => l.id === hit.id);
+          if (textLayer) {
+            setEditingLayerId(textLayer.id);
+            setTextInput(textLayer.text);
+            setTextPos({ x: textLayer.x, y: textLayer.y });
+            setActiveLayerId(textLayer.id);
+            return;
+          }
+        }
+
         setActiveLayerId(hit.id);
         isDraggingLayerRef.current = true;
         draggingLayerIdRef.current = hit.id;
@@ -1452,8 +1472,10 @@ export function ImageEditor({ imageUrl, rootId, relativePath, fileName }: ImageE
         layerMoveChangedRef.current = false;
         return;
       }
+      lastClickLayerRef.current = null;
       setActiveLayerId(null);
       if (editor.activeTool === 'text') {
+        setEditingLayerId(null);
         setTextPos(realPos);
         setTextInput('');
       }
@@ -1733,7 +1755,33 @@ export function ImageEditor({ imageUrl, rootId, relativePath, fileName }: ImageE
 
   // ── Text finalize ───────────────────────────────────────────────
   const finalizeText = useCallback(() => {
-    if (!textPos || !textInput.trim()) { setTextPos(null); return; }
+    if (!textPos || !textInput.trim()) {
+      setTextPos(null);
+      setEditingLayerId(null);
+      return;
+    }
+
+    // Editing existing text layer
+    if (editingLayerId) {
+      const lineCount = Math.max(1, textInput.split('\n').length);
+      setTextLayers((prev) => prev.map((layer) => {
+        if (layer.id !== editingLayerId) return layer;
+        return {
+          ...layer,
+          text: textInput,
+          width: Math.max(1, textInput.length * layer.fontSize * 0.58),
+          height: Math.max(1, lineCount * layer.fontSize * layer.lineHeight),
+        };
+      }));
+      setActiveLayerId(editingLayerId);
+      setTextPos(null);
+      setTextInput('');
+      setEditingLayerId(null);
+      pushHistory('Text bearbeitet');
+      return;
+    }
+
+    // Creating new text layer
     const id = uid('text');
     const lineCount = Math.max(1, textInput.split('\n').length);
 
@@ -1778,7 +1826,7 @@ export function ImageEditor({ imageUrl, rootId, relativePath, fileName }: ImageE
     setTextPos(null);
     setTextInput('');
     pushHistory('Text hinzugefügt');
-  }, [editor.drawSettings, getLayerNamePrefix, pushHistory, textInput, textLayers.length, textPos]);
+  }, [editingLayerId, editor.drawSettings, getLayerNamePrefix, pushHistory, textInput, textLayers.length, textPos]);
 
   // ── Save ────────────────────────────────────────────────────────
   const handleSave = useCallback(async () => {
@@ -1913,6 +1961,7 @@ export function ImageEditor({ imageUrl, rootId, relativePath, fileName }: ImageE
     editor.setActiveTool(tool);
     setCropRect(null);
     setTextPos(null);
+    setEditingLayerId(null);
     setSmartGuide({ x: null, y: null });
 
     if (tool === 'resize') {
@@ -2156,6 +2205,7 @@ export function ImageEditor({ imageUrl, rootId, relativePath, fileName }: ImageE
     e.preventDefault();
     e.stopPropagation();
     panelDragging.current = true;
+    setPanelDocked(null);
 
     const rect = panelRef.current?.getBoundingClientRect();
     if (rect) {
@@ -2177,10 +2227,31 @@ export function ImageEditor({ imageUrl, rootId, relativePath, fileName }: ImageE
       });
     };
 
-    const onPointerUp = () => {
+    const onPointerUp = (upEvent: PointerEvent) => {
       panelDragging.current = false;
       document.removeEventListener('pointermove', onPointerMove);
       document.removeEventListener('pointerup', onPointerUp);
+
+      const parent = containerRef.current;
+      if (!parent) return;
+      const parentRect = parent.getBoundingClientRect();
+      const elW = panelRef.current?.offsetWidth ?? 288;
+      const elH = panelRef.current?.offsetHeight ?? 400;
+      const finalLeft = upEvent.clientX - parentRect.left - panelDragOffset.current.x;
+      const finalTop = upEvent.clientY - parentRect.top - panelDragOffset.current.y;
+      const clampedTop = Math.max(8, Math.min(parentRect.height - elH - 8, finalTop));
+
+      const snapThreshold = 30;
+      if (finalLeft + elW >= parentRect.width - snapThreshold) {
+        setPanelPos({ right: 8, top: clampedTop });
+        setPanelDocked('right');
+        return;
+      }
+      if (finalLeft <= snapThreshold) {
+        setPanelPos({ left: 8, top: clampedTop });
+        setPanelDocked('left');
+        return;
+      }
     };
 
     document.addEventListener('pointermove', onPointerMove);
@@ -2463,7 +2534,7 @@ export function ImageEditor({ imageUrl, rootId, relativePath, fileName }: ImageE
           )}
 
           {/* Text input overlay */}
-          {textPos && editor.activeTool === 'text' && (
+          {textPos && (editor.activeTool === 'text' || editingLayerId) && (
             <div className="absolute" style={{ left: textPos.x * zoom, top: textPos.y * zoom }}>
               <div className="flex flex-col gap-1 bg-background border border-border rounded shadow-lg p-1.5">
                 <textarea
@@ -2474,143 +2545,192 @@ export function ImageEditor({ imageUrl, rootId, relativePath, fileName }: ImageE
                   autoFocus
                 />
                 <div className="flex items-center justify-end gap-1">
-                  <Button size="sm" className="h-5 px-1.5 text-xs" onClick={finalizeText}>Einfügen</Button>
-                  <Button size="sm" variant="ghost" className="h-5 px-1 text-xs" onClick={() => setTextPos(null)}>
+                  <Button size="sm" className="h-5 px-1.5 text-xs" onClick={finalizeText}>
+                    {editingLayerId ? 'Übernehmen' : 'Einfügen'}
+                  </Button>
+                  <Button size="sm" variant="ghost" className="h-5 px-1 text-xs" onClick={() => { setTextPos(null); setEditingLayerId(null); }}>
                     <X className="h-3 w-3" />
                   </Button>
                 </div>
               </div>
             </div>
           )}
+        </div>
 
+        {/* Layer panel - outside the filtered div so CSS filters don't affect it */}
+        <div
+          ref={panelRef}
+          onPointerDown={handlePanelPointerDown}
+          className={`absolute z-10 w-72 max-h-[calc(100%-1rem)] rounded-lg overflow-hidden transition-shadow duration-200
+            border border-border/50 bg-background/95 backdrop-blur-md shadow-xl
+            ${panelDocked ? 'ring-1 ring-primary/20' : ''}
+          `}
+          style={panelPos}
+        >
+          {/* Grip handle */}
           <div
-            ref={panelRef}
-            onPointerDown={handlePanelPointerDown}
-            className="absolute z-10 w-72 max-h-[calc(100%-1rem)] border border-border/60 rounded-lg bg-background/95 backdrop-blur-sm shadow-lg overflow-hidden"
-            style={panelPos}
+            data-panel-grip
+            className={`flex cursor-grab items-center justify-center gap-1.5 border-b py-1.5 active:cursor-grabbing transition-colors
+              ${panelDocked ? 'border-primary/20 bg-primary/5' : 'border-border/40 bg-muted/30'}
+            `}
           >
-            <div
-              data-panel-grip
-              className="flex cursor-grab items-center justify-center border-b border-border/40 py-1 active:cursor-grabbing"
-            >
-              <GripVertical className="h-3.5 w-3.5 text-muted-foreground/40" />
+            <div className="flex gap-0.5">
+              <div className="w-1 h-1 rounded-full bg-muted-foreground/30" />
+              <div className="w-1 h-1 rounded-full bg-muted-foreground/30" />
+              <div className="w-1 h-1 rounded-full bg-muted-foreground/30" />
             </div>
-            <Tabs value={activePanelTab} onValueChange={setActivePanelTab} className="h-full">
-              <TabsList className="w-full rounded-none border-b border-border/40 bg-transparent p-1">
-                <TabsTrigger value="layers" className="text-[11px]"><Layers className="h-3 w-3 mr-1" />Ebenen</TabsTrigger>
-                <TabsTrigger value="history" className="text-[11px]"><History className="h-3 w-3 mr-1" />History</TabsTrigger>
-                <TabsTrigger value="text" className="text-[11px]">Text</TabsTrigger>
-                <TabsTrigger value="guides" className="text-[11px]">Guides</TabsTrigger>
-                <TabsTrigger value="session" className="text-[11px]">Session</TabsTrigger>
-              </TabsList>
-
-              <TabsContent value="layers" className="h-[22rem]">
-                <ScrollArea className="h-full">
-                  <div className="p-2 space-y-2">
-                    <div className="grid grid-cols-4 gap-1">
-                      {(['brightness', 'contrast', 'saturation', 'blur', 'grayscale', 'sepia', 'invert', 'sharpen'] as AdjustmentType[]).map((type) => (
-                        <Button key={type} size="sm" variant="outline" className="h-6 px-1 text-[10px]" onClick={() => addAdjustmentLayer(type)}>
-                          +{type.slice(0, 3)}
-                        </Button>
-                      ))}
-                    </div>
-                    {orderedLayers.slice().reverse().map((layer) => (
-                      <div key={layer.id} className={`border rounded px-2 py-1 ${activeLayerId === layer.id ? 'border-primary bg-primary/5' : 'border-border/40'}`}>
-                        <div className="flex items-center gap-1">
-                          <button type="button" className="text-muted-foreground hover:text-foreground" onClick={() => updateLayerVisibility(layer.id, !layer.visible)}>
-                            {layer.visible ? <Eye className="h-3 w-3" /> : <EyeOff className="h-3 w-3" />}
-                          </button>
-                          <button type="button" className="text-muted-foreground hover:text-foreground" onClick={() => updateLayerLock(layer.id, !layer.locked)}>
-                            {layer.locked ? <Lock className="h-3 w-3" /> : <LockOpen className="h-3 w-3" />}
-                          </button>
-                          <button type="button" className="text-[11px] truncate text-left flex-1" onClick={() => setActiveLayerId(layer.id)}>{layer.name}</button>
-                          <button type="button" className="text-muted-foreground hover:text-foreground" onClick={() => moveLayer(layer.id, -1)}><ArrowUp className="h-3 w-3" /></button>
-                          <button type="button" className="text-muted-foreground hover:text-foreground" onClick={() => moveLayer(layer.id, 1)}><ArrowDown className="h-3 w-3" /></button>
-                          <button type="button" className="text-muted-foreground hover:text-destructive" onClick={() => removeLayer(layer.id)}><X className="h-3 w-3" /></button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </ScrollArea>
-              </TabsContent>
-
-              <TabsContent value="history" className="h-[22rem]">
-                <ScrollArea className="h-full">
-                  <div className="p-2 space-y-1">
-                    {historyEntries.map((entry, idx) => (
-                      <button
-                        key={entry.id}
-                        type="button"
-                        className={`w-full rounded px-2 py-1 text-left text-xs ${historyIndex === idx ? 'bg-primary/15 text-primary' : 'hover:bg-muted'}`}
-                        onClick={() => jumpToHistory(idx)}
-                      >
-                        {entry.label}
-                      </button>
-                    ))}
-                  </div>
-                </ScrollArea>
-              </TabsContent>
-
-              <TabsContent value="text" className="h-[22rem]">
-                <ScrollArea className="h-full">
-                  <div className="p-2 space-y-2 text-xs">
-                    {!activeTextLayer ? (
-                      <p className="text-muted-foreground">Kein Text-Layer ausgewählt.</p>
-                    ) : (
-                      <>
-                        <label className="block">Tracking</label>
-                        <Slider value={[activeTextLayer.tracking]} onValueChange={([v]) => updateTextLayer('tracking', v)} min={-2} max={20} step={0.5} />
-                        <label className="block">Kerning</label>
-                        <Slider value={[activeTextLayer.kerning]} onValueChange={([v]) => updateTextLayer('kerning', v)} min={-10} max={10} step={0.5} />
-                        <div className="flex items-center gap-1">
-                          <Button size="sm" variant={activeTextLayer.align === 'left' ? 'default' : 'outline'} className="h-6 text-[11px]" onClick={() => updateTextLayer('align', 'left')}>L</Button>
-                          <Button size="sm" variant={activeTextLayer.align === 'center' ? 'default' : 'outline'} className="h-6 text-[11px]" onClick={() => updateTextLayer('align', 'center')}>C</Button>
-                          <Button size="sm" variant={activeTextLayer.align === 'right' ? 'default' : 'outline'} className="h-6 text-[11px]" onClick={() => updateTextLayer('align', 'right')}>R</Button>
-                        </div>
-                        <label className="flex items-center gap-2"><input type="checkbox" checked={activeTextLayer.backgroundEnabled} onChange={(e) => updateTextLayer('backgroundEnabled', e.target.checked)} />Hintergrundbox</label>
-                        <label className="flex items-center gap-2"><input type="checkbox" checked={activeTextLayer.strokeEnabled} onChange={(e) => updateTextLayer('strokeEnabled', e.target.checked)} />Stroke</label>
-                        <label className="flex items-center gap-2"><input type="checkbox" checked={activeTextLayer.shadowEnabled} onChange={(e) => updateTextLayer('shadowEnabled', e.target.checked)} />Shadow</label>
-                      </>
-                    )}
-                  </div>
-                </ScrollArea>
-              </TabsContent>
-
-              <TabsContent value="guides" className="h-[22rem]">
-                <div className="p-2 space-y-2 text-xs">
-                  <label className="flex items-center gap-2"><input type="checkbox" checked={showRulers} onChange={(e) => setShowRulers(e.target.checked)} />Lineale</label>
-                  <label className="flex items-center gap-2"><input type="checkbox" checked={snapToGuides} onChange={(e) => setSnapToGuides(e.target.checked)} />Smart Guides</label>
-                  <label className="flex items-center gap-2"><input type="checkbox" checked={pixelSnap} onChange={(e) => setPixelSnap(e.target.checked)} />Pixel Snap</label>
-                  <div className="flex items-center gap-1">
-                    <Button size="sm" className="h-6 text-[11px]" onClick={() => setGuides((prev) => [...prev, { id: uid('guide'), axis: 'x', value: dimensions.w / 2 }])}><Plus className="h-3 w-3 mr-1" />V</Button>
-                    <Button size="sm" className="h-6 text-[11px]" onClick={() => setGuides((prev) => [...prev, { id: uid('guide'), axis: 'y', value: dimensions.h / 2 }])}><Plus className="h-3 w-3 mr-1" />H</Button>
-                    <Button size="sm" variant="ghost" className="h-6 text-[11px]" onClick={() => setGuides([])}>Clear</Button>
-                  </div>
-                </div>
-              </TabsContent>
-
-              <TabsContent value="session" className="h-[22rem]">
-                <div className="p-2 space-y-2 text-xs">
-                  <Button size="sm" className="h-7 text-xs w-full" onClick={exportSession}>Session exportieren</Button>
-                  <label className="block">
-                    <span className="text-[11px] text-muted-foreground">Session importieren</span>
-                    <input
-                      type="file"
-                      accept=".json,.locai-session.json"
-                      className="mt-1 block w-full text-[11px]"
-                      onChange={(e) => {
-                        const file = e.target.files?.[0];
-                        if (!file) return;
-                        void importSessionFromFile(file);
-                        e.currentTarget.value = '';
-                      }}
-                    />
-                  </label>
-                  <label className="flex items-center gap-2"><input type="checkbox" checked={maskMode} onChange={(e) => setMaskMode(e.target.checked)} />Layer-Mask-Modus</label>
-                </div>
-              </TabsContent>
-            </Tabs>
+            <GripVertical className="h-3.5 w-3.5 text-muted-foreground/50" />
+            <div className="flex gap-0.5">
+              <div className="w-1 h-1 rounded-full bg-muted-foreground/30" />
+              <div className="w-1 h-1 rounded-full bg-muted-foreground/30" />
+              <div className="w-1 h-1 rounded-full bg-muted-foreground/30" />
+            </div>
           </div>
+
+          <Tabs value={activePanelTab} onValueChange={setActivePanelTab} className="h-full">
+            <TabsList className="w-full rounded-none border-b border-border/40 bg-muted/10 p-1 h-auto gap-0.5">
+              <TabsTrigger value="layers" className="text-[11px] px-2 py-1 data-[state=active]:bg-background data-[state=active]:shadow-sm"><Layers className="h-3 w-3 mr-1" />Ebenen</TabsTrigger>
+              <TabsTrigger value="history" className="text-[11px] px-2 py-1 data-[state=active]:bg-background data-[state=active]:shadow-sm"><History className="h-3 w-3 mr-1" />History</TabsTrigger>
+              <TabsTrigger value="text" className="text-[11px] px-2 py-1 data-[state=active]:bg-background data-[state=active]:shadow-sm">Text</TabsTrigger>
+              <TabsTrigger value="guides" className="text-[11px] px-2 py-1 data-[state=active]:bg-background data-[state=active]:shadow-sm">Guides</TabsTrigger>
+              <TabsTrigger value="session" className="text-[11px] px-2 py-1 data-[state=active]:bg-background data-[state=active]:shadow-sm">Session</TabsTrigger>
+            </TabsList>
+
+            <TabsContent value="layers" className="h-[22rem]">
+              <ScrollArea className="h-full">
+                <div className="p-2.5 space-y-2.5">
+                  {/* Quick-add adjustment buttons */}
+                  <div className="grid grid-cols-4 gap-1">
+                    {(['brightness', 'contrast', 'saturation', 'blur', 'grayscale', 'sepia', 'invert', 'sharpen'] as AdjustmentType[]).map((type) => (
+                      <Button
+                        key={type}
+                        size="sm"
+                        variant="outline"
+                        className="h-7 px-1.5 text-[10px] font-medium hover:bg-primary/10 hover:border-primary/30 transition-colors"
+                        onClick={() => addAdjustmentLayer(type)}
+                      >
+                        +{type.slice(0, 3)}
+                      </Button>
+                    ))}
+                  </div>
+
+                  {/* Layer list */}
+                  {orderedLayers.length === 0 && (
+                    <p className="text-[11px] text-muted-foreground text-center py-3">Keine Ebenen vorhanden</p>
+                  )}
+                  {orderedLayers.slice().reverse().map((layer) => (
+                    <div
+                      key={layer.id}
+                      className={`border rounded-md px-2.5 py-1.5 transition-colors cursor-pointer
+                        ${activeLayerId === layer.id
+                          ? 'border-primary/60 bg-primary/8 shadow-sm'
+                          : 'border-border/40 hover:border-border/70 hover:bg-muted/30'
+                        }`}
+                      onClick={() => setActiveLayerId(layer.id)}
+                    >
+                      <div className="flex items-center gap-1.5">
+                        <button type="button" className="p-0.5 rounded hover:bg-muted transition-colors text-muted-foreground hover:text-foreground" onClick={(e) => { e.stopPropagation(); updateLayerVisibility(layer.id, !layer.visible); }}>
+                          {layer.visible ? <Eye className="h-3.5 w-3.5" /> : <EyeOff className="h-3.5 w-3.5" />}
+                        </button>
+                        <button type="button" className="p-0.5 rounded hover:bg-muted transition-colors text-muted-foreground hover:text-foreground" onClick={(e) => { e.stopPropagation(); updateLayerLock(layer.id, !layer.locked); }}>
+                          {layer.locked ? <Lock className="h-3.5 w-3.5" /> : <LockOpen className="h-3.5 w-3.5" />}
+                        </button>
+                        <span className="text-[11px] truncate text-left flex-1 font-medium">{layer.name}</span>
+                        <button type="button" className="p-0.5 rounded hover:bg-muted transition-colors text-muted-foreground hover:text-foreground" onClick={(e) => { e.stopPropagation(); moveLayer(layer.id, -1); }}><ArrowUp className="h-3.5 w-3.5" /></button>
+                        <button type="button" className="p-0.5 rounded hover:bg-muted transition-colors text-muted-foreground hover:text-foreground" onClick={(e) => { e.stopPropagation(); moveLayer(layer.id, 1); }}><ArrowDown className="h-3.5 w-3.5" /></button>
+                        <button type="button" className="p-0.5 rounded hover:bg-destructive/10 transition-colors text-muted-foreground hover:text-destructive" onClick={(e) => { e.stopPropagation(); removeLayer(layer.id); }}><X className="h-3.5 w-3.5" /></button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </ScrollArea>
+            </TabsContent>
+
+            <TabsContent value="history" className="h-[22rem]">
+              <ScrollArea className="h-full">
+                <div className="p-2.5 space-y-1">
+                  {historyEntries.map((entry, idx) => (
+                    <button
+                      key={entry.id}
+                      type="button"
+                      className={`w-full rounded-md px-2.5 py-1.5 text-left text-xs transition-colors
+                        ${historyIndex === idx ? 'bg-primary/15 text-primary font-medium' : 'hover:bg-muted/50'}`}
+                      onClick={() => jumpToHistory(idx)}
+                    >
+                      {entry.label}
+                    </button>
+                  ))}
+                </div>
+              </ScrollArea>
+            </TabsContent>
+
+            <TabsContent value="text" className="h-[22rem]">
+              <ScrollArea className="h-full">
+                <div className="p-2.5 space-y-3 text-xs">
+                  {!activeTextLayer ? (
+                    <p className="text-muted-foreground text-center py-3">Kein Text-Layer ausgewählt.</p>
+                  ) : (
+                    <>
+                      <div className="space-y-1.5">
+                        <label className="block text-[11px] font-medium text-muted-foreground">Tracking</label>
+                        <Slider value={[activeTextLayer.tracking]} onValueChange={([v]) => updateTextLayer('tracking', v)} min={-2} max={20} step={0.5} />
+                      </div>
+                      <div className="space-y-1.5">
+                        <label className="block text-[11px] font-medium text-muted-foreground">Kerning</label>
+                        <Slider value={[activeTextLayer.kerning]} onValueChange={([v]) => updateTextLayer('kerning', v)} min={-10} max={10} step={0.5} />
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <Button size="sm" variant={activeTextLayer.align === 'left' ? 'default' : 'outline'} className="h-7 text-[11px] flex-1" onClick={() => updateTextLayer('align', 'left')}>L</Button>
+                        <Button size="sm" variant={activeTextLayer.align === 'center' ? 'default' : 'outline'} className="h-7 text-[11px] flex-1" onClick={() => updateTextLayer('align', 'center')}>C</Button>
+                        <Button size="sm" variant={activeTextLayer.align === 'right' ? 'default' : 'outline'} className="h-7 text-[11px] flex-1" onClick={() => updateTextLayer('align', 'right')}>R</Button>
+                      </div>
+                      <div className="space-y-1.5 pt-1">
+                        <label className="flex items-center gap-2"><input type="checkbox" className="rounded" checked={activeTextLayer.backgroundEnabled} onChange={(e) => updateTextLayer('backgroundEnabled', e.target.checked)} />Hintergrundbox</label>
+                        <label className="flex items-center gap-2"><input type="checkbox" className="rounded" checked={activeTextLayer.strokeEnabled} onChange={(e) => updateTextLayer('strokeEnabled', e.target.checked)} />Stroke</label>
+                        <label className="flex items-center gap-2"><input type="checkbox" className="rounded" checked={activeTextLayer.shadowEnabled} onChange={(e) => updateTextLayer('shadowEnabled', e.target.checked)} />Shadow</label>
+                      </div>
+                    </>
+                  )}
+                </div>
+              </ScrollArea>
+            </TabsContent>
+
+            <TabsContent value="guides" className="h-[22rem]">
+              <div className="p-2.5 space-y-2.5 text-xs">
+                <div className="space-y-1.5">
+                  <label className="flex items-center gap-2"><input type="checkbox" className="rounded" checked={showRulers} onChange={(e) => setShowRulers(e.target.checked)} />Lineale</label>
+                  <label className="flex items-center gap-2"><input type="checkbox" className="rounded" checked={snapToGuides} onChange={(e) => setSnapToGuides(e.target.checked)} />Smart Guides</label>
+                  <label className="flex items-center gap-2"><input type="checkbox" className="rounded" checked={pixelSnap} onChange={(e) => setPixelSnap(e.target.checked)} />Pixel Snap</label>
+                </div>
+                <div className="flex items-center gap-1 pt-1">
+                  <Button size="sm" className="h-7 text-[11px] flex-1" onClick={() => setGuides((prev) => [...prev, { id: uid('guide'), axis: 'x', value: dimensions.w / 2 }])}><Plus className="h-3 w-3 mr-1" />V</Button>
+                  <Button size="sm" className="h-7 text-[11px] flex-1" onClick={() => setGuides((prev) => [...prev, { id: uid('guide'), axis: 'y', value: dimensions.h / 2 }])}><Plus className="h-3 w-3 mr-1" />H</Button>
+                  <Button size="sm" variant="ghost" className="h-7 text-[11px]" onClick={() => setGuides([])}>Clear</Button>
+                </div>
+              </div>
+            </TabsContent>
+
+            <TabsContent value="session" className="h-[22rem]">
+              <div className="p-2.5 space-y-2.5 text-xs">
+                <Button size="sm" className="h-8 text-xs w-full" onClick={exportSession}>Session exportieren</Button>
+                <label className="block">
+                  <span className="text-[11px] text-muted-foreground font-medium">Session importieren</span>
+                  <input
+                    type="file"
+                    accept=".json,.locai-session.json"
+                    className="mt-1.5 block w-full text-[11px]"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (!file) return;
+                      void importSessionFromFile(file);
+                      e.currentTarget.value = '';
+                    }}
+                  />
+                </label>
+                <label className="flex items-center gap-2"><input type="checkbox" className="rounded" checked={maskMode} onChange={(e) => setMaskMode(e.target.checked)} />Layer-Mask-Modus</label>
+              </div>
+            </TabsContent>
+          </Tabs>
         </div>
 
         {!imageLoaded && (
