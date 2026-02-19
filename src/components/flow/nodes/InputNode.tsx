@@ -1,7 +1,9 @@
 import { Handle, Position, type NodeProps } from '@xyflow/react';
+import React, { useCallback } from 'react';
 import { Brackets, CircleDot } from 'lucide-react';
 import { NodeRuntimeBadge } from '@/components/flow/nodes/NodeRuntimeBadge';
 import { cn } from '@/lib/utils';
+import { useFlowStore } from '@/stores/flowStore';
 import type { InputNodeData, NodeRunStatus } from '@/lib/flow/types';
 
 function runtimeClass(status?: NodeRunStatus): string {
@@ -17,8 +19,16 @@ function runtimeClass(status?: NodeRunStatus): string {
   }
 }
 
-export function InputNode({ data: rawData, selected }: NodeProps) {
+export function InputNode({ id, data: rawData, selected }: NodeProps) {
   const data = rawData as InputNodeData;
+  const updateNodeConfig = useFlowStore((state) => state.updateNodeConfig);
+
+  const handleTextChange = useCallback(
+    (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+      updateNodeConfig(id, { text: e.target.value });
+    },
+    [id, updateNodeConfig],
+  );
 
   return (
     <div
@@ -38,9 +48,13 @@ export function InputNode({ data: rawData, selected }: NodeProps) {
 
       <div className="space-y-2 px-3 py-2.5">
         <div className="text-[11px] text-muted-foreground">Eingabe</div>
-        <div className="rounded-md border border-emerald-500/20 bg-emerald-500/5 px-2 py-1.5 text-[11px] leading-relaxed text-foreground/80">
-          {data.config.text?.trim() || 'Keine Eingabe gesetzt'}
-        </div>
+        <textarea
+          value={data.config.text ?? ''}
+          onChange={handleTextChange}
+          placeholder="Keine Eingabe gesetzt"
+          className="nopan nodrag nowheel w-full resize-none rounded-md border border-emerald-500/20 bg-emerald-500/5 px-2 py-1.5 text-[11px] leading-relaxed text-foreground/80 outline-none placeholder:text-muted-foreground/50 focus:border-emerald-400/40 focus:ring-1 focus:ring-emerald-400/30"
+          rows={3}
+        />
       </div>
 
       <div className="flex items-center justify-between border-t border-border/60 px-3 py-1.5 text-[10px] text-muted-foreground">

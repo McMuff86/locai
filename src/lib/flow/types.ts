@@ -41,6 +41,8 @@ export interface TemplateNodeConfig {
 
 export interface OutputNodeConfig {
   result?: string;
+  saveToFile?: boolean;
+  filePath?: string;
 }
 
 export type InputNodeData = BaseNodeData<'input', InputNodeConfig>;

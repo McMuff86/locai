@@ -13,7 +13,8 @@ import { FlowCompileError, compileVisualWorkflowToPlan } from '@/lib/flow/engine
 import { loadCurrentWorkflow, saveCurrentWorkflow } from '@/lib/flow/serialization';
 import { useFlowStore } from '@/stores/flowStore';
 import type { WorkflowStatus, WorkflowStreamEvent } from '@/lib/agents/workflowTypes';
-import type { FlowNodeKind, NodeRunStatus, WorkflowRunSummary } from '@/lib/flow/types';
+import { saveFlowOutput } from '@/lib/flow/saveOutput';
+import type { FlowNodeKind, NodeRunStatus, OutputNodeData, WorkflowRunSummary } from '@/lib/flow/types';
 
 export default function FlowPage() {
   const { toast } = useToast();
@@ -397,6 +398,28 @@ export default function FlowPage() {
         error: lastError,
         nodeStatuses: runNodeStatuses,
       });
+
+      if (finalStatus === 'done' && compiled.outputNodeId) {
+        const outputNode = workflow.graph.nodes.find((n) => n.id === compiled.outputNodeId);
+        if (outputNode?.data.kind === 'output') {
+          const outputConfig = (outputNode.data as OutputNodeData).config;
+          if (outputConfig.saveToFile) {
+            const saveResult = await saveFlowOutput(streamBufferRef.current, outputConfig.filePath);
+            if (saveResult.success) {
+              toast({
+                title: 'Auto-Save erfolgreich',
+                description: `Ergebnis wurde in ${saveResult.savedPath} gespeichert.`,
+              });
+            } else {
+              toast({
+                title: 'Auto-Save fehlgeschlagen',
+                description: saveResult.error,
+                variant: 'destructive',
+              });
+            }
+          }
+        }
+      }
     }
   }, [
     addRunSummary,
