@@ -475,6 +475,52 @@ html[data-font-size="large"] {
   }
 }
 
+/* ── ReactFlow Controls (Dark Theme) ─────────────────────────── */
+
+.react-flow .react-flow__controls {
+  border-radius: 0.5rem !important;
+  border: 1px solid rgba(255, 255, 255, 0.15) !important;
+  background: rgba(20, 20, 30, 0.92) !important;
+  backdrop-filter: blur(12px);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5) !important;
+  overflow: hidden !important;
+}
+
+.react-flow .react-flow__controls-button {
+  background: transparent !important;
+  border: none !important;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08) !important;
+  width: 34px !important;
+  height: 34px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  cursor: pointer !important;
+  transition: background 150ms ease !important;
+}
+
+.react-flow .react-flow__controls-button:last-child {
+  border-bottom: none !important;
+}
+
+.react-flow .react-flow__controls-button:hover {
+  background: rgba(0, 200, 200, 0.15) !important;
+}
+
+.react-flow .react-flow__controls-button svg {
+  fill: rgba(220, 220, 230, 0.9) !important;
+}
+
+.react-flow .react-flow__controls-button:hover svg {
+  fill: rgb(0, 220, 210) !important;
+}
+
+/* ── ReactFlow MiniMap (Dark Theme) ──────────────────────────── */
+
+.react-flow__minimap {
+  background: rgba(15, 15, 25, 0.85) !important;
+}
+
 /* ── AI Streaming Cursor ─────────────────────────────────────── */
 
 .ai-cursor {

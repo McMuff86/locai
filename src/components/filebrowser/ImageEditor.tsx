@@ -6,6 +6,7 @@ import {
   ArrowUp,
   Eye,
   EyeOff,
+  GripVertical,
   History,
   Layers,
   Loader2,
@@ -509,6 +510,10 @@ export function ImageEditor({ imageUrl, rootId, relativePath, fileName }: ImageE
   const [layerOrder, setLayerOrder] = useState<string[]>([]);
   const [activeLayerId, setActiveLayerId] = useState<string | null>(null);
   const [activePanelTab, setActivePanelTab] = useState('layers');
+  const [panelPos, setPanelPos] = useState<{ right: number; bottom: number } | { left: number; top: number }>({ right: 8, bottom: 8 });
+  const panelRef = useRef<HTMLDivElement | null>(null);
+  const panelDragging = useRef(false);
+  const panelDragOffset = useRef({ x: 0, y: 0 });
   const [snapToGuides, setSnapToGuides] = useState(true);
   const [pixelSnap, setPixelSnap] = useState(true);
   const [showRulers, setShowRulers] = useState(true);
@@ -2146,6 +2151,42 @@ export function ImageEditor({ imageUrl, rootId, relativePath, fileName }: ImageE
     img.src = parsed.bitmap;
   };
 
+  const handlePanelPointerDown = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+    if (!(e.target as HTMLElement).closest('[data-panel-grip]')) return;
+    e.preventDefault();
+    e.stopPropagation();
+    panelDragging.current = true;
+
+    const rect = panelRef.current?.getBoundingClientRect();
+    if (rect) {
+      panelDragOffset.current = { x: e.clientX - rect.left, y: e.clientY - rect.top };
+    }
+
+    const onPointerMove = (moveEvent: PointerEvent) => {
+      if (!panelDragging.current) return;
+      const parent = containerRef.current;
+      if (!parent) return;
+      const parentRect = parent.getBoundingClientRect();
+      const elW = panelRef.current?.offsetWidth ?? 288;
+      const elH = panelRef.current?.offsetHeight ?? 400;
+      const newLeft = moveEvent.clientX - parentRect.left - panelDragOffset.current.x;
+      const newTop = moveEvent.clientY - parentRect.top - panelDragOffset.current.y;
+      setPanelPos({
+        left: Math.max(0, Math.min(parentRect.width - elW, newLeft)),
+        top: Math.max(0, Math.min(parentRect.height - elH, newTop)),
+      });
+    };
+
+    const onPointerUp = () => {
+      panelDragging.current = false;
+      document.removeEventListener('pointermove', onPointerMove);
+      document.removeEventListener('pointerup', onPointerUp);
+    };
+
+    document.addEventListener('pointermove', onPointerMove);
+    document.addEventListener('pointerup', onPointerUp);
+  }, []);
+
   return (
     <div className="flex flex-col h-full">
       <ImageToolbar
@@ -2442,7 +2483,18 @@ export function ImageEditor({ imageUrl, rootId, relativePath, fileName }: ImageE
             </div>
           )}
 
-          <div className="absolute right-2 top-2 w-72 max-h-[calc(100%-1rem)] border border-border/60 rounded bg-background/95 backdrop-blur-sm shadow-lg overflow-hidden">
+          <div
+            ref={panelRef}
+            onPointerDown={handlePanelPointerDown}
+            className="absolute z-10 w-72 max-h-[calc(100%-1rem)] border border-border/60 rounded-lg bg-background/95 backdrop-blur-sm shadow-lg overflow-hidden"
+            style={panelPos}
+          >
+            <div
+              data-panel-grip
+              className="flex cursor-grab items-center justify-center border-b border-border/40 py-1 active:cursor-grabbing"
+            >
+              <GripVertical className="h-3.5 w-3.5 text-muted-foreground/40" />
+            </div>
             <Tabs value={activePanelTab} onValueChange={setActivePanelTab} className="h-full">
               <TabsList className="w-full rounded-none border-b border-border/40 bg-transparent p-1">
                 <TabsTrigger value="layers" className="text-[11px]"><Layers className="h-3 w-3 mr-1" />Ebenen</TabsTrigger>

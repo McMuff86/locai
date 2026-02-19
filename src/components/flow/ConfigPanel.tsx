@@ -1,13 +1,15 @@
 "use client";
 
-import React, { useEffect, useMemo, useState } from 'react';
-import { Trash2 } from 'lucide-react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Download, GripVertical, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { getOllamaModels } from '@/lib/ollama';
 import type { AgentNodeData, InputNodeData, OutputNodeData, TemplateNodeData } from '@/lib/flow/types';
+import { saveFlowOutput } from '@/lib/flow/saveOutput';
 import { cn } from '@/lib/utils';
+import { useToast } from '@/components/ui/use-toast';
 import { useFlowStore } from '@/stores/flowStore';
 
 const BUILTIN_TOOLS = [
@@ -37,12 +39,16 @@ function SectionTitle({ children }: { children: React.ReactNode }) {
 }
 
 export function ConfigPanel() {
+  const { toast } = useToast();
   const nodes = useFlowStore((state) => state.workflow.graph.nodes);
   const selectedNodeId = useFlowStore((state) => state.selectedNodeId);
   const updateNodeLabel = useFlowStore((state) => state.updateNodeLabel);
   const updateNodeConfig = useFlowStore((state) => state.updateNodeConfig);
   const removeNode = useFlowStore((state) => state.removeNode);
   const [availableModels, setAvailableModels] = useState<string[]>([]);
+  const [isSaving, setIsSaving] = useState(false);
+  const [panelWidth, setPanelWidth] = useState(360);
+  const isResizingRef = useRef(false);
   const selectedNode = nodes.find((node) => node.id === selectedNodeId) ?? null;
   const inputData = selectedNode?.data.kind === 'input' ? (selectedNode.data as InputNodeData) : null;
   const agentData = selectedNode?.data.kind === 'agent' ? (selectedNode.data as AgentNodeData) : null;
@@ -96,9 +102,68 @@ export function ConfigPanel() {
     return Array.from(options);
   }, [agentData?.config.model, availableModels]);
 
+  const handleResizeStart = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    isResizingRef.current = true;
+    const startX = e.clientX;
+    const startWidth = panelWidth;
+
+    const onPointerMove = (moveEvent: PointerEvent) => {
+      if (!isResizingRef.current) return;
+      const delta = startX - moveEvent.clientX;
+      setPanelWidth(Math.max(260, Math.min(700, startWidth + delta)));
+    };
+
+    const onPointerUp = () => {
+      isResizingRef.current = false;
+      document.removeEventListener('pointermove', onPointerMove);
+      document.removeEventListener('pointerup', onPointerUp);
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+    };
+
+    document.body.style.cursor = 'col-resize';
+    document.body.style.userSelect = 'none';
+    document.addEventListener('pointermove', onPointerMove);
+    document.addEventListener('pointerup', onPointerUp);
+  }, [panelWidth]);
+
+  const handleSaveToWorkspace = useCallback(async () => {
+    if (!outputData?.config.result) {
+      return;
+    }
+
+    setIsSaving(true);
+    const result = await saveFlowOutput(outputData.config.result, outputData.config.filePath);
+    setIsSaving(false);
+
+    if (result.success) {
+      toast({
+        title: 'Gespeichert',
+        description: `Ergebnis wurde in ${result.savedPath} gespeichert.`,
+      });
+    } else {
+      toast({
+        title: 'Speichern fehlgeschlagen',
+        description: result.error,
+        variant: 'destructive',
+      });
+    }
+  }, [outputData?.config.result, outputData?.config.filePath, toast]);
+
+  const resizeHandle = (
+    <div
+      onPointerDown={handleResizeStart}
+      className="absolute left-0 top-0 z-10 flex h-full w-2 cursor-col-resize items-center justify-center hover:bg-border/30"
+    >
+      <GripVertical className="h-4 w-4 text-muted-foreground/40" />
+    </div>
+  );
+
   if (!selectedNode) {
     return (
-      <aside className="h-full w-[360px] border-l border-border/60 bg-zinc-900/70 p-4">
+      <aside className="relative h-full border-l border-border/60 bg-zinc-900/70 p-4 pl-5" style={{ width: panelWidth }}>
+        {resizeHandle}
         <h2 className="text-sm font-semibold tracking-wide">Config</h2>
         <p className="mt-2 text-xs text-muted-foreground">
           Wähle einen Node im Canvas aus, um Konfigurationen zu bearbeiten.
@@ -108,10 +173,11 @@ export function ConfigPanel() {
   }
 
   return (
-    <aside className="h-full w-[360px] border-l border-border/60 bg-zinc-900/70 p-4">
-      <h2 className="text-sm font-semibold tracking-wide">Config</h2>
+    <aside className="relative flex h-full flex-col border-l border-border/60 bg-zinc-900/70 p-4 pl-5" style={{ width: panelWidth }}>
+      {resizeHandle}
+      <h2 className="shrink-0 text-sm font-semibold tracking-wide">Config</h2>
 
-      <div className="mt-4 space-y-4">
+      <div className="mt-4 flex-1 space-y-4 overflow-y-auto pr-1">
         <div className="space-y-2">
           <SectionTitle>Label</SectionTitle>
           <Input
@@ -252,15 +318,63 @@ export function ConfigPanel() {
         )}
 
         {outputData && (
-          <div className="space-y-2">
-            <SectionTitle>Result Preview</SectionTitle>
-            <Textarea
-              readOnly
-              value={outputData.config.result ?? ''}
-              className="min-h-[220px] text-xs"
-              placeholder="Noch kein Ergebnis."
-            />
-          </div>
+          <>
+            <div className="space-y-2">
+              <SectionTitle>Result Preview</SectionTitle>
+              <Textarea
+                readOnly
+                value={outputData.config.result ?? ''}
+                className="min-h-[220px] text-xs"
+                placeholder="Noch kein Ergebnis."
+              />
+            </div>
+
+            <div className="space-y-2">
+              <SectionTitle>Im Workspace speichern</SectionTitle>
+              <div className="space-y-2 rounded-md border border-border/60 bg-card/30 p-2">
+                <div className="space-y-1.5">
+                  <label className="text-[11px] text-muted-foreground">Dateipfad (relativ zum Workspace)</label>
+                  <Input
+                    value={outputData.config.filePath ?? ''}
+                    onChange={(event) =>
+                      updateNodeConfig(selectedNode.id, { filePath: event.target.value })
+                    }
+                    placeholder="z.B. flow-results/output.txt"
+                    className="h-8 text-xs"
+                  />
+                </div>
+
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="w-full justify-center gap-1.5"
+                  disabled={!outputData.config.result?.trim() || isSaving}
+                  onClick={handleSaveToWorkspace}
+                >
+                  <Download className="h-3.5 w-3.5" />
+                  {isSaving ? 'Speichern...' : 'Im Workspace speichern'}
+                </Button>
+                {!outputData.config.filePath?.trim() && (
+                  <p className="text-[10px] text-muted-foreground/70">
+                    Ohne Dateipfad wird automatisch ein Name vergeben (z.B. FlowOutput_20260219_220135.txt)
+                  </p>
+                )}
+
+                <label className="flex items-center gap-2 pt-1 text-[11px] text-muted-foreground">
+                  <input
+                    type="checkbox"
+                    className="h-3.5 w-3.5"
+                    checked={outputData.config.saveToFile ?? false}
+                    onChange={(event) =>
+                      updateNodeConfig(selectedNode.id, { saveToFile: event.target.checked })
+                    }
+                  />
+                  Auto-Save nach erfolgreichem Run
+                </label>
+              </div>
+            </div>
+          </>
         )}
 
         <div className="border-t border-border/60 pt-3">

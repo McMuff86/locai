@@ -355,6 +355,8 @@ export function createFlowNode(kind: FlowNodeKind, position: XYPosition): FlowNo
           runtime: { status: 'idle' },
           config: {
             result: '',
+            saveToFile: false,
+            filePath: '',
           },
         },
       };

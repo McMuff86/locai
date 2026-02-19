@@ -42,6 +42,74 @@ function isFlowNodeKind(value: string): value is FlowNodeKind {
   return FLOW_NODE_KINDS.includes(value as FlowNodeKind);
 }
 
+function DraggableMiniMap({ parentRef }: { parentRef: React.RefObject<HTMLDivElement | null> }) {
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  const isDragging = useRef(false);
+  const dragOffset = useRef({ x: 0, y: 0 });
+  const [pos, setPos] = useState<{ right: number; bottom: number } | { left: number; top: number }>({
+    right: 12,
+    bottom: 12,
+  });
+
+  const handlePointerDown = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+    if (!(e.target as HTMLElement).closest('[data-minimap-grip]')) return;
+    e.preventDefault();
+    e.stopPropagation();
+    isDragging.current = true;
+
+    const rect = containerRef.current?.getBoundingClientRect();
+    if (rect) {
+      dragOffset.current = { x: e.clientX - rect.left, y: e.clientY - rect.top };
+    }
+
+    const onPointerMove = (moveEvent: PointerEvent) => {
+      if (!isDragging.current) return;
+      const parent = parentRef.current;
+      if (!parent) return;
+      const parentRect = parent.getBoundingClientRect();
+      const elWidth = containerRef.current?.offsetWidth ?? 200;
+      const elHeight = containerRef.current?.offsetHeight ?? 150;
+      const newLeft = moveEvent.clientX - parentRect.left - dragOffset.current.x;
+      const newTop = moveEvent.clientY - parentRect.top - dragOffset.current.y;
+      setPos({
+        left: Math.max(0, Math.min(parentRect.width - elWidth, newLeft)),
+        top: Math.max(0, Math.min(parentRect.height - elHeight, newTop)),
+      });
+    };
+
+    const onPointerUp = () => {
+      isDragging.current = false;
+      document.removeEventListener('pointermove', onPointerMove);
+      document.removeEventListener('pointerup', onPointerUp);
+    };
+
+    document.addEventListener('pointermove', onPointerMove);
+    document.addEventListener('pointerup', onPointerUp);
+  }, [parentRef]);
+
+  return (
+    <div
+      ref={containerRef}
+      onPointerDown={handlePointerDown}
+      className="absolute z-[5] rounded-lg border border-border/60 bg-zinc-900/90 shadow-lg"
+      style={pos}
+    >
+      <div
+        data-minimap-grip
+        className="flex cursor-grab items-center justify-center border-b border-border/40 px-2 py-1 active:cursor-grabbing"
+      >
+        <div className="h-0.5 w-8 rounded-full bg-muted-foreground/40" />
+      </div>
+      <MiniMap
+        pannable
+        zoomable
+        className="!static !m-0 !rounded-b-lg !rounded-t-none !border-0 !shadow-none"
+        style={{ width: 192, height: 128 }}
+      />
+    </div>
+  );
+}
+
 interface FlowCanvasProps {
   insertNodeKind?: FlowNodeKind | null;
   onInsertNodeHandled?: () => void;
@@ -283,8 +351,8 @@ export function FlowCanvas({ insertNodeKind = null, onInsertNodeHandled }: FlowC
         className="bg-zinc-950"
       >
         <Background variant={BackgroundVariant.Dots} gap={22} size={1} color="#334155" />
-        <MiniMap pannable zoomable />
-        <Controls />
+        <Controls className="flow-controls" />
+        <DraggableMiniMap parentRef={canvasRef} />
       </ReactFlow>
 
       {isDraggingOver && (
