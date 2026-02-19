@@ -150,7 +150,7 @@ export function FileCanvas({
       className="relative w-full h-full overflow-hidden select-none"
       style={{
         background: 'hsl(var(--background))',
-        backgroundImage: `radial-gradient(circle, rgba(128,128,128,0.25) 1.5px, transparent 1.5px)`,
+        backgroundImage: `radial-gradient(circle, rgba(128,128,128,0.15) 1px, transparent 1px)`,
         backgroundSize: `${scaledSpacing}px ${scaledSpacing}px`,
         backgroundPosition: `${bgOffsetX}px ${bgOffsetY}px`,
         cursor: isDraggingCanvas ? 'grabbing' : 'default',
@@ -187,16 +187,18 @@ export function FileCanvas({
       {/* ── Empty state ──────────────────────────────────────────── */}
       {windows.length === 0 && (
         <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-          <div className="text-center space-y-3 opacity-40">
+          <div className="text-center space-y-3">
             <div className="flex justify-center">
-              <Files className="h-12 w-12 text-muted-foreground" />
+              <div className="rounded-2xl p-4 bg-muted/30 border border-border/20">
+                <Files className="h-10 w-10 text-muted-foreground/30" />
+              </div>
             </div>
             <div className="space-y-1">
-              <p className="text-sm font-medium text-muted-foreground">
+              <p className="text-sm font-medium text-muted-foreground/40">
                 Canvas ist leer
               </p>
-              <p className="text-xs text-muted-foreground">
-                Klicke auf eine Datei im Browser links, um sie hier zu öffnen
+              <p className="text-xs text-muted-foreground/30">
+                Klicke auf eine Datei im Browser, um sie hier zu öffnen
               </p>
             </div>
           </div>
@@ -204,21 +206,18 @@ export function FileCanvas({
       )}
 
       {/* ── Controls overlay ─────────────────────────────────────── */}
-      <div className="absolute bottom-3 right-3 flex items-center gap-2 pointer-events-none">
-        {/* Zoom indicator */}
-        <span className="text-[10px] text-muted-foreground/50 font-mono bg-background/60 px-1.5 py-0.5 rounded border border-border/30">
+      <div className="absolute bottom-3 right-3 flex items-center gap-1.5 pointer-events-auto">
+        <button
+          className="text-[10px] text-muted-foreground/50 font-mono bg-background/70 backdrop-blur-sm px-2 py-1 rounded-lg border border-border/30 hover:text-muted-foreground/80 hover:bg-background/90 transition-colors"
+          onClick={() => onTransformChange({ x: 0, y: 0, zoom: 1 })}
+          title="Ansicht zurücksetzen"
+        >
+          Reset
+        </button>
+        <span className="text-[10px] text-muted-foreground/50 font-mono bg-background/70 backdrop-blur-sm px-2 py-1 rounded-lg border border-border/30">
           {Math.round(zoom * 100)}%
         </span>
       </div>
-
-      {/* Zoom reset button */}
-      <button
-        className="absolute bottom-3 left-3 text-[10px] text-muted-foreground/50 font-mono bg-background/60 px-1.5 py-0.5 rounded border border-border/30 hover:text-muted-foreground/80 hover:bg-background/90 transition-colors pointer-events-auto"
-        onClick={() => onTransformChange({ x: 0, y: 0, zoom: 1 })}
-        title="Ansicht zurücksetzen"
-      >
-        Reset
-      </button>
     </div>
   );
 }

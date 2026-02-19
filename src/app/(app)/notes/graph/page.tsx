@@ -165,9 +165,9 @@ export default function GraphPage() {
   const isVisual = graphViewMode === '2d' || graphViewMode === '3d';
 
   return (
-    <div className="flex flex-col h-full overflow-hidden p-4">
+    <div className="flex flex-col h-full overflow-hidden p-3 md:p-4">
       <ScrollArea className="flex-1">
-        <div className="rounded-lg border border-border p-4 space-y-3">
+        <div className="rounded-xl border border-border/40 bg-background/60 backdrop-blur-sm shadow-sm p-3 space-y-2">
           {/* Controls */}
           <GraphControls
             settings={graphSettings}

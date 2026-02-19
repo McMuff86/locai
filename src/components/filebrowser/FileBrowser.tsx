@@ -489,20 +489,20 @@ export function FileBrowser({ onOpenFile }: FileBrowserProps = {}) {
   };
 
   const renderRootSelector = () => (
-    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
       {roots.map((root) => (
         <button
           key={root.id}
           onClick={() => root.exists && selectRoot(root.id)}
           disabled={!root.exists}
-          className="flex flex-col items-center gap-2 p-4 rounded-lg border border-border hover:bg-muted/50 hover:border-primary/30 transition-colors disabled:opacity-40 disabled:cursor-not-allowed text-center"
+          className="group flex flex-col items-center gap-2.5 p-4 rounded-xl border border-border/40 bg-muted/20 hover:bg-primary/5 hover:border-primary/30 hover:shadow-md transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed text-center"
         >
-          <div className="flex items-center justify-center w-10 h-10 rounded-lg bg-primary/10 text-primary">
+          <div className="flex items-center justify-center w-11 h-11 rounded-xl bg-primary/10 text-primary group-hover:bg-primary/15 group-hover:scale-105 transition-all duration-200">
             {ROOT_ICONS[root.id] || <FileText className="h-5 w-5" />}
           </div>
           <div>
-            <p className="text-sm font-medium">{root.label}</p>
-            <p className="text-xs text-muted-foreground">
+            <p className="text-sm font-semibold">{root.label}</p>
+            <p className="text-[11px] text-muted-foreground leading-snug">
               {root.exists
                 ? ROOT_DESCRIPTIONS[root.id]
                 : 'Nicht vorhanden'}
@@ -514,14 +514,14 @@ export function FileBrowser({ onOpenFile }: FileBrowserProps = {}) {
   );
 
   return (
-    <div className="flex flex-col gap-4 h-full">
+    <div className="flex flex-col gap-3 h-full">
       <div className="flex items-center justify-between flex-shrink-0">
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2.5">
           {currentRoot && (
             <Button
-              variant="ghost"
+              variant="outline"
               size="icon"
-              className="h-8 w-8"
+              className="h-8 w-8 rounded-lg border-border/40"
               onClick={navigateUp}
               title="Zurück"
             >
@@ -529,11 +529,11 @@ export function FileBrowser({ onOpenFile }: FileBrowserProps = {}) {
             </Button>
           )}
           <div>
-            <h2 className="text-lg font-semibold">
+            <h2 className="text-base font-semibold tracking-tight">
               {currentRoot ? currentRoot.label : 'Dateibrowser'}
             </h2>
             {!currentRoot && (
-              <p className="text-xs text-muted-foreground">
+              <p className="text-[11px] text-muted-foreground leading-snug">
                 Wähle einen Ordner zum Durchsuchen
               </p>
             )}
@@ -541,12 +541,12 @@ export function FileBrowser({ onOpenFile }: FileBrowserProps = {}) {
         </div>
         {currentRoot && (
           <Button
-            variant="ghost"
+            variant="outline"
             size="icon"
             onClick={refresh}
             disabled={isLoading}
             title="Aktualisieren"
-            className="h-8 w-8"
+            className="h-8 w-8 rounded-lg border-border/40"
           >
             {isLoading ? (
               <Loader2 className="h-4 w-4 animate-spin" />
@@ -560,18 +560,18 @@ export function FileBrowser({ onOpenFile }: FileBrowserProps = {}) {
       {!currentRoot && renderRootSelector()}
 
       {currentRoot && breadcrumbs.length > 0 && (
-        <div className="flex items-center gap-1 text-sm flex-shrink-0 flex-wrap">
+        <div className="flex items-center gap-0.5 text-xs flex-shrink-0 flex-wrap px-0.5">
           {breadcrumbs.map((crumb, i) => (
             <React.Fragment key={crumb.path}>
-              {i > 0 && <ChevronRight className="h-3 w-3 text-muted-foreground flex-shrink-0" />}
+              {i > 0 && <ChevronRight className="h-3 w-3 text-muted-foreground/50 flex-shrink-0" />}
               <button
                 onClick={() => {
                   clearMutationMessage();
                   navigateToBreadcrumb(crumb.path);
                 }}
-                className={`px-1.5 py-0.5 rounded hover:bg-muted/50 transition-colors truncate max-w-[160px] ${
+                className={`px-1.5 py-0.5 rounded-md hover:bg-muted/60 transition-colors truncate max-w-[140px] ${
                   i === breadcrumbs.length - 1
-                    ? 'font-medium text-foreground'
+                    ? 'font-semibold text-foreground bg-muted/40'
                     : 'text-muted-foreground'
                 }`}
               >
@@ -584,46 +584,21 @@ export function FileBrowser({ onOpenFile }: FileBrowserProps = {}) {
 
       {currentRoot && (
         <div className="space-y-2 flex-shrink-0">
-          <div className="flex flex-wrap items-center gap-2">
-            <div className="relative flex-1 min-w-[220px]">
-              <Search className="h-4 w-4 text-muted-foreground absolute left-2.5 top-1/2 -translate-y-1/2" />
-              <Input
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Suche nach Dateiname..."
-                className="pl-8 h-9"
-              />
-            </div>
-
-            <div className="flex items-center gap-1">
-              <ArrowUpDown className="h-4 w-4 text-muted-foreground" />
-              <select
-                value={sortBy}
-                onChange={(e) => setSortBy(e.target.value as SortBy)}
-                className="h-9 rounded-md border border-input bg-background px-2 text-sm"
-                title="Sortierung"
-              >
-                <option value="name">Name</option>
-                <option value="modifiedAt">Datum</option>
-                <option value="size">Größe</option>
-              </select>
-              <Button
-                variant="outline"
-                size="sm"
-                className="h-9"
-                onClick={() => setSortOrder((prev) => (prev === 'asc' ? 'desc' : 'asc'))}
-                title="Sortierreihenfolge wechseln"
-              >
-                {sortOrder === 'asc' ? 'A-Z' : 'Z-A'}
-              </Button>
-            </div>
+          <div className="relative">
+            <Search className="h-3.5 w-3.5 text-muted-foreground/60 absolute left-2.5 top-1/2 -translate-y-1/2" />
+            <Input
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Suche nach Dateiname..."
+              className="pl-8 h-8 text-xs rounded-lg border-border/40 bg-muted/20 focus-visible:bg-background"
+            />
           </div>
 
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="flex flex-wrap items-center gap-1.5">
             <select
               value={typeFilter}
               onChange={(e) => setTypeFilter(e.target.value as TypeFilter)}
-              className="h-9 rounded-md border border-input bg-background px-2 text-sm"
+              className="h-7 rounded-md border border-border/40 bg-muted/20 px-1.5 text-[11px]"
               title="Dateityp filtern"
             >
               <option value="all">Alle Typen</option>
@@ -638,7 +613,7 @@ export function FileBrowser({ onOpenFile }: FileBrowserProps = {}) {
             <select
               value={extensionFilter}
               onChange={(e) => setExtensionFilter(e.target.value)}
-              className="h-9 rounded-md border border-input bg-background px-2 text-sm"
+              className="h-7 rounded-md border border-border/40 bg-muted/20 px-1.5 text-[11px]"
               title="Extension filtern"
             >
               <option value="all">Alle Endungen</option>
@@ -647,29 +622,46 @@ export function FileBrowser({ onOpenFile }: FileBrowserProps = {}) {
               ))}
             </select>
 
-            <div className="ml-auto text-xs text-muted-foreground">
-              {visibleEntries.length} / {entries.length} Einträge
+            <div className="flex items-center gap-1 ml-auto">
+              <select
+                value={sortBy}
+                onChange={(e) => setSortBy(e.target.value as SortBy)}
+                className="h-7 rounded-md border border-border/40 bg-muted/20 px-1.5 text-[11px]"
+                title="Sortierung"
+              >
+                <option value="name">Name</option>
+                <option value="modifiedAt">Datum</option>
+                <option value="size">Größe</option>
+              </select>
+              <button
+                className="h-7 px-1.5 rounded-md border border-border/40 bg-muted/20 text-[11px] text-muted-foreground hover:bg-muted/40 transition-colors"
+                onClick={() => setSortOrder((prev) => (prev === 'asc' ? 'desc' : 'asc'))}
+                title="Sortierreihenfolge wechseln"
+              >
+                {sortOrder === 'asc' ? 'A-Z' : 'Z-A'}
+              </button>
             </div>
           </div>
 
           {canMutate ? (
-            <div className="flex flex-wrap items-center gap-2">
-              <Button variant="outline" size="sm" onClick={handleCreateFile} disabled={isMutating}>
-                <FilePlus2 className="h-3.5 w-3.5 mr-1.5" />
+            <div className="flex flex-wrap items-center gap-1.5">
+              <Button variant="outline" size="sm" className="h-7 text-[11px] rounded-lg border-border/40" onClick={handleCreateFile} disabled={isMutating}>
+                <FilePlus2 className="h-3 w-3 mr-1" />
                 Neu
               </Button>
-              <Button variant="outline" size="sm" onClick={handleCreateFolder} disabled={isMutating}>
-                <FolderPlus className="h-3.5 w-3.5 mr-1.5" />
-                Ordner erstellen
+              <Button variant="outline" size="sm" className="h-7 text-[11px] rounded-lg border-border/40" onClick={handleCreateFolder} disabled={isMutating}>
+                <FolderPlus className="h-3 w-3 mr-1" />
+                Ordner
               </Button>
               <Button
                 variant="outline"
                 size="sm"
+                className="h-7 text-[11px] rounded-lg border-border/40"
                 onClick={() => fileInputRef.current?.click()}
                 disabled={isMutating}
               >
-                <Upload className="h-3.5 w-3.5 mr-1.5" />
-                Dateien hochladen
+                <Upload className="h-3 w-3 mr-1" />
+                Upload
               </Button>
               <input
                 ref={fileInputRef}
@@ -678,62 +670,67 @@ export function FileBrowser({ onOpenFile }: FileBrowserProps = {}) {
                 className="hidden"
                 onChange={handleFileInputChange}
               />
-              <span className="text-xs text-muted-foreground ml-1">
-                Drag & Drop: Dateien hierher ziehen oder Einträge auf Ordner fallen lassen.
+              <span className="text-[10px] text-muted-foreground/60 ml-auto">
+                {visibleEntries.length}/{entries.length}
               </span>
             </div>
           ) : (
-            <div className="flex items-center gap-1 text-xs text-muted-foreground rounded-md border border-border/60 bg-muted/30 px-2 py-1">
-              <FolderInput className="h-3.5 w-3.5" />
-              Dieser Bereich ist schreibgeschützt. Änderungen sind nur im Workspace möglich.
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground/70 rounded-lg border border-border/30 bg-muted/20 px-2 py-1">
+                <FolderInput className="h-3 w-3" />
+                Schreibgeschützt
+              </div>
+              <span className="text-[10px] text-muted-foreground/60">
+                {visibleEntries.length}/{entries.length}
+              </span>
             </div>
           )}
         </div>
       )}
 
       {mutationMessage && (
-        <div className="rounded-lg border border-border bg-muted/40 p-3 text-sm text-foreground">
+        <div className="rounded-lg border border-border/40 bg-muted/30 px-3 py-2 text-xs text-foreground">
           {mutationMessage}
         </div>
       )}
 
       {error && (
-        <div className="rounded-lg border border-destructive/20 bg-destructive/5 p-3 text-sm text-destructive">
+        <div className="rounded-lg border border-destructive/20 bg-destructive/5 px-3 py-2 text-xs text-destructive">
           {error}
         </div>
       )}
 
       {currentRoot && (
         <div
-          className={`flex-1 min-h-0 rounded-lg border transition-colors ${
-            isDropZoneActive ? 'border-primary bg-primary/5' : 'border-border/60'
+          className={`flex-1 min-h-0 rounded-xl border transition-all duration-200 ${
+            isDropZoneActive ? 'border-primary/50 bg-primary/5 shadow-inner' : 'border-border/30'
           }`}
           onDragOver={handleDragOverDropZone}
           onDragLeave={handleDragLeaveDropZone}
           onDrop={handleDropOnCurrentDirectory}
         >
           {isLoading && entries.length === 0 ? (
-            <div className="flex flex-col items-center justify-center gap-3 py-12">
-              <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-              <p className="text-sm text-muted-foreground">Laden…</p>
+            <div className="flex flex-col items-center justify-center gap-2 py-12">
+              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground/50" />
+              <p className="text-xs text-muted-foreground/60">Laden…</p>
             </div>
           ) : visibleEntries.length === 0 && !error ? (
-            <div className="flex flex-col items-center justify-center gap-3 py-12 text-center">
-              <div className="rounded-full p-4 bg-muted/50">
-                <FolderOpen className="h-10 w-10 text-muted-foreground/50" />
+            <div className="flex flex-col items-center justify-center gap-2.5 py-10 text-center">
+              <div className="rounded-xl p-3 bg-muted/30">
+                <FolderOpen className="h-8 w-8 text-muted-foreground/40" />
               </div>
-              <div className="space-y-1">
-                <p className="text-sm font-medium text-muted-foreground">
-                  Noch keine passenden Dateien
+              <div className="space-y-0.5">
+                <p className="text-xs font-medium text-muted-foreground">
+                  Keine passenden Dateien
                 </p>
-                <p className="text-xs text-muted-foreground">
+                <p className="text-[11px] text-muted-foreground/60">
                   Passe Filter an oder lege neue Dateien an.
                 </p>
               </div>
             </div>
           ) : (
             <ScrollArea className="h-full">
-              <div className="space-y-0.5 pr-2 p-2">
+              <div className="space-y-px p-1.5">
                 {visibleEntries.map((entry) => (
                   <FileEntryRow
                     key={entry.relativePath}

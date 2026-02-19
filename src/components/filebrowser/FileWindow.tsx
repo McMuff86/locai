@@ -317,15 +317,15 @@ export function FileWindow({
   return (
     <div
       data-file-window="true"
-      className="absolute flex flex-col rounded-xl border border-border/60 bg-background shadow-2xl overflow-hidden"
+      className="absolute flex flex-col rounded-xl border border-border/40 bg-background/95 backdrop-blur-sm shadow-2xl overflow-hidden ring-1 ring-black/[0.03] dark:ring-white/[0.03]"
       style={{
         left: win.position.x,
         top: win.position.y,
         width: win.size.w,
-        height: win.isMinimized ? 40 : win.size.h,
+        height: win.isMinimized ? 38 : win.size.h,
         zIndex: win.zIndex,
         minWidth: MIN_WINDOW_SIZE.w,
-        minHeight: win.isMinimized ? 40 : MIN_WINDOW_SIZE.h,
+        minHeight: win.isMinimized ? 38 : MIN_WINDOW_SIZE.h,
         userSelect: 'none',
       }}
       onMouseDown={(e) => {
@@ -335,18 +335,18 @@ export function FileWindow({
     >
       {/* ── Title bar ───────────────────────────────────────────── */}
       <div
-        className="flex items-center gap-2 px-3 h-10 border-b border-border/60 bg-muted/40 flex-shrink-0 cursor-grab active:cursor-grabbing"
+        className="flex items-center gap-2 px-3 h-[38px] border-b border-border/40 bg-muted/30 flex-shrink-0 cursor-grab active:cursor-grabbing"
         onMouseDown={handleTitleMouseDown}
       >
         {getFileIcon(win.file.extension)}
-        <span className="text-sm font-medium truncate flex-1 select-none">
+        <span className="text-xs font-medium truncate flex-1 select-none">
           {win.file.name}
         </span>
 
         {/* Unsaved indicator (amber dot) */}
         {hasUnsavedChanges && (
           <span
-            className="w-1.5 h-1.5 rounded-full bg-amber-500 flex-shrink-0 transition-opacity"
+            className="w-1.5 h-1.5 rounded-full bg-amber-500 flex-shrink-0 animate-pulse"
             title="Ungespeicherte Änderungen"
           />
         )}
@@ -358,17 +358,17 @@ export function FileWindow({
         >
           <button
             onClick={(e) => { e.stopPropagation(); onToggleMinimize(); }}
-            className="w-3.5 h-3.5 rounded-full bg-yellow-500 hover:bg-yellow-400 flex items-center justify-center transition-colors group"
+            className="w-3 h-3 rounded-full bg-yellow-500 hover:bg-yellow-400 flex items-center justify-center transition-colors group"
             title={win.isMinimized ? 'Wiederherstellen' : 'Minimieren'}
           >
-            <Minus className="h-2 w-2 text-yellow-900 opacity-0 group-hover:opacity-100 transition-opacity" />
+            <Minus className="h-1.5 w-1.5 text-yellow-900 opacity-0 group-hover:opacity-100 transition-opacity" />
           </button>
           <button
             onClick={(e) => { e.stopPropagation(); onClose(); }}
-            className="w-3.5 h-3.5 rounded-full bg-red-500 hover:bg-red-400 flex items-center justify-center transition-colors group"
+            className="w-3 h-3 rounded-full bg-red-500 hover:bg-red-400 flex items-center justify-center transition-colors group"
             title="Schließen"
           >
-            <X className="h-2 w-2 text-red-900 opacity-0 group-hover:opacity-100 transition-opacity" />
+            <X className="h-1.5 w-1.5 text-red-900 opacity-0 group-hover:opacity-100 transition-opacity" />
           </button>
         </div>
       </div>
@@ -379,29 +379,29 @@ export function FileWindow({
           {/* ── Toolbar ────────────────────────────────────────── */}
           {!isLoading && !loadError && fileContent && (
             <div
-              className="flex items-center gap-1 px-3 py-1.5 border-b border-border/40 flex-shrink-0 bg-muted/20 flex-wrap"
+              className="flex items-center gap-1 px-2.5 py-1 border-b border-border/30 flex-shrink-0 bg-muted/15 flex-wrap"
               onMouseDown={(e) => e.stopPropagation()}
               style={{ userSelect: 'none' }}
             >
               {/* Markdown edit/preview tabs */}
               {fileContent.type === 'markdown' && isEditMode && (
-                <div className="flex items-center gap-0.5 mr-1">
+                <div className="flex items-center gap-0.5 mr-1 rounded-md bg-muted/40 p-0.5">
                   <button
                     onClick={() => setMarkdownTab('edit')}
-                    className={`px-2 py-0.5 rounded text-xs transition-colors ${
+                    className={`px-2 py-0.5 rounded text-[11px] font-medium transition-colors ${
                       markdownTab === 'edit'
-                        ? 'bg-primary/15 text-primary'
-                        : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'
+                        ? 'bg-background text-foreground shadow-sm'
+                        : 'text-muted-foreground hover:text-foreground'
                     }`}
                   >
                     Bearbeiten
                   </button>
                   <button
                     onClick={() => setMarkdownTab('preview')}
-                    className={`px-2 py-0.5 rounded text-xs transition-colors ${
+                    className={`px-2 py-0.5 rounded text-[11px] font-medium transition-colors ${
                       markdownTab === 'preview'
-                        ? 'bg-primary/15 text-primary'
-                        : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'
+                        ? 'bg-background text-foreground shadow-sm'
+                        : 'text-muted-foreground hover:text-foreground'
                     }`}
                   >
                     Vorschau
@@ -411,40 +411,38 @@ export function FileWindow({
 
               {/* ── Editor feature controls (edit mode only) ─────── */}
               {isEditMode && (
-                <div className="flex items-center gap-1">
-                  {/* Word Wrap toggle */}
+                <div className="flex items-center gap-0.5">
                   <Button
                     variant={wordWrap ? 'secondary' : 'ghost'}
                     size="sm"
-                    className="h-6 px-1.5 text-xs"
+                    className="h-6 px-1.5 text-[11px] rounded-md"
                     onClick={() => setWordWrap((w) => !w)}
                     title={wordWrap ? 'Zeilenumbruch AUS' : 'Zeilenumbruch AN'}
                   >
                     <WrapText className="h-3 w-3" />
                   </Button>
 
-                  {/* Font size controls */}
-                  <div className="flex items-center gap-0.5">
+                  <div className="flex items-center gap-0 ml-0.5">
                     <Button
                       variant="ghost"
                       size="sm"
-                      className="h-6 w-6 p-0"
+                      className="h-6 w-6 p-0 rounded-md"
                       onClick={decreaseFontSize}
                       disabled={fontSize <= MIN_FONT_SIZE}
-                      title="Schrift kleiner (Ctrl+-)"
+                      title="Schrift kleiner"
                     >
                       <ZoomOut className="h-3 w-3" />
                     </Button>
-                    <span className="text-[10px] text-muted-foreground font-mono w-5 text-center select-none">
+                    <span className="text-[10px] text-muted-foreground/70 font-mono w-5 text-center select-none">
                       {fontSize}
                     </span>
                     <Button
                       variant="ghost"
                       size="sm"
-                      className="h-6 w-6 p-0"
+                      className="h-6 w-6 p-0 rounded-md"
                       onClick={increaseFontSize}
                       disabled={fontSize >= MAX_FONT_SIZE}
-                      title="Schrift größer (Ctrl++)"
+                      title="Schrift größer"
                     >
                       <ZoomIn className="h-3 w-3" />
                     </Button>
@@ -452,13 +450,12 @@ export function FileWindow({
                 </div>
               )}
 
-              <div className="ml-auto flex items-center gap-1">
-                {/* Image edit toggle */}
+              <div className="ml-auto flex items-center gap-0.5">
                 {fileContent.type === 'image' && (
                   <Button
                     variant={imageEditMode ? 'default' : 'ghost'}
                     size="sm"
-                    className="h-6 px-2 text-xs"
+                    className="h-6 px-2 text-[11px] rounded-md"
                     onClick={() => setImageEditMode(!imageEditMode)}
                   >
                     <Pencil className="h-3 w-3 mr-1" />
@@ -466,12 +463,11 @@ export function FileWindow({
                   </Button>
                 )}
 
-                {/* Edit button */}
                 {canEdit && !isEditMode && (
                   <Button
                     variant="ghost"
                     size="sm"
-                    className="h-6 px-2 text-xs"
+                    className="h-6 px-2 text-[11px] rounded-md"
                     onClick={() => {
                       setEditedContent(fileContent.content);
                       setMarkdownTab('edit');
@@ -483,13 +479,12 @@ export function FileWindow({
                   </Button>
                 )}
 
-                {/* Save / Cancel */}
                 {isEditMode && (
                   <>
                     <Button
                       variant="ghost"
                       size="sm"
-                      className="h-6 px-2 text-xs"
+                      className="h-6 px-2 text-[11px] rounded-md"
                       onClick={() => {
                         setIsEditMode(false);
                         setEditedContent(fileContent?.content ?? '');
@@ -502,7 +497,7 @@ export function FileWindow({
                     </Button>
                     <Button
                       size="sm"
-                      className="h-6 px-2 text-xs"
+                      className="h-6 px-2 text-[11px] rounded-md"
                       onClick={handleSave}
                       disabled={isSaving}
                     >
@@ -516,11 +511,12 @@ export function FileWindow({
                   </>
                 )}
 
-                {/* Copy */}
+                <div className="w-px h-4 bg-border/30 mx-0.5" />
+
                 <Button
                   variant="ghost"
                   size="sm"
-                  className="h-6 px-1.5 text-xs"
+                  className="h-6 px-1.5 text-[11px] rounded-md"
                   onClick={handleCopy}
                   title="Inhalt kopieren"
                 >
@@ -574,15 +570,14 @@ export function FileWindow({
 
           {/* ── Resize handle (bottom-right corner) ─────────────── */}
           <div
-            className="absolute bottom-0 right-0 w-5 h-5 cursor-se-resize z-10 flex items-end justify-end p-1"
+            className="absolute bottom-0 right-0 w-4 h-4 cursor-se-resize z-10 flex items-end justify-end p-0.5 opacity-20 hover:opacity-50 transition-opacity"
             onMouseDown={handleResizeMouseDown}
             onMouseUp={(e) => e.stopPropagation()}
             title="Größe anpassen"
           >
-            <svg width="8" height="8" viewBox="0 0 8 8" className="opacity-30">
-              <circle cx="6" cy="2" r="1" fill="currentColor" />
-              <circle cx="6" cy="6" r="1" fill="currentColor" />
-              <circle cx="2" cy="6" r="1" fill="currentColor" />
+            <svg width="7" height="7" viewBox="0 0 7 7">
+              <path d="M5.5 1L1 5.5" stroke="currentColor" strokeWidth="1" strokeLinecap="round" />
+              <path d="M5.5 3.5L3.5 5.5" stroke="currentColor" strokeWidth="1" strokeLinecap="round" />
             </svg>
           </div>
         </div>

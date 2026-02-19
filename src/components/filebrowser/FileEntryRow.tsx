@@ -169,10 +169,10 @@ export function FileEntryRow({
 
   return (
     <div
-      className={`group flex items-center gap-3 px-3 py-2 rounded-lg cursor-pointer transition-colors border ${
+      className={`group flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg cursor-pointer transition-all duration-150 border ${
         isDropTarget
-          ? 'bg-primary/10 border-primary/40'
-          : 'border-transparent hover:bg-muted/50'
+          ? 'bg-primary/10 border-primary/40 shadow-sm'
+          : 'border-transparent hover:bg-muted/40'
       }`}
       onClick={handleClick}
       draggable={isWorkspaceEntry}
@@ -183,41 +183,40 @@ export function FileEntryRow({
       onDrop={handleDrop}
       title={entry.type === 'directory' ? 'Doppelklick/Tippen zum Öffnen' : 'Zum Anzeigen klicken'}
     >
-      <div className="flex-shrink-0">
+      <div className="flex-shrink-0 flex items-center justify-center w-7 h-7 rounded-md bg-muted/40">
         {getFileIcon(entry)}
       </div>
 
       <div className="flex-1 min-w-0">
-        <p className="text-sm font-medium truncate">{entry.name}</p>
-        <p className="text-xs text-muted-foreground">
+        <p className="text-xs font-medium truncate leading-tight">{entry.name}</p>
+        <p className="text-[10px] text-muted-foreground/70 leading-tight">
           {metaText}
           {' · '}
           {formatDate(entry.modifiedAt)}
         </p>
       </div>
 
-      <div className="flex-shrink-0 flex items-center gap-1 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
-        {/* Open in Agent – quick action for files */}
+      <div className="flex-shrink-0 flex items-center gap-0.5 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
         {entry.type === 'file' && onOpenInAgent && (
           <Button
             variant="ghost"
             size="icon"
-            className="h-7 w-7 text-muted-foreground hover:text-primary"
+            className="h-6 w-6 text-muted-foreground hover:text-primary rounded-md"
             onClick={handleOpenInAgent}
             title="In Agent öffnen"
           >
-            <Bot className="h-3.5 w-3.5" />
+            <Bot className="h-3 w-3" />
           </Button>
         )}
         {entry.type === 'file' && (
           <Button
             variant="ghost"
             size="icon"
-            className="h-7 w-7"
+            className="h-6 w-6 rounded-md"
             onClick={handleDownload}
             title="Herunterladen"
           >
-            <Download className="h-3.5 w-3.5" />
+            <Download className="h-3 w-3" />
           </Button>
         )}
         {isWorkspaceEntry && (
@@ -225,20 +224,20 @@ export function FileEntryRow({
             <Button
               variant="ghost"
               size="icon"
-              className="h-7 w-7"
+              className="h-6 w-6 rounded-md"
               onClick={handleRename}
               title="Umbenennen"
             >
-              <Pencil className="h-3.5 w-3.5" />
+              <Pencil className="h-3 w-3" />
             </Button>
             <Button
               variant="ghost"
               size="icon"
-              className="h-7 w-7"
+              className="h-6 w-6 rounded-md"
               onClick={handleMove}
               title="Verschieben"
             >
-              <Move className="h-3.5 w-3.5" />
+              <Move className="h-3 w-3" />
             </Button>
           </>
         )}
@@ -246,11 +245,11 @@ export function FileEntryRow({
           <Button
             variant="ghost"
             size="icon"
-            className={`h-7 w-7 ${confirmDelete ? 'text-destructive hover:text-destructive' : ''}`}
+            className={`h-6 w-6 rounded-md ${confirmDelete ? 'text-destructive hover:text-destructive' : ''}`}
             onClick={handleDelete}
             title={confirmDelete ? 'Klicken zum Bestätigen' : 'Löschen'}
           >
-            <Trash2 className="h-3.5 w-3.5" />
+            <Trash2 className="h-3 w-3" />
           </Button>
         )}
       </div>

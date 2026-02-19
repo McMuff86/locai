@@ -362,7 +362,7 @@ export function KnowledgeGraph({
     <div 
       ref={graphContainerRef}
       className={`w-full rounded-md border overflow-hidden relative transition-all duration-300 ${
-        expanded ? 'h-[70vh] min-h-[500px]' : 'h-[500px]'
+        expanded ? 'h-[85vh] min-h-[600px]' : 'h-[calc(100vh-280px)] min-h-[400px]'
       } ${
         settings.graphTheme === 'cyber' 
           ? 'graph-container-cyber border-cyan-500/30' 

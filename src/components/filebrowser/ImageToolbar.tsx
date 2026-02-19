@@ -95,11 +95,11 @@ function ToolBtn({
         <Button
           variant={active ? 'default' : 'ghost'}
           size="sm"
-          className={`h-7 w-7 p-0 ${active ? 'bg-primary text-primary-foreground' : ''}`}
+          className={`h-8 w-8 p-0 rounded-md transition-colors ${active ? 'bg-primary text-primary-foreground shadow-sm' : 'hover:bg-muted'}`}
           onClick={onClick}
           disabled={disabled}
         >
-          <Icon className="h-3.5 w-3.5" />
+          <Icon className="h-4 w-4" />
         </Button>
       </TooltipTrigger>
       <TooltipContent side="bottom" className="text-xs">
@@ -110,7 +110,7 @@ function ToolBtn({
 }
 
 function Sep() {
-  return <div className="w-px h-5 bg-border/50 mx-0.5" />;
+  return <div className="w-px h-6 bg-border/40 mx-1" />;
 }
 
 // ── Component ─────────────────────────────────────────────────────────────────
@@ -160,7 +160,7 @@ export function ImageToolbar({
 
   return (
     <TooltipProvider delayDuration={200}>
-      <div className="flex flex-col gap-1 border-b border-border/40 bg-muted/20 px-2 py-1.5">
+      <div className="flex flex-col gap-1.5 border-b border-border/40 bg-muted/20 px-3 py-2">
         {/* Main toolbar row */}
         <div className="flex items-center gap-0.5 flex-wrap">
           {/* Utility */}
@@ -215,19 +215,19 @@ export function ImageToolbar({
 
         {/* Secondary toolbar - context sensitive */}
         {cropActive && activeTool === 'crop' && (
-          <div className="flex items-center gap-2">
-            <Button size="sm" className="h-6 text-xs px-2" onClick={onApplyCrop}>
+          <div className="flex items-center gap-2 px-1 py-0.5 rounded-md bg-muted/30 border border-border/20">
+            <Button size="sm" className="h-7 text-xs px-3" onClick={onApplyCrop}>
               Zuschneiden anwenden
             </Button>
-            <Button size="sm" variant="ghost" className="h-6 text-xs px-2" onClick={() => onToolChange('select')}>
+            <Button size="sm" variant="ghost" className="h-7 text-xs px-3" onClick={() => onToolChange('select')}>
               Abbrechen
             </Button>
           </div>
         )}
 
         {activeTool === 'rotate' && (
-          <div className="flex items-center gap-2 px-1">
-            <span className="text-xs text-muted-foreground w-14">Rotation</span>
+          <div className="flex items-center gap-2 px-2 py-0.5 rounded-md bg-muted/30 border border-border/20">
+            <span className="text-xs text-muted-foreground font-medium w-14">Rotation</span>
             <Slider
               value={[rotation]}
               onValueChange={([v]) => onRotationChange(v)}
@@ -241,10 +241,10 @@ export function ImageToolbar({
         )}
 
         {isAdjustTool && (
-          <div className="flex items-center gap-2 px-1">
+          <div className="flex items-center gap-2 px-2 py-0.5 rounded-md bg-muted/30 border border-border/20">
             {activeTool === 'brightness' && (
               <>
-                <span className="text-xs text-muted-foreground w-14">Helligkeit</span>
+                <span className="text-xs text-muted-foreground font-medium w-14">Helligkeit</span>
                 <Slider
                   value={[adjustSettings.brightness]}
                   onValueChange={([v]) => onAdjustSettingChange('brightness', v)}
@@ -258,7 +258,7 @@ export function ImageToolbar({
             )}
             {activeTool === 'contrast' && (
               <>
-                <span className="text-xs text-muted-foreground w-14">Kontrast</span>
+                <span className="text-xs text-muted-foreground font-medium w-14">Kontrast</span>
                 <Slider
                   value={[adjustSettings.contrast]}
                   onValueChange={([v]) => onAdjustSettingChange('contrast', v)}
@@ -272,7 +272,7 @@ export function ImageToolbar({
             )}
             {activeTool === 'saturation' && (
               <>
-                <span className="text-xs text-muted-foreground w-14">Sättigung</span>
+                <span className="text-xs text-muted-foreground font-medium w-14">Sättigung</span>
                 <Slider
                   value={[adjustSettings.saturation]}
                   onValueChange={([v]) => onAdjustSettingChange('saturation', v)}
@@ -286,7 +286,7 @@ export function ImageToolbar({
             )}
             {activeTool === 'blur' && (
               <>
-                <span className="text-xs text-muted-foreground w-14">Unschärfe</span>
+                <span className="text-xs text-muted-foreground font-medium w-14">Unschärfe</span>
                 <Slider
                   value={[adjustSettings.blur]}
                   onValueChange={([v]) => onAdjustSettingChange('blur', v)}
@@ -310,32 +310,32 @@ export function ImageToolbar({
                 </Button>
               </div>
             )}
-            <Button size="sm" className="h-6 text-xs px-2 ml-auto" onClick={onApplyAdjustments}>
+            <Button size="sm" className="h-7 text-xs px-3 ml-auto" onClick={onApplyAdjustments}>
               Anwenden
             </Button>
-            <Button size="sm" variant="ghost" className="h-6 text-xs px-2" onClick={onResetAdjustments}>
+            <Button size="sm" variant="ghost" className="h-7 text-xs px-3" onClick={onResetAdjustments}>
               Zurücksetzen
             </Button>
           </div>
         )}
 
         {isDrawTool && (
-          <div className="flex items-center gap-2 px-1 flex-wrap">
+          <div className="flex items-center gap-2.5 px-2 py-0.5 rounded-md bg-muted/30 border border-border/20 flex-wrap">
             {/* Color picker */}
-            <div className="flex items-center gap-1">
-              <span className="text-xs text-muted-foreground">Farbe</span>
+            <div className="flex items-center gap-1.5">
+              <span className="text-xs text-muted-foreground font-medium">Farbe</span>
               <input
                 type="color"
                 value={drawSettings.color}
                 onChange={(e) => onDrawSettingChange('color', e.target.value)}
-                className="w-6 h-6 rounded border border-border cursor-pointer bg-transparent"
+                className="w-7 h-7 rounded-md border border-border cursor-pointer bg-transparent"
               />
             </div>
 
             {/* Brush size */}
             {(activeTool === 'draw' || activeTool === 'eraser') && (
-              <div className="flex items-center gap-1">
-                <span className="text-xs text-muted-foreground">Grösse</span>
+              <div className="flex items-center gap-1.5">
+                <span className="text-xs text-muted-foreground font-medium">Grösse</span>
                 <Slider
                   value={[drawSettings.brushSize]}
                   onValueChange={([v]) => onDrawSettingChange('brushSize', v)}
@@ -349,12 +349,12 @@ export function ImageToolbar({
             )}
 
             {(activeTool === 'draw' || activeTool === 'eraser') && (
-              <div className="flex items-center gap-1">
-                <span className="text-xs text-muted-foreground">Preset</span>
+              <div className="flex items-center gap-1.5">
+                <span className="text-xs text-muted-foreground font-medium">Preset</span>
                 <select
                   value={drawSettings.brushPreset}
                   onChange={(e) => onDrawSettingChange('brushPreset', e.target.value as BrushPreset)}
-                  className="h-6 rounded border border-border bg-background px-1 text-[10px] outline-none"
+                  className="h-7 rounded-md border border-border bg-background px-1.5 text-[11px] outline-none"
                 >
                   {brushPresets.map((preset) => (
                     <option key={preset.id} value={preset.id}>{preset.label}</option>
@@ -365,8 +365,8 @@ export function ImageToolbar({
 
             {/* Brush opacity / strength */}
             {(activeTool === 'draw' || activeTool === 'eraser') && (
-              <div className="flex items-center gap-1">
-                <span className="text-xs text-muted-foreground">Stärke</span>
+              <div className="flex items-center gap-1.5">
+                <span className="text-xs text-muted-foreground font-medium">Stärke</span>
                 <Slider
                   value={[drawSettings.brushOpacity]}
                   onValueChange={([v]) => onDrawSettingChange('brushOpacity', v)}
@@ -381,8 +381,8 @@ export function ImageToolbar({
 
             {/* Brush flow */}
             {(activeTool === 'draw' || activeTool === 'eraser') && (
-              <div className="flex items-center gap-1">
-                <span className="text-xs text-muted-foreground">Fluss</span>
+              <div className="flex items-center gap-1.5">
+                <span className="text-xs text-muted-foreground font-medium">Fluss</span>
                 <Slider
                   value={[drawSettings.brushFlow]}
                   onValueChange={([v]) => onDrawSettingChange('brushFlow', v)}
@@ -396,8 +396,8 @@ export function ImageToolbar({
             )}
 
             {(activeTool === 'draw' || activeTool === 'eraser') && (
-              <div className="flex items-center gap-1">
-                <span className="text-xs text-muted-foreground">Spacing</span>
+              <div className="flex items-center gap-1.5">
+                <span className="text-xs text-muted-foreground font-medium">Spacing</span>
                 <Slider
                   value={[drawSettings.brushSpacing]}
                   onValueChange={([v]) => onDrawSettingChange('brushSpacing', v)}
@@ -411,8 +411,8 @@ export function ImageToolbar({
             )}
 
             {(activeTool === 'draw' || activeTool === 'eraser') && (
-              <div className="flex items-center gap-1">
-                <span className="text-xs text-muted-foreground">Jitter</span>
+              <div className="flex items-center gap-1.5">
+                <span className="text-xs text-muted-foreground font-medium">Jitter</span>
                 <Slider
                   value={[drawSettings.brushJitter]}
                   onValueChange={([v]) => onDrawSettingChange('brushJitter', v)}
@@ -426,8 +426,8 @@ export function ImageToolbar({
             )}
 
             {(activeTool === 'draw' || activeTool === 'eraser') && (
-              <div className="flex items-center gap-1">
-                <span className="text-xs text-muted-foreground">Smooth</span>
+              <div className="flex items-center gap-1.5">
+                <span className="text-xs text-muted-foreground font-medium">Smooth</span>
                 <Slider
                   value={[drawSettings.brushSmoothing]}
                   onValueChange={([v]) => onDrawSettingChange('brushSmoothing', v)}
@@ -442,8 +442,8 @@ export function ImageToolbar({
 
             {/* Font size for text */}
             {activeTool === 'text' && (
-              <div className="flex items-center gap-1">
-                <span className="text-xs text-muted-foreground">Schrift</span>
+              <div className="flex items-center gap-1.5">
+                <span className="text-xs text-muted-foreground font-medium">Schrift</span>
                 <Slider
                   value={[drawSettings.fontSize]}
                   onValueChange={([v]) => onDrawSettingChange('fontSize', v)}
@@ -476,14 +476,14 @@ export function ImageToolbar({
                 <Button
                   size="sm"
                   variant={drawSettings.shapeFilled ? 'default' : 'outline'}
-                  className="h-6 text-xs px-2"
+                  className="h-7 text-xs px-2.5"
                   onClick={() => onDrawSettingChange('shapeFilled', !drawSettings.shapeFilled)}
                 >
-                  <Palette className="h-3 w-3 mr-1" />
+                  <Palette className="h-3.5 w-3.5 mr-1" />
                   {drawSettings.shapeFilled ? 'Gefüllt' : 'Umriss'}
                 </Button>
-                <div className="flex items-center gap-1">
-                  <span className="text-xs text-muted-foreground">Stärke</span>
+                <div className="flex items-center gap-1.5">
+                  <span className="text-xs text-muted-foreground font-medium">Stärke</span>
                   <Slider
                     value={[drawSettings.strokeWidth]}
                     onValueChange={([v]) => onDrawSettingChange('strokeWidth', v)}
