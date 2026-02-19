@@ -24,17 +24,29 @@ export type ImageTool =
   | 'shapes'
   | 'colorPicker'
   | 'blurRegion'
+  | 'marquee'
+  | 'lasso'
+  | 'magicWand'
+  | 'healing'
+  | 'cloneStamp'
+  | 'spotRemove'
   | 'aiDescribe'
   | 'aiEdit'
   | 'compare';
 
 export type ShapeType = 'rect' | 'circle' | 'line' | 'arrow';
+export type BrushPreset = 'hardRound' | 'softRound' | 'marker';
 
 export interface DrawSettings {
   color: string;
+  brushPreset: BrushPreset;
   brushSize: number;
   brushOpacity: number;
   brushFlow: number;
+  brushSpacing: number;
+  brushJitter: number;
+  brushSmoothing: number;
+  brushHardness: number;
   fontSize: number;
   fontFamily: string;
   shapeType: ShapeType;
@@ -64,9 +76,14 @@ const MAX_UNDO = 20;
 
 const DEFAULT_DRAW: DrawSettings = {
   color: '#ff0000',
+  brushPreset: 'hardRound',
   brushSize: 4,
   brushOpacity: 100,
   brushFlow: 70,
+  brushSpacing: 12,
+  brushJitter: 0,
+  brushSmoothing: 30,
+  brushHardness: 90,
   fontSize: 24,
   fontFamily: 'sans-serif',
   shapeType: 'rect',

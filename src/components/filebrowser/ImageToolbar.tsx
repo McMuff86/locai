@@ -41,7 +41,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@/components/ui/tooltip';
-import type { ImageTool, DrawSettings, AdjustSettings, ShapeType } from '@/hooks/useImageEditor';
+import type { ImageTool, DrawSettings, AdjustSettings, ShapeType, BrushPreset } from '@/hooks/useImageEditor';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -145,7 +145,6 @@ export function ImageToolbar({
 }: ImageToolbarProps) {
   const isAdjustTool = ['brightness', 'contrast', 'saturation', 'blur', 'sharpen', 'grayscale', 'sepia', 'invert'].includes(activeTool);
   const isDrawTool = ['draw', 'eraser', 'text', 'shapes', 'colorPicker', 'blurRegion'].includes(activeTool);
-  const isTransformTool = ['crop', 'resize', 'rotate', 'flip'].includes(activeTool);
 
   const shapeIcons: Record<ShapeType, React.ComponentType<{ className?: string }>> = {
     rect: Square,
@@ -153,6 +152,11 @@ export function ImageToolbar({
     line: Minus,
     arrow: ArrowRight,
   };
+  const brushPresets: { id: BrushPreset; label: string }[] = [
+    { id: 'hardRound', label: 'Hard Round' },
+    { id: 'softRound', label: 'Soft Round' },
+    { id: 'marker', label: 'Marker' },
+  ];
 
   return (
     <TooltipProvider delayDuration={200}>
@@ -167,6 +171,9 @@ export function ImageToolbar({
 
           {/* Transform */}
           <ToolBtn icon={Move} label="Auswahl" active={activeTool === 'select'} onClick={() => onToolChange('select')} />
+          <ToolBtn icon={Square} label="Marquee" active={activeTool === 'marquee'} onClick={() => onToolChange('marquee')} />
+          <ToolBtn icon={Circle} label="Lasso" active={activeTool === 'lasso'} onClick={() => onToolChange('lasso')} />
+          <ToolBtn icon={Sparkles} label="Magic Wand" active={activeTool === 'magicWand'} onClick={() => onToolChange('magicWand')} />
           <ToolBtn icon={Crop} label="Zuschneiden" active={activeTool === 'crop'} onClick={() => onToolChange('crop')} />
           <ToolBtn icon={Maximize} label="Grösse ändern" active={activeTool === 'resize'} onClick={() => onToolChange('resize')} />
           <ToolBtn icon={RotateCw} label="90° rechts" onClick={() => onRotate(90)} />
@@ -189,6 +196,9 @@ export function ImageToolbar({
           <ToolBtn icon={Square} label="Formen" active={activeTool === 'shapes'} onClick={() => onToolChange('shapes')} />
           <ToolBtn icon={Pipette} label="Farbpipette" active={activeTool === 'colorPicker'} onClick={() => onToolChange('colorPicker')} />
           <ToolBtn icon={Eye} label="Region weichzeichnen" active={activeTool === 'blurRegion'} onClick={() => onToolChange('blurRegion')} />
+          <ToolBtn icon={Droplets} label="Healing" active={activeTool === 'healing'} onClick={() => onToolChange('healing')} />
+          <ToolBtn icon={SaveAll} label="Clone Stamp" active={activeTool === 'cloneStamp'} onClick={() => onToolChange('cloneStamp')} />
+          <ToolBtn icon={CircleDot} label="Spot Remove" active={activeTool === 'spotRemove'} onClick={() => onToolChange('spotRemove')} />
           <Sep />
 
           {/* AI */}
@@ -338,6 +348,21 @@ export function ImageToolbar({
               </div>
             )}
 
+            {(activeTool === 'draw' || activeTool === 'eraser') && (
+              <div className="flex items-center gap-1">
+                <span className="text-xs text-muted-foreground">Preset</span>
+                <select
+                  value={drawSettings.brushPreset}
+                  onChange={(e) => onDrawSettingChange('brushPreset', e.target.value as BrushPreset)}
+                  className="h-6 rounded border border-border bg-background px-1 text-[10px] outline-none"
+                >
+                  {brushPresets.map((preset) => (
+                    <option key={preset.id} value={preset.id}>{preset.label}</option>
+                  ))}
+                </select>
+              </div>
+            )}
+
             {/* Brush opacity / strength */}
             {(activeTool === 'draw' || activeTool === 'eraser') && (
               <div className="flex items-center gap-1">
@@ -367,6 +392,51 @@ export function ImageToolbar({
                   className="w-24"
                 />
                 <span className="text-xs font-mono w-8 text-right">{drawSettings.brushFlow}%</span>
+              </div>
+            )}
+
+            {(activeTool === 'draw' || activeTool === 'eraser') && (
+              <div className="flex items-center gap-1">
+                <span className="text-xs text-muted-foreground">Spacing</span>
+                <Slider
+                  value={[drawSettings.brushSpacing]}
+                  onValueChange={([v]) => onDrawSettingChange('brushSpacing', v)}
+                  min={1}
+                  max={100}
+                  step={1}
+                  className="w-20"
+                />
+                <span className="text-xs font-mono w-7 text-right">{drawSettings.brushSpacing}%</span>
+              </div>
+            )}
+
+            {(activeTool === 'draw' || activeTool === 'eraser') && (
+              <div className="flex items-center gap-1">
+                <span className="text-xs text-muted-foreground">Jitter</span>
+                <Slider
+                  value={[drawSettings.brushJitter]}
+                  onValueChange={([v]) => onDrawSettingChange('brushJitter', v)}
+                  min={0}
+                  max={100}
+                  step={1}
+                  className="w-20"
+                />
+                <span className="text-xs font-mono w-7 text-right">{drawSettings.brushJitter}%</span>
+              </div>
+            )}
+
+            {(activeTool === 'draw' || activeTool === 'eraser') && (
+              <div className="flex items-center gap-1">
+                <span className="text-xs text-muted-foreground">Smooth</span>
+                <Slider
+                  value={[drawSettings.brushSmoothing]}
+                  onValueChange={([v]) => onDrawSettingChange('brushSmoothing', v)}
+                  min={0}
+                  max={100}
+                  step={1}
+                  className="w-20"
+                />
+                <span className="text-xs font-mono w-7 text-right">{drawSettings.brushSmoothing}%</span>
               </div>
             )}
 
