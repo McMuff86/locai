@@ -107,7 +107,7 @@ function expectedToolsForNode(node: FlowNode): string[] {
 }
 
 function isRunnableNode(kind: FlowNodeKind): boolean {
-  return kind !== 'output';
+  return kind === 'agent' || kind === 'template';
 }
 
 function findFirstNodeByKind(nodes: FlowNode[], kind: FlowNodeKind): FlowNode | undefined {
@@ -183,6 +183,10 @@ export function compileVisualWorkflowToPlan(workflow: VisualWorkflow): FlowCompi
     firstAgentNode && firstAgentNode.data.kind === 'agent'
       ? firstAgentNode.data.config.model.trim() || 'llama3'
       : 'llama3';
+  const systemPrompt =
+    firstAgentNode && firstAgentNode.data.kind === 'agent'
+      ? firstAgentNode.data.config.systemPrompt?.trim() || undefined
+      : undefined;
   const enabledTools = [
     ...new Set(
       sortedNodes.reduce<string[]>((acc, node) => {
@@ -198,6 +202,7 @@ export function compileVisualWorkflowToPlan(workflow: VisualWorkflow): FlowCompi
     plan,
     entryMessage,
     model,
+    systemPrompt,
     enabledTools,
     outputNodeId: outputNode?.id ?? null,
     warnings,

@@ -40,8 +40,8 @@ describe('compileVisualWorkflowToPlan', () => {
 
     const result = compileVisualWorkflowToPlan(workflow);
 
-    expect(result.plan.steps.map((step) => step.id)).toEqual([input.id, agent.id, template.id]);
-    expect(result.plan.maxSteps).toBe(3);
+    expect(result.plan.steps.map((step) => step.id)).toEqual([agent.id, template.id]);
+    expect(result.plan.maxSteps).toBe(2);
     expect(result.outputNodeId).toBe(output.id);
     expect(result.warnings).toEqual([]);
   });
@@ -94,6 +94,6 @@ describe('compileVisualWorkflowToPlan', () => {
     const agentStep = result.plan.steps.find((step) => step.id === agent.id);
 
     expect(agentStep).toBeDefined();
-    expect(new Set(agentStep?.dependsOn)).toEqual(new Set([inputA.id, inputB.id]));
+    expect(new Set(agentStep?.dependsOn)).toEqual(new Set());
   });
 });

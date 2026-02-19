@@ -36,9 +36,11 @@ interface FlowStoreState {
   setViewport: (viewport: Viewport) => void;
   selectNode: (nodeId: string | null) => void;
   addNode: (kind: FlowNodeKind, position?: XYPosition) => void;
+  removeNode: (nodeId: string) => void;
   updateNodeLabel: (nodeId: string, label: string) => void;
   updateNodeConfig: (nodeId: string, patch: Record<string, unknown>) => void;
   resetNodeRuntime: () => void;
+  clearRunningNodeRuntime: () => void;
   setNodeRuntime: (nodeId: string, patch: Partial<NodeRuntimeState>) => void;
   setOutputResult: (content: string) => void;
   setRunning: (running: boolean) => void;
@@ -95,15 +97,23 @@ export const useFlowStore = create<FlowStoreState>((set) => ({
     })),
 
   onNodesChange: (changes) =>
-    set((state) => ({
-      workflow: withUpdatedTimestamp({
-        ...state.workflow,
-        graph: {
-          ...state.workflow.graph,
-          nodes: applyNodeChanges(changes, state.workflow.graph.nodes) as FlowNode[],
-        },
-      }),
-    })),
+    set((state) => {
+      const nextNodes = applyNodeChanges(changes, state.workflow.graph.nodes) as FlowNode[];
+      const selectedFromGraph = nextNodes.find((node) => node.selected)?.id ?? null;
+      const selectedNodeStillExists =
+        state.selectedNodeId != null && nextNodes.some((node) => node.id === state.selectedNodeId);
+
+      return {
+        selectedNodeId: selectedFromGraph ?? (selectedNodeStillExists ? state.selectedNodeId : null),
+        workflow: withUpdatedTimestamp({
+          ...state.workflow,
+          graph: {
+            ...state.workflow.graph,
+            nodes: nextNodes,
+          },
+        }),
+      };
+    }),
 
   onEdgesChange: (changes) =>
     set((state) => ({
@@ -157,11 +167,35 @@ export const useFlowStore = create<FlowStoreState>((set) => ({
           ...state.workflow,
           graph: {
             ...state.workflow.graph,
-            nodes: [...state.workflow.graph.nodes, node],
+            nodes: [
+              ...state.workflow.graph.nodes.map((existingNode) => ({
+                ...existingNode,
+                selected: false,
+              })),
+              {
+                ...node,
+                selected: true,
+              },
+            ] as FlowNode[],
           },
         }),
       };
     }),
+
+  removeNode: (nodeId) =>
+    set((state) => ({
+      selectedNodeId: state.selectedNodeId === nodeId ? null : state.selectedNodeId,
+      workflow: withUpdatedTimestamp({
+        ...state.workflow,
+        graph: {
+          ...state.workflow.graph,
+          nodes: state.workflow.graph.nodes.filter((node) => node.id !== nodeId),
+          edges: state.workflow.graph.edges.filter(
+            (edge) => edge.source !== nodeId && edge.target !== nodeId,
+          ),
+        },
+      }),
+    })),
 
   updateNodeLabel: (nodeId, label) =>
     set((state) => ({
@@ -237,6 +271,34 @@ export const useFlowStore = create<FlowStoreState>((set) => ({
       selectedRunId: null,
     })),
 
+  clearRunningNodeRuntime: () =>
+    set((state) => ({
+      workflow: withUpdatedTimestamp({
+        ...state.workflow,
+        graph: {
+          ...state.workflow.graph,
+          nodes: state.workflow.graph.nodes.map((node) => {
+            const status = node.data.runtime?.status;
+            if (status !== 'running') {
+              return node;
+            }
+
+            return {
+              ...node,
+              data: {
+                ...node.data,
+                runtime: {
+                  ...node.data.runtime,
+                  status: 'idle',
+                  updatedAt: new Date().toISOString(),
+                },
+              },
+            };
+          }),
+        },
+      }),
+    })),
+
   setNodeRuntime: (nodeId, patch) =>
     set((state) => ({
       workflow: withUpdatedTimestamp({
@@ -278,7 +340,7 @@ export const useFlowStore = create<FlowStoreState>((set) => ({
                   data: {
                     ...node.data,
                     runtime: {
-                      status: 'success',
+                      status: 'running',
                       updatedAt: new Date().toISOString(),
                     },
                     config: {

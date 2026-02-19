@@ -1,3 +1,66 @@
+# LocAI Context Handoff - Flow Runtime UX + Run Controls
+
+**Last updated:** 2026-02-19 21:30  
+**Branch:** `fix/flow-run-control-and-visibility`  
+**Build:** OK (`typecheck`, `lint` pass; lint warnings are pre-existing)  
+**Tests:** Flow compiler tests PASS (`npx vitest run src/lib/flow/__tests__/engine.test.ts`)
+
+## Scope of this round
+- Improve flow run observability and recoverability.
+- Add abort/clear controls for active and failed runs.
+- Fix execution path that could stall on input nodes.
+
+## Completed changes
+- **Run visibility**
+  - Node runtime badges added (`idle`, `processing`, `done`, `error`) for all flow node components.
+  - Edge styling now reflects runtime state with active animated flow and error highlighting.
+  - Header status line shows currently running nodes (`Now running: ...`).
+- **Run controls**
+  - Added `Stop` button during active runs.
+  - Frontend uses `AbortController` for workflow request cancellation.
+  - Server route now propagates request abort to `WorkflowEngine.cancel()`.
+  - Added `Clear` button to clear warnings/error and hide last-run status line.
+- **Execution correctness**
+  - Flow compiler no longer treats `input` as executable step; only `agent`/`template` compile into runtime steps.
+  - This avoids runs getting stuck before the first agent step starts.
+- **Agent config propagation**
+  - Agent-node `systemPrompt` is now included in compiled flow payload and injected as system message in workflow API.
+- **Additional fixes from the same branch**
+  - Node deletion robustness improved (`Delete` + `Backspace`, explicit remove action, edge cleanup).
+  - Agent model selection in config switched from plain text input to model dropdown (Ollama + fallback model list).
+
+## Key files touched
+- `src/app/(app)/flow/page.tsx`
+- `src/app/api/chat/agent/workflow/route.ts`
+- `src/components/flow/ConfigPanel.tsx`
+- `src/components/flow/FlowCanvas.tsx`
+- `src/components/flow/nodes/AgentNode.tsx`
+- `src/components/flow/nodes/InputNode.tsx`
+- `src/components/flow/nodes/OutputNode.tsx`
+- `src/components/flow/nodes/TemplateNode.tsx`
+- `src/components/flow/nodes/NodeRuntimeBadge.tsx`
+- `src/lib/flow/engine.ts`
+- `src/lib/flow/types.ts`
+- `src/lib/flow/__tests__/engine.test.ts`
+- `src/lib/agents/workflowTypes.ts`
+- `src/stores/flowStore.ts`
+
+## Validation
+- `npm run typecheck` PASS
+- `npm run lint` PASS (warnings only, pre-existing)
+- `npx vitest run src/lib/flow/__tests__/engine.test.ts` PASS
+
+## Known caveats
+- Global project lint warnings still exist outside flow scope (unchanged in this round).
+- Existing local `package-lock.json` diff was already present before this round and is intentionally not part of this flow commit.
+
+## Recommended next work
+1. Add a compact step timeline panel (event order + timestamps + per-step duration).
+2. Add optional auto-focus/follow mode to camera on currently running node.
+3. Add per-step timeout UI feedback (distinct from manual cancel).
+
+---
+
 # LocAI Context Handoff - Flow MVP (Execution Pack Complete)
 
 **Last updated:** 2026-02-19 16:48  

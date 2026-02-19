@@ -23,6 +23,7 @@ import { OutputNode } from '@/components/flow/nodes/OutputNode';
 import { TemplateNode } from '@/components/flow/nodes/TemplateNode';
 import { useToast } from '@/components/ui/use-toast';
 import {
+  FLOW_WIRE_COLORS,
   decorateFlowEdge,
   getFlowConnectionErrorMessage,
   validateFlowConnection,
@@ -51,6 +52,7 @@ export function FlowCanvas({ insertNodeKind = null, onInsertNodeHandled }: FlowC
   const nodes = useFlowStore((state) => state.workflow.graph.nodes);
   const edges = useFlowStore((state) => state.workflow.graph.edges);
   const viewport = useFlowStore((state) => state.workflow.graph.viewport);
+  const isRunning = useFlowStore((state) => state.isRunning);
   const onNodesChange = useFlowStore((state) => state.onNodesChange);
   const onEdgesChange = useFlowStore((state) => state.onEdgesChange);
   const onConnect = useFlowStore((state) => state.onConnect);
@@ -61,7 +63,43 @@ export function FlowCanvas({ insertNodeKind = null, onInsertNodeHandled }: FlowC
   const dragDepthRef = useRef(0);
   const canvasRef = useRef<HTMLDivElement | null>(null);
   const reactFlowRef = useRef<ReactFlowInstance<FlowNode, FlowEdge> | null>(null);
-  const styledEdges = useMemo(() => edges.map((edge) => decorateFlowEdge(edge, nodes)), [edges, nodes]);
+  const nodeStatusById = useMemo(
+    () => new Map(nodes.map((node) => [node.id, node.data.runtime?.status ?? 'idle'])),
+    [nodes],
+  );
+
+  const styledEdges = useMemo(
+    () =>
+      edges.map((edge) => {
+        const decoratedEdge = decorateFlowEdge(edge, nodes);
+        const sourceStatus = nodeStatusById.get(edge.source) ?? 'idle';
+        const targetStatus = nodeStatusById.get(edge.target) ?? 'idle';
+        const wireType = decoratedEdge.data?.wireType ?? 'any';
+        const baseColor = FLOW_WIRE_COLORS[wireType];
+        const hasError = sourceStatus === 'error' || targetStatus === 'error';
+        const isActiveFlow =
+          isRunning &&
+          (sourceStatus === 'running' ||
+            targetStatus === 'running' ||
+            decoratedEdge.data?.wireType === 'stream');
+        const isCompletedFlow =
+          sourceStatus === 'success' && (targetStatus === 'success' || targetStatus === 'running');
+
+        return {
+          ...decoratedEdge,
+          animated: isActiveFlow || decoratedEdge.animated === true,
+          style: {
+            ...decoratedEdge.style,
+            stroke: hasError ? '#f87171' : isActiveFlow ? '#22d3ee' : isCompletedFlow ? '#34d399' : baseColor,
+            strokeWidth: isActiveFlow ? 3 : hasError ? 2.6 : decoratedEdge.style?.strokeWidth ?? 2.2,
+            strokeDasharray: isActiveFlow ? '8 6' : decoratedEdge.style?.strokeDasharray,
+            filter: isActiveFlow ? 'drop-shadow(0 0 6px rgba(34,211,238,0.65))' : undefined,
+            opacity: isActiveFlow ? 1 : isCompletedFlow ? 0.9 : 0.65,
+          },
+        };
+      }),
+    [edges, isRunning, nodeStatusById, nodes],
+  );
 
   const nodeTypes: NodeTypes = useMemo(
     () => ({
@@ -240,6 +278,7 @@ export function FlowCanvas({ insertNodeKind = null, onInsertNodeHandled }: FlowC
         onSelectionChange={handleSelectionChange}
         onMoveEnd={handleMoveEnd}
         isValidConnection={isValidConnection}
+        deleteKeyCode={['Backspace', 'Delete']}
         defaultViewport={viewport}
         className="bg-zinc-950"
       >

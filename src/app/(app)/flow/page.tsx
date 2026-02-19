@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Loader2, Play, Save } from 'lucide-react';
+import { Loader2, Play, Save, Square, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/components/ui/use-toast';
 import { ConfigPanel } from '@/components/flow/ConfigPanel';
@@ -25,6 +25,7 @@ export default function FlowPage() {
   const loadWorkflow = useFlowStore((state) => state.loadWorkflow);
   const setHydrated = useFlowStore((state) => state.setHydrated);
   const resetNodeRuntime = useFlowStore((state) => state.resetNodeRuntime);
+  const clearRunningNodeRuntime = useFlowStore((state) => state.clearRunningNodeRuntime);
   const setNodeRuntime = useFlowStore((state) => state.setNodeRuntime);
   const setOutputResult = useFlowStore((state) => state.setOutputResult);
   const setRunning = useFlowStore((state) => state.setRunning);
@@ -36,8 +37,23 @@ export default function FlowPage() {
   const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
   const [pendingInsertNodeKind, setPendingInsertNodeKind] = useState<FlowNodeKind | null>(null);
   const streamBufferRef = useRef('');
+  const runAbortControllerRef = useRef<AbortController | null>(null);
+  const [showLastRunInfo, setShowLastRunInfo] = useState(true);
 
   const lastRun = useMemo(() => workflow.runs[0] ?? null, [workflow.runs]);
+  const runningNodeLabels = useMemo(
+    () =>
+      workflow.graph.nodes
+        .filter((node) => node.data.runtime?.status === 'running')
+        .map((node) => node.data.label),
+    [workflow.graph.nodes],
+  );
+
+  useEffect(() => {
+    if (lastRun) {
+      setShowLastRunInfo(true);
+    }
+  }, [lastRun]);
 
   useEffect(() => {
     let cancelled = false;
@@ -134,6 +150,20 @@ export default function FlowPage() {
     }
   }, [toast, workflow]);
 
+  const handleClearStatus = useCallback(() => {
+    setCompileWarnings([]);
+    setRunError(null);
+    setShowLastRunInfo(false);
+  }, [setRunError]);
+
+  const handleCancelRun = useCallback(() => {
+    if (!runAbortControllerRef.current) {
+      return;
+    }
+
+    runAbortControllerRef.current.abort();
+  }, []);
+
   const handleRun = useCallback(async () => {
     setCompileWarnings([]);
     setRunError(null);
@@ -144,9 +174,6 @@ export default function FlowPage() {
     try {
       compiled = compileVisualWorkflowToPlan(workflow.graph);
       setCompileWarnings(compiled.warnings);
-      if (compiled.outputNodeId) {
-        setNodeRuntime(compiled.outputNodeId, { status: 'running' });
-      }
     } catch (error) {
       const message =
         error instanceof FlowCompileError ? error.message : 'Flow konnte nicht kompiliert werden.';
@@ -170,10 +197,6 @@ export default function FlowPage() {
 
     for (const node of workflow.graph.nodes) {
       runNodeStatuses[node.id] = 'idle';
-    }
-
-    if (compiled.outputNodeId) {
-      runNodeStatuses[compiled.outputNodeId] = 'running';
     }
 
     const setRunNodeStatus = (nodeId: string | undefined, status: NodeRunStatus) => {
@@ -202,8 +225,11 @@ export default function FlowPage() {
 
         case 'message':
           streamBufferRef.current += event.content;
+          if (compiled.outputNodeId) {
+            setNodeRuntime(compiled.outputNodeId, { status: 'running' });
+          }
           setOutputResult(streamBufferRef.current);
-          setRunNodeStatus(compiled.outputNodeId ?? undefined, 'success');
+          setRunNodeStatus(compiled.outputNodeId ?? undefined, 'running');
           break;
 
         case 'error':
@@ -217,6 +243,16 @@ export default function FlowPage() {
             });
             setRunNodeStatus(event.stepId, 'error');
           }
+          if (compiled.outputNodeId) {
+            setNodeRuntime(compiled.outputNodeId, { status: 'error', message: event.message });
+            setRunNodeStatus(compiled.outputNodeId, 'error');
+          }
+          break;
+
+        case 'cancelled':
+          finalStatus = 'cancelled';
+          lastError = 'Run wurde abgebrochen.';
+          setRunError(lastError);
           break;
 
         case 'workflow_end':
@@ -225,14 +261,25 @@ export default function FlowPage() {
           totalSteps = event.totalSteps;
           completedAt = new Date().toISOString();
           if (event.status === 'done') {
+            if (compiled.outputNodeId) {
+              setNodeRuntime(compiled.outputNodeId, { status: 'success' });
+            }
             setRunNodeStatus(compiled.outputNodeId ?? undefined, 'success');
           } else if (event.status === 'error') {
+            if (compiled.outputNodeId) {
+              setNodeRuntime(compiled.outputNodeId, {
+                status: 'error',
+                message: lastError ?? 'Workflow endete mit Fehler.',
+              });
+            }
             setRunNodeStatus(compiled.outputNodeId ?? undefined, 'error');
           }
           break;
       }
     };
 
+    const abortController = new AbortController();
+    runAbortControllerRef.current = abortController;
     setRunning(true);
     try {
       const response = await fetch('/api/chat/agent/workflow', {
@@ -241,6 +288,7 @@ export default function FlowPage() {
         body: JSON.stringify({
           message: compiled.entryMessage,
           model: compiled.model,
+          systemPrompt: compiled.systemPrompt,
           enabledTools: compiled.enabledTools,
           maxSteps: compiled.plan.steps.length,
           enablePlanning: false,
@@ -248,6 +296,7 @@ export default function FlowPage() {
           conversationHistory: [],
           initialPlan: compiled.plan,
         }),
+        signal: abortController.signal,
       });
 
       if (!response.ok || !response.body) {
@@ -302,16 +351,38 @@ export default function FlowPage() {
         variant: finalStatus === 'done' ? 'default' : 'destructive',
       });
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Workflow-Ausführung fehlgeschlagen.';
-      lastError = message;
-      finalStatus = 'error';
-      setRunError(message);
-      toast({
-        title: 'Run fehlgeschlagen',
-        description: message,
-        variant: 'destructive',
-      });
+      const wasAborted =
+        (error instanceof DOMException && error.name === 'AbortError') ||
+        (error instanceof Error && error.name === 'AbortError');
+
+      if (wasAborted) {
+        finalStatus = 'cancelled';
+        lastError = 'Run wurde abgebrochen.';
+        setRunError(lastError);
+        toast({
+          title: 'Run abgebrochen',
+          description: 'Die laufende Ausführung wurde gestoppt.',
+        });
+      } else {
+        const message = error instanceof Error ? error.message : 'Workflow-Ausführung fehlgeschlagen.';
+        lastError = message;
+        finalStatus = 'error';
+        setRunError(message);
+        if (compiled.outputNodeId) {
+          setNodeRuntime(compiled.outputNodeId, { status: 'error', message });
+          setRunNodeStatus(compiled.outputNodeId, 'error');
+        }
+        toast({
+          title: 'Run fehlgeschlagen',
+          description: message,
+          variant: 'destructive',
+        });
+      }
     } finally {
+      runAbortControllerRef.current = null;
+      if (finalStatus === 'cancelled') {
+        clearRunningNodeRuntime();
+      }
       setRunning(false);
       const fallbackCompletedAt = new Date().toISOString();
       addRunSummary({
@@ -329,6 +400,7 @@ export default function FlowPage() {
     }
   }, [
     addRunSummary,
+    clearRunningNodeRuntime,
     resetNodeRuntime,
     setNodeRuntime,
     setOutputResult,
@@ -393,22 +465,56 @@ export default function FlowPage() {
             {isRunning ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Play className="h-3.5 w-3.5" />}
             {isRunning ? 'Running...' : 'Run'}
           </Button>
+
+          {isRunning && (
+            <Button
+              variant="destructive"
+              size="sm"
+              className="h-8 gap-1.5"
+              onClick={handleCancelRun}
+            >
+              <Square className="h-3.5 w-3.5" />
+              Stop
+            </Button>
+          )}
         </div>
       </div>
 
-      {(compileWarnings.length > 0 || runError || lastRun) && (
+      {(compileWarnings.length > 0 || runError || (showLastRunInfo && lastRun) || isRunning) && (
         <div className="border-b border-border/60 bg-background/70 px-4 py-2 text-xs">
-          {compileWarnings.length > 0 && (
-            <div className="mb-1 text-amber-300">
-              Warnings: {compileWarnings.join(' | ')}
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              {isRunning && (
+                <div className="mb-1 text-cyan-300">
+                  Now running:{' '}
+                  {runningNodeLabels.length > 0 ? runningNodeLabels.join(' -> ') : 'Workflow wird gestartet...'}
+                </div>
+              )}
+              {compileWarnings.length > 0 && (
+                <div className="mb-1 text-amber-300">
+                  Warnings: {compileWarnings.join(' | ')}
+                </div>
+              )}
+              {runError && <div className="mb-1 text-red-300">Run Error: {runError}</div>}
+              {showLastRunInfo && lastRun && (
+                <div className="text-muted-foreground">
+                  Last run: {lastRun.status} | {lastRun.durationMs ?? 0} ms | {lastRun.startedAt}
+                </div>
+              )}
             </div>
-          )}
-          {runError && <div className="mb-1 text-red-300">Run Error: {runError}</div>}
-          {lastRun && (
-            <div className="text-muted-foreground">
-              Last run: {lastRun.status} | {lastRun.durationMs ?? 0} ms | {lastRun.startedAt}
-            </div>
-          )}
+
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="h-7 gap-1 px-2 text-[11px]"
+              onClick={handleClearStatus}
+              disabled={isRunning}
+            >
+              <X className="h-3 w-3" />
+              Clear
+            </Button>
+          </div>
         </div>
       )}
 
