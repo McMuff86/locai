@@ -118,6 +118,7 @@ export interface FlowCompileResult {
   plan: WorkflowPlan;
   entryMessage: string;
   model: string;
+  systemPrompt?: string;
   enabledTools: string[];
   outputNodeId: string | null;
   warnings: string[];

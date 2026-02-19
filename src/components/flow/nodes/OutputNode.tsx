@@ -1,5 +1,6 @@
 import { Handle, Position, type NodeProps } from '@xyflow/react';
 import { CheckCheck, CircleDashed } from 'lucide-react';
+import { NodeRuntimeBadge } from '@/components/flow/nodes/NodeRuntimeBadge';
 import { cn } from '@/lib/utils';
 import type { NodeRunStatus, OutputNodeData } from '@/lib/flow/types';
 
@@ -27,9 +28,12 @@ export function OutputNode({ data: rawData, selected }: NodeProps) {
         selected && 'ring-2 ring-primary/50',
       )}
     >
-      <div className="flex items-center gap-2 border-b border-border/60 px-3 py-2">
-        <CheckCheck className="h-4 w-4 text-amber-300" />
-        <span className="text-xs font-semibold tracking-wide">{data.label}</span>
+      <div className="flex items-center justify-between gap-2 border-b border-border/60 px-3 py-2">
+        <span className="inline-flex items-center gap-2">
+          <CheckCheck className="h-4 w-4 text-amber-300" />
+          <span className="text-xs font-semibold tracking-wide">{data.label}</span>
+        </span>
+        <NodeRuntimeBadge status={data.runtime?.status} />
       </div>
 
       <div className="space-y-2 px-3 py-2.5">

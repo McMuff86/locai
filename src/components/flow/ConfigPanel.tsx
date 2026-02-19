@@ -1,8 +1,11 @@
 "use client";
 
-import React from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
+import { Trash2 } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
+import { getOllamaModels } from '@/lib/ollama';
 import type { AgentNodeData, InputNodeData, OutputNodeData, TemplateNodeData } from '@/lib/flow/types';
 import { cn } from '@/lib/utils';
 import { useFlowStore } from '@/stores/flowStore';
@@ -21,6 +24,14 @@ const BUILTIN_TOOLS = [
   'generate_image',
 ];
 
+const FALLBACK_AGENT_MODELS = [
+  'llama3',
+  'llama3.2',
+  'qwen2.5-coder',
+  'mistral',
+  'gemma3',
+];
+
 function SectionTitle({ children }: { children: React.ReactNode }) {
   return <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{children}</h3>;
 }
@@ -30,12 +41,60 @@ export function ConfigPanel() {
   const selectedNodeId = useFlowStore((state) => state.selectedNodeId);
   const updateNodeLabel = useFlowStore((state) => state.updateNodeLabel);
   const updateNodeConfig = useFlowStore((state) => state.updateNodeConfig);
+  const removeNode = useFlowStore((state) => state.removeNode);
+  const [availableModels, setAvailableModels] = useState<string[]>([]);
   const selectedNode = nodes.find((node) => node.id === selectedNodeId) ?? null;
   const inputData = selectedNode?.data.kind === 'input' ? (selectedNode.data as InputNodeData) : null;
   const agentData = selectedNode?.data.kind === 'agent' ? (selectedNode.data as AgentNodeData) : null;
   const templateData =
     selectedNode?.data.kind === 'template' ? (selectedNode.data as TemplateNodeData) : null;
   const outputData = selectedNode?.data.kind === 'output' ? (selectedNode.data as OutputNodeData) : null;
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadModels = async () => {
+      const models = await getOllamaModels();
+      if (cancelled) {
+        return;
+      }
+
+      const uniqueModels = Array.from(
+        new Set(
+          models
+            .map((model) => model.name?.trim())
+            .filter((modelName): modelName is string => Boolean(modelName)),
+        ),
+      ).sort((left, right) => left.localeCompare(right));
+
+      setAvailableModels(uniqueModels);
+    };
+
+    void loadModels();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const agentModelOptions = useMemo(() => {
+    const options = new Set<string>();
+    const currentModel = agentData?.config.model?.trim();
+
+    if (currentModel) {
+      options.add(currentModel);
+    }
+
+    for (const modelName of availableModels) {
+      options.add(modelName);
+    }
+
+    for (const modelName of FALLBACK_AGENT_MODELS) {
+      options.add(modelName);
+    }
+
+    return Array.from(options);
+  }, [agentData?.config.model, availableModels]);
 
   if (!selectedNode) {
     return (
@@ -90,11 +149,17 @@ export function ConfigPanel() {
           <>
             <div className="space-y-2">
               <SectionTitle>Model</SectionTitle>
-              <Input
+              <select
                 value={agentData.config.model}
                 onChange={(event) => updateNodeConfig(selectedNode.id, { model: event.target.value })}
-                className="h-9 text-xs"
-              />
+                className="h-9 w-full rounded-md border border-input bg-background px-2 text-xs outline-none transition-[color,box-shadow] focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
+              >
+                {agentModelOptions.map((modelName) => (
+                  <option key={modelName} value={modelName}>
+                    {modelName}
+                  </option>
+                ))}
+              </select>
             </div>
 
             <div className="space-y-2">
@@ -197,6 +262,19 @@ export function ConfigPanel() {
             />
           </div>
         )}
+
+        <div className="border-t border-border/60 pt-3">
+          <Button
+            type="button"
+            variant="destructive"
+            size="sm"
+            className="w-full justify-center gap-1.5"
+            onClick={() => removeNode(selectedNode.id)}
+          >
+            <Trash2 className="h-3.5 w-3.5" />
+            Node löschen
+          </Button>
+        </div>
       </div>
     </aside>
   );

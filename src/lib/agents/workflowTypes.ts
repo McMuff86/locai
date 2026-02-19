@@ -362,6 +362,7 @@ export type WorkflowStreamEvent =
 export interface WorkflowApiRequest {
   message: string;
   model: string;
+  systemPrompt?: string;
   conversationId?: string;
   workflowId?: string;
   initialPlan?: WorkflowPlan;

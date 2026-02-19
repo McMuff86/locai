@@ -107,6 +107,7 @@ export async function POST(request: NextRequest) {
     const {
       message,
       model = 'llama3',
+      systemPrompt,
       conversationId,
       enabledTools,
       maxSteps,
@@ -169,6 +170,11 @@ export async function POST(request: NextRequest) {
       // Memory injection is best-effort
     }
 
+    // Flow-specific system prompt from the selected Agent node (if provided)
+    if (typeof systemPrompt === 'string' && systemPrompt.trim().length > 0) {
+      messages.unshift({ role: 'system', content: systemPrompt.trim() });
+    }
+
     // Create WorkflowEngine
     const engine = new WorkflowEngine({
       message,
@@ -193,6 +199,8 @@ export async function POST(request: NextRequest) {
     const stream = new ReadableStream({
       async start(controller) {
         const encoder = new TextEncoder();
+        const onAbort = () => engine.cancel();
+        request.signal.addEventListener('abort', onAbort);
 
         function emit(data: Record<string, unknown>): void {
           controller.enqueue(encoder.encode(JSON.stringify(data) + '\n'));
@@ -206,8 +214,12 @@ export async function POST(request: NextRequest) {
           const errMsg = err instanceof Error ? err.message : 'Workflow error';
           emit({ type: 'error', message: errMsg, recoverable: false });
         } finally {
+          request.signal.removeEventListener('abort', onAbort);
           controller.close();
         }
+      },
+      cancel() {
+        engine.cancel();
       },
     });
 
