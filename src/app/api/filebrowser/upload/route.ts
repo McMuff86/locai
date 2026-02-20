@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { assertLocalRequest } from '@/app/api/_utils/security';
 import { saveUploadedFile } from '@/lib/filebrowser/scanner';
 
 export const runtime = 'nodejs';
@@ -7,8 +6,6 @@ export const runtime = 'nodejs';
 const MAX_UPLOAD_BYTES = 20 * 1024 * 1024; // 20 MB per file
 
 export async function POST(req: NextRequest) {
-  const forbidden = assertLocalRequest(req);
-  if (forbidden) return forbidden;
 
   try {
     const formData = await req.formData();

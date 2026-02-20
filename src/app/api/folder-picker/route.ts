@@ -3,7 +3,6 @@ import { execFile } from 'child_process';
 import { promisify } from 'util';
 import path from 'path';
 import fs from 'fs';
-import { assertLocalRequest } from '../_utils/security';
 
 const execFileAsync = promisify(execFile);
 
@@ -19,8 +18,6 @@ function sanitizeDialogInput(input: string): string | null {
 }
 
 export async function POST(request: Request) {
-  const forbidden = assertLocalRequest(request);
-  if (forbidden) return forbidden;
 
   try {
     const body = await request.json();

@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server';
 import { execFile } from 'child_process';
 import { promisify } from 'util';
-import { assertLocalRequest } from '../../_utils/security';
 
 const execFileAsync = promisify(execFile);
 
@@ -26,8 +25,6 @@ const PROTECTED_PROCESSES = [
 ];
 
 export async function POST(request: Request) {
-  const forbidden = assertLocalRequest(request);
-  if (forbidden) return forbidden;
 
   try {
     const body = await request.json();
@@ -106,8 +103,6 @@ export async function POST(request: Request) {
 
 // GET method to check if kill is supported
 export async function GET(request: Request) {
-  const forbidden = assertLocalRequest(request);
-  if (forbidden) return forbidden;
 
   return NextResponse.json({
     supported: true,

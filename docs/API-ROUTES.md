@@ -114,4 +114,37 @@ Auto-generated route audit. Last updated: 2026-02-20.
 
 ---
 
+## Authentication
+
+All API routes are protected by the global middleware (`src/middleware.ts`). The only exception is `GET /api/health`, which is open for health checks.
+
+### Token Authentication (`LOCAI_API_TOKEN`)
+
+If `LOCAI_API_TOKEN` is set in your environment (e.g. `.env.local`), every API request must include the token via one of:
+
+| Header | Format |
+|--------|--------|
+| `Authorization` | `Bearer <token>` |
+| `X-LocAI-Token` | `<token>` |
+
+If the token is not set, token auth is skipped (localhost guard still applies).
+
+### Localhost Guard
+
+By default, only requests from `localhost` / `127.0.0.1` / `::1` are allowed. The middleware checks both `Origin` and `Host` headers.
+
+To allow remote access, set `LOCAI_ALLOW_REMOTE=true` in your environment. **Not recommended for production without token auth.**
+
+### Example
+
+```bash
+# With token
+curl -H "Authorization: Bearer <your-token>" http://localhost:3000/api/settings
+
+# Or using X-LocAI-Token header
+curl -H "X-LocAI-Token: <your-token>" http://localhost:3000/api/settings
+```
+
+---
+
 **Total: 47 routes across 17 API domains.**

@@ -1,12 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { assertLocalRequest } from '@/app/api/_utils/security';
 import { deleteFile } from '@/lib/filebrowser/scanner';
 
 export const runtime = 'nodejs';
 
 export async function DELETE(req: NextRequest) {
-  const forbidden = assertLocalRequest(req);
-  if (forbidden) return forbidden;
 
   try {
     const rootId = req.nextUrl.searchParams.get('rootId');

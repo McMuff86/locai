@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { assertLocalRequest } from '@/app/api/_utils/security';
 import fs from 'fs';
 import path from 'path';
 
@@ -16,8 +15,6 @@ function getSettings(): Record<string, unknown> {
 }
 
 export async function POST(req: NextRequest) {
-  const forbidden = assertLocalRequest(req);
-  if (forbidden) return forbidden;
 
   try {
     const body = await req.json() as { image?: string; prompt?: string; denoise?: number };
