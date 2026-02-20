@@ -33,8 +33,15 @@ import {
   User,
   X,
   Zap,
+  Key,
 } from 'lucide-react';
 import { ChatAvatar } from '@/components/chat/ChatAvatar';
+import {
+  loadProviderSettings,
+  saveProviderSettings,
+  type ProviderSettings,
+  type ProviderType,
+} from '@/lib/providers';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -60,6 +67,35 @@ export default function SettingsPage() {
   const [isPickingFolder, setIsPickingFolder] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
   const [status, setStatus] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+
+  // ── Provider Settings ───────────────────────────────────────────────────
+  const [providerSettings, setProviderSettings] = useState<ProviderSettings>(loadProviderSettings);
+  const handleProviderToggle = useCallback((type: ProviderType, enabled: boolean) => {
+    setProviderSettings((prev) => {
+      const next = {
+        ...prev,
+        providers: {
+          ...prev.providers,
+          [type]: { ...prev.providers[type], enabled },
+        },
+      };
+      saveProviderSettings(next);
+      return next;
+    });
+  }, []);
+  const handleProviderApiKey = useCallback((type: ProviderType, apiKey: string) => {
+    setProviderSettings((prev) => {
+      const next = {
+        ...prev,
+        providers: {
+          ...prev.providers,
+          [type]: { ...prev.providers[type], apiKey, enabled: apiKey.length > 0 },
+        },
+      };
+      saveProviderSettings(next);
+      return next;
+    });
+  }, []);
 
   // ── System Stats ───────────────────────────────────────────────────────
   const [systemStats, setSystemStats] = useState<SystemStats | null>(null);
@@ -532,6 +568,65 @@ export default function SettingsPage() {
               <label className="block font-medium mb-2">Verbindungsstatus</label>
               <OllamaStatus showVersion compact={false} host={settings?.ollamaHost} />
             </div>
+          </div>
+        </section>
+
+        {/* ────────────── AI Providers ────────────── */}
+        <section className="space-y-4">
+          <div className="flex items-center gap-2 text-lg font-semibold">
+            <Key className="h-5 w-5 text-primary" />
+            AI Providers (Flow Builder)
+          </div>
+          <p className="text-sm text-muted-foreground">
+            Konfiguriere zusätzliche AI-Provider für den Flow Builder. API Keys werden nur lokal gespeichert.
+          </p>
+          <div className="space-y-3">
+            {(['anthropic', 'openai', 'openrouter'] as ProviderType[]).map((type) => {
+              const config = providerSettings.providers[type];
+              const labels: Record<string, { name: string; placeholder: string; hint: string }> = {
+                anthropic: {
+                  name: '🧠 Anthropic (Claude)',
+                  placeholder: 'sk-ant-...',
+                  hint: 'console.anthropic.com → API Keys',
+                },
+                openai: {
+                  name: '💚 OpenAI',
+                  placeholder: 'sk-...',
+                  hint: 'platform.openai.com → API Keys',
+                },
+                openrouter: {
+                  name: '🔀 OpenRouter',
+                  placeholder: 'sk-or-...',
+                  hint: 'openrouter.ai → Keys — Zugang zu Claude, GPT, Gemini, Llama etc.',
+                },
+              };
+              const label = labels[type];
+              return (
+                <div key={type} className="bg-card border border-border rounded-lg p-4 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="font-medium">{label.name}</span>
+                    <label className="flex items-center gap-2 text-sm">
+                      <input
+                        type="checkbox"
+                        className="h-4 w-4"
+                        checked={config.enabled}
+                        onChange={(e) => handleProviderToggle(type, e.target.checked)}
+                      />
+                      Aktiv
+                    </label>
+                  </div>
+                  <div>
+                    <Input
+                      type="password"
+                      value={config.apiKey ?? ''}
+                      onChange={(e) => handleProviderApiKey(type, e.target.value)}
+                      placeholder={label.placeholder}
+                    />
+                    <p className="text-xs text-muted-foreground mt-1">{label.hint}</p>
+                  </div>
+                </div>
+              );
+            })}
           </div>
         </section>
 
