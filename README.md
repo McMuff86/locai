@@ -45,6 +45,21 @@ Specs:
 - Zustand
 - IndexedDB (`idb`)
 
+## LLM Providers
+
+LocAI supports multiple LLM providers beyond Ollama:
+
+| Provider | Models | Key Required |
+|----------|--------|-------------|
+| **Ollama** (default) | Local models | No |
+| **Anthropic** | Claude Opus 4, Sonnet 4, 3.5 Haiku | Yes |
+| **OpenAI** | GPT-4o, GPT-4o-mini, etc. | Yes |
+| **OpenRouter** | 100+ models | Yes |
+
+Set API keys in `.env.local` and pass `"provider": "anthropic"` (etc.) in API requests. Ollama remains the default — no configuration needed for local-only usage.
+
+→ Full guide: [docs/PROVIDER-INTEGRATION.md](docs/PROVIDER-INTEGRATION.md)
+
 ## Prerequisites
 
 - Node.js 22+
