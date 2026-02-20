@@ -2,12 +2,13 @@ import { NextRequest, NextResponse } from 'next/server';
 import { FileNoteStorage } from '@/lib/notes/fileNoteStorage';
 import { upsertEmbeddingsForNote, loadEmbeddings } from '@/lib/notes/embeddings';
 import { Note } from '@/lib/notes/types';
-import { sanitizeBasePath, validateOllamaHost } from '../../_utils/security';
+import { sanitizeBasePath } from '../../_utils/security';
+import { resolveAndValidateOllamaHost } from '../../_utils/ollama';
+import { apiError } from '../../_utils/responses';
 import { createHash } from 'crypto';
 
 export const runtime = 'nodejs';
 
-const DEFAULT_HOST = 'http://localhost:11434';
 const DEFAULT_MODEL = 'nomic-embed-text';
 
 function getBasePath(req: NextRequest, bodyBasePath?: string | null): string | null {
@@ -59,32 +60,31 @@ export async function POST(req: NextRequest) {
   const basePath = getBasePath(req, body.basePath || null);
   const noteId: string | undefined = body.noteId;
   const model: string = body.model || DEFAULT_MODEL;
-  // SSRF: validate user-supplied Ollama host
-  const rawHost = body.host || DEFAULT_HOST;
-  const hostCheck = validateOllamaHost(rawHost);
-  if (!hostCheck.valid) {
-    return NextResponse.json({ error: hostCheck.reason }, { status: 400 });
+  let host: string;
+  try {
+    host = resolveAndValidateOllamaHost(body.host);
+  } catch (err) {
+    return apiError(err instanceof Error ? err.message : 'Invalid Ollama host', 400);
   }
-  const host: string = hostCheck.url;
   const chunkSize: number | undefined = body.chunkSize;
   const chunkOverlap: number | undefined = body.chunkOverlap;
   const streaming: boolean = body.streaming ?? true;
   const forceRebuild: boolean = body.forceRebuild ?? false;
 
   if (!basePath) {
-    return NextResponse.json({ error: 'basePath is required' }, { status: 400 });
+    return apiError('basePath is required', 400);
   }
 
   // SEC-2: Validate basePath (no traversal)
   const safeBasePath = sanitizeBasePath(basePath);
   if (!safeBasePath) {
-    return NextResponse.json({ error: 'Invalid basePath' }, { status: 400 });
+    return apiError('Invalid basePath', 400);
   }
 
   // Check if model is available first
   const modelCheck = await checkEmbeddingModel(host, model);
   if (!modelCheck.available) {
-    return NextResponse.json({ error: modelCheck.error }, { status: 400 });
+    return apiError(modelCheck.error || 'Embedding model not available', 400);
   }
 
   const storage = new FileNoteStorage(safeBasePath);
@@ -92,7 +92,7 @@ export async function POST(req: NextRequest) {
 
   if (noteId) {
     const note = await storage.getNote(noteId);
-    if (!note) return NextResponse.json({ error: 'Note not found' }, { status: 404 });
+    if (!note) return apiError('Note not found', 404);
     allNotes = [note];
   } else {
     const summaries = await storage.listNotes();
@@ -101,7 +101,7 @@ export async function POST(req: NextRequest) {
   }
 
   if (allNotes.length === 0) {
-    return NextResponse.json({ error: 'Keine Notizen zum Verarbeiten gefunden' }, { status: 400 });
+    return apiError('Keine Notizen zum Verarbeiten gefunden', 400);
   }
 
   // Incremental: determine which notes actually need re-embedding

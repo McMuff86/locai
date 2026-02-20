@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
-import { validateOllamaHost } from '../_utils/security';
+import { resolveAndValidateOllamaHost } from '../_utils/ollama';
+import { apiError } from '../_utils/responses';
 
 interface ServiceStatus {
   name: string;
@@ -54,16 +55,17 @@ async function checkComfyUI(): Promise<ServiceStatus> {
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
-  const rawOllamaHost = searchParams.get('ollamaHost') || 'http://localhost:11434';
+  const rawOllamaHost = searchParams.get('ollamaHost') || undefined;
 
-  // SSRF: validate user-supplied Ollama host
-  const hostCheck = validateOllamaHost(rawOllamaHost);
-  if (!hostCheck.valid) {
-    return NextResponse.json({ error: hostCheck.reason }, { status: 400 });
+  let ollamaHost: string;
+  try {
+    ollamaHost = resolveAndValidateOllamaHost(rawOllamaHost);
+  } catch (err) {
+    return apiError(err instanceof Error ? err.message : 'Invalid Ollama host', 400);
   }
 
   const [ollama, comfyui] = await Promise.all([
-    checkOllama(hostCheck.url),
+    checkOllama(ollamaHost),
     checkComfyUI(),
   ]);
 

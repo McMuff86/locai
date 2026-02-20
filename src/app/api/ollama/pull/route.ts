@@ -1,9 +1,7 @@
-import { NextResponse } from 'next/server';
-import { validateOllamaHost } from '../../_utils/security';
+import { resolveAndValidateOllamaHost } from '../../_utils/ollama';
+import { apiError, apiSuccess } from '../../_utils/responses';
 
 export const dynamic = 'force-dynamic';
-
-const OLLAMA_BASE_URL = process.env.NEXT_PUBLIC_OLLAMA_URL || 'http://localhost:11434';
 
 // Comprehensive model list organized by category
 const POPULAR_MODELS = [
@@ -77,31 +75,24 @@ const POPULAR_MODELS = [
 
 // GET - List available models to pull (suggestions)
 export async function GET() {
-  return NextResponse.json({
-    success: true,
-    models: POPULAR_MODELS,
-  });
+  return apiSuccess({ models: POPULAR_MODELS });
 }
 
 // POST - Start pulling a model (returns streaming response)
 export async function POST(request: Request) {
   try {
     const { model, host } = await request.json();
-    
+
     if (!model) {
-      return NextResponse.json(
-        { success: false, error: 'Model name required' },
-        { status: 400 }
-      );
+      return apiError('Model name required', 400);
     }
 
-    const rawHost = (typeof host === 'string' && host.trim()) ? host.trim() : OLLAMA_BASE_URL;
-    // SSRF: validate user-supplied Ollama host
-    const hostCheck = validateOllamaHost(rawHost);
-    if (!hostCheck.valid) {
-      return NextResponse.json({ success: false, error: hostCheck.reason }, { status: 400 });
+    let baseUrl: string;
+    try {
+      baseUrl = resolveAndValidateOllamaHost(host);
+    } catch (err) {
+      return apiError(err instanceof Error ? err.message : 'Invalid Ollama host', 400);
     }
-    const baseUrl = hostCheck.url;
 
     // Start pull request to Ollama
     const response = await fetch(`${baseUrl}/api/pull`, {
@@ -111,10 +102,7 @@ export async function POST(request: Request) {
     });
     
     if (!response.ok) {
-      return NextResponse.json(
-        { success: false, error: `Ollama error: ${response.status}` },
-        { status: response.status }
-      );
+      return apiError(`Ollama error: ${response.status}`, response.status);
     }
     
     // Stream the response
@@ -164,9 +152,6 @@ export async function POST(request: Request) {
     
   } catch (error) {
     console.error('Pull error:', error);
-    return NextResponse.json(
-      { success: false, error: 'Failed to pull model' },
-      { status: 500 }
-    );
+    return apiError('Failed to pull model', 500);
   }
 }

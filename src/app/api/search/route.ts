@@ -6,9 +6,10 @@ import {
   fetchPageContent,
   formatForChat,
   WebSearchOptions,
-  WebSearchResult
 } from '@/lib/webSearch';
-import { validateOllamaHost, validateSearxngUrl, validateExternalUrl } from '../_utils/security';
+import { validateSearxngUrl, validateExternalUrl } from '../_utils/security';
+import { resolveAndValidateOllamaHost } from '../_utils/ollama';
+import { apiError } from '../_utils/responses';
 
 /**
  * GET /api/search
@@ -24,17 +25,14 @@ export async function GET(request: NextRequest) {
   const maxResults = parseInt(searchParams.get('maxResults') || '8', 10);
 
   if (!query) {
-    return NextResponse.json(
-      { error: 'Query parameter "q" is required' },
-      { status: 400 }
-    );
+    return apiError('Query parameter "q" is required', 400);
   }
 
   // SSRF: validate user-supplied SearXNG URL
   if (searxngUrl) {
     const check = validateSearxngUrl(searxngUrl);
     if (!check.valid) {
-      return NextResponse.json({ error: check.reason }, { status: 400 });
+      return apiError(check.reason, 400);
     }
   }
 
@@ -48,10 +46,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json(result);
   } catch (error) {
     console.error('[Search API] Error:', error);
-    return NextResponse.json(
-      { error: 'Search failed', details: error instanceof Error ? error.message : 'Unknown error' },
-      { status: 500 }
-    );
+    return apiError('Search failed', 500, { details: error instanceof Error ? error.message : 'Unknown error' });
   }
 }
 
@@ -83,29 +78,26 @@ export async function POST(request: NextRequest) {
     const { question, options = {} } = body;
 
     if (!question) {
-      return NextResponse.json(
-        { error: 'Question is required' },
-        { status: 400 }
-      );
+      return apiError('Question is required', 400);
     }
 
     // SSRF: validate user-supplied URLs
-    if (options.ollamaHost) {
-      const check = validateOllamaHost(options.ollamaHost);
-      if (!check.valid) {
-        return NextResponse.json({ error: check.reason }, { status: 400 });
-      }
+    let ollamaHost: string;
+    try {
+      ollamaHost = resolveAndValidateOllamaHost(options.ollamaHost);
+    } catch (err) {
+      return apiError(err instanceof Error ? err.message : 'Invalid Ollama host', 400);
     }
     if (options.searxngUrl) {
       const check = validateSearxngUrl(options.searxngUrl);
       if (!check.valid) {
-        return NextResponse.json({ error: check.reason }, { status: 400 });
+        return apiError(check.reason, 400);
       }
     }
 
     // Merge default options
     const searchOptions: WebSearchOptions = {
-      ollamaHost: options.ollamaHost || 'http://localhost:11434',
+      ollamaHost,
       model: options.model || 'llama3',
       searxngUrl: options.searxngUrl,
       maxResults: options.maxResults || 8,
@@ -129,14 +121,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(response);
   } catch (error) {
     console.error('[Search API] Error:', error);
-    return NextResponse.json(
-      { 
-        success: false,
-        error: 'Search failed', 
-        details: error instanceof Error ? error.message : 'Unknown error' 
-      },
-      { status: 500 }
-    );
+    return apiError('Search failed', 500, { details: error instanceof Error ? error.message : 'Unknown error' });
   }
 }
 
@@ -156,16 +141,13 @@ export async function PUT(request: NextRequest) {
     const { url, maxLength } = await request.json();
 
     if (!url) {
-      return NextResponse.json(
-        { error: 'URL is required' },
-        { status: 400 }
-      );
+      return apiError('URL is required', 400);
     }
 
     // SSRF: validate external URL
     const urlCheck = validateExternalUrl(url);
     if (!urlCheck.valid) {
-      return NextResponse.json({ error: urlCheck.reason }, { status: 400 });
+      return apiError(urlCheck.reason, 400);
     }
 
     console.debug(`[Search API] Fetching content from: ${url}`);
@@ -175,10 +157,7 @@ export async function PUT(request: NextRequest) {
     return NextResponse.json(content);
   } catch (error) {
     console.error('[Search API] Content fetch error:', error);
-    return NextResponse.json(
-      { error: 'Failed to fetch content' },
-      { status: 500 }
-    );
+    return apiError('Failed to fetch content', 500);
   }
 }
 
@@ -199,33 +178,27 @@ export async function PATCH(request: NextRequest) {
     const { question, ollamaHost, model } = await request.json();
 
     if (!question) {
-      return NextResponse.json(
-        { error: 'Question is required' },
-        { status: 400 }
-      );
+      return apiError('Question is required', 400);
     }
 
     // SSRF: validate user-supplied Ollama host
-    if (ollamaHost) {
-      const check = validateOllamaHost(ollamaHost);
-      if (!check.valid) {
-        return NextResponse.json({ error: check.reason }, { status: 400 });
-      }
+    let resolvedHost: string;
+    try {
+      resolvedHost = resolveAndValidateOllamaHost(ollamaHost);
+    } catch (err) {
+      return apiError(err instanceof Error ? err.message : 'Invalid Ollama host', 400);
     }
 
     console.debug(`[Search API] Optimizing query: "${question}"`);
 
     const result = await optimizeQuery(question, {
-      ollamaHost: ollamaHost || 'http://localhost:11434',
+      ollamaHost: resolvedHost,
       model: model || 'llama3',
     });
 
     return NextResponse.json(result);
   } catch (error) {
     console.error('[Search API] Query optimization error:', error);
-    return NextResponse.json(
-      { error: 'Failed to optimize query' },
-      { status: 500 }
-    );
+    return apiError('Failed to optimize query', 500);
   }
 }

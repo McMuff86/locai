@@ -1,5 +1,6 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { validateOllamaHost } from '../../_utils/security';
+import { NextRequest } from 'next/server';
+import { resolveAndValidateOllamaHost } from '../../_utils/ollama';
+import { apiError } from '../../_utils/responses';
 
 export const runtime = 'nodejs';
 
@@ -44,17 +45,16 @@ export async function POST(req: NextRequest) {
     const body = (await req.json()) as OptimizeRequest;
     
     if (!body.snippets || body.snippets.length === 0) {
-      return NextResponse.json({ error: 'No snippets provided' }, { status: 400 });
+      return apiError('No snippets provided', 400);
     }
 
     const model = body.model || 'llama3';
-    const rawHost = body.host || 'http://localhost:11434';
-    // SSRF: validate user-supplied Ollama host
-    const hostCheck = validateOllamaHost(rawHost);
-    if (!hostCheck.valid) {
-      return NextResponse.json({ error: hostCheck.reason }, { status: 400 });
+    let host: string;
+    try {
+      host = resolveAndValidateOllamaHost(body.host);
+    } catch (err) {
+      return apiError(err instanceof Error ? err.message : 'Invalid Ollama host', 400);
     }
-    const host = hostCheck.url;
     const numCtx = body.numCtx || 8192;
 
     // Build the context from snippets (increased limit to ~1500 chars per snippet for up to 5 sources)
@@ -114,7 +114,7 @@ Erstelle jetzt die optimierte Zusammenfassung basierend auf den obigen Quellen:`
 
     if (!response.ok) {
       const text = await response.text();
-      return NextResponse.json({ error: `Model error: ${text}` }, { status: 500 });
+      return apiError(`Model error: ${text}`, 500);
     }
 
     // Stream the response to the client
@@ -167,6 +167,6 @@ Erstelle jetzt die optimierte Zusammenfassung basierend auf den obigen Quellen:`
     });
   } catch (error) {
     console.error('search/optimize error', error);
-    return NextResponse.json({ error: 'Optimization failed' }, { status: 500 });
+    return apiError('Optimization failed', 500);
   }
 }

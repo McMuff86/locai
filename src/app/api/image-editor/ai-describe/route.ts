@@ -1,6 +1,7 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest } from 'next/server';
 import fs from 'fs';
 import path from 'path';
+import { apiError, apiSuccess } from '../../_utils/responses';
 
 export const runtime = 'nodejs';
 
@@ -21,7 +22,7 @@ export async function POST(req: NextRequest) {
     const { image } = body;
 
     if (!image) {
-      return NextResponse.json({ success: false, error: 'Kein Bild übergeben' }, { status: 400 });
+      return apiError('Kein Bild übergeben', 400);
     }
 
     const settings = getSettings();
@@ -57,18 +58,12 @@ export async function POST(req: NextRequest) {
     }
 
     if (!succeeded) {
-      return NextResponse.json(
-        { success: false, error: 'Kein Vision-Modell verfügbar. Installiere llama3.2-vision oder llava.' },
-        { status: 503 },
-      );
+      return apiError('Kein Vision-Modell verfügbar. Installiere llama3.2-vision oder llava.', 503);
     }
 
-    return NextResponse.json({ success: true, description });
+    return apiSuccess({ description });
   } catch (err) {
     console.error('[ImageEditor] AI describe error:', err);
-    return NextResponse.json(
-      { success: false, error: err instanceof Error ? err.message : 'Fehler' },
-      { status: 500 },
-    );
+    return apiError(err instanceof Error ? err.message : 'Fehler', 500);
   }
 }

@@ -1,5 +1,5 @@
-import { NextResponse } from 'next/server';
 import { validateComfyuiUrl } from '../../_utils/security';
+import { apiError, apiSuccess } from '../../_utils/responses';
 
 export const dynamic = 'force-dynamic';
 
@@ -12,7 +12,7 @@ export async function GET(request: Request) {
     // SSRF: validate and construct ComfyUI URL safely
     const urlCheck = validateComfyuiUrl(host, port);
     if (!urlCheck.valid) {
-      return NextResponse.json({ running: false, error: urlCheck.reason }, { status: 400 });
+      return apiError(urlCheck.reason, 400, { running: false });
     }
     const comfyUrl = urlCheck.url;
 
@@ -29,7 +29,7 @@ export async function GET(request: Request) {
 
       if (response.ok) {
         const data = await response.json();
-        return NextResponse.json({
+        return apiSuccess({
           running: true,
           port: parseInt(port),
           host,
@@ -41,7 +41,7 @@ export async function GET(request: Request) {
       // ComfyUI not running or not reachable
     }
 
-    return NextResponse.json({
+    return apiSuccess({
       running: false,
       port: parseInt(port),
       host,
@@ -49,7 +49,7 @@ export async function GET(request: Request) {
 
   } catch (error) {
     console.error('ComfyUI status check error:', error);
-    return NextResponse.json({
+    return apiSuccess({
       running: false,
       error: 'Failed to check ComfyUI status',
     });

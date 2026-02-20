@@ -1,9 +1,8 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { validateOllamaHost } from '../../_utils/security';
+import { NextRequest } from 'next/server';
+import { resolveAndValidateOllamaHost } from '../../_utils/ollama';
+import { apiError, apiSuccess } from '../../_utils/responses';
 
 export const runtime = 'nodejs';
-
-const DEFAULT_HOST = 'http://localhost:11434';
 
 // Simple test endpoint to debug embedding issues
 export async function POST(req: NextRequest) {
@@ -11,13 +10,12 @@ export async function POST(req: NextRequest) {
   const text: string = body.text || 'Test embedding';
   const model: string = body.model || 'nomic-embed-text';
 
-  // SSRF: validate user-supplied Ollama host
-  const rawHost = body.host || DEFAULT_HOST;
-  const hostCheck = validateOllamaHost(rawHost);
-  if (!hostCheck.valid) {
-    return NextResponse.json({ success: false, error: hostCheck.reason }, { status: 400 });
+  let host: string;
+  try {
+    host = resolveAndValidateOllamaHost(body.host);
+  } catch (err) {
+    return apiError(err instanceof Error ? err.message : 'Invalid Ollama host', 400);
   }
-  const host: string = hostCheck.url;
 
   const results: string[] = [];
   
@@ -30,11 +28,7 @@ export async function POST(req: NextRequest) {
     
     const testResponse = await fetch(`${host}/api/tags`);
     if (!testResponse.ok) {
-      return NextResponse.json({ 
-        success: false, 
-        error: 'Ollama nicht erreichbar',
-        results 
-      });
+      return apiError('Ollama nicht erreichbar', 500, { results });
     }
     results.push('[4] Ollama connection OK');
     
@@ -62,12 +56,7 @@ export async function POST(req: NextRequest) {
     
     if (!embeddingResponse.ok) {
       const errorText = await embeddingResponse.text();
-      return NextResponse.json({ 
-        success: false, 
-        error: `API Error: ${embeddingResponse.status}`,
-        errorText,
-        results 
-      });
+      return apiError(`API Error: ${embeddingResponse.status}`, 500, { errorText, results });
     }
     
     // Step 4: Read response
@@ -85,50 +74,31 @@ export async function POST(req: NextRequest) {
       data = JSON.parse(responseText);
       results.push('[13] JSON parsed successfully');
     } catch (parseErr) {
-      return NextResponse.json({ 
-        success: false, 
-        error: `JSON parse error: ${parseErr}`,
-        responseText: responseText.slice(0, 500),
-        results 
-      });
+      return apiError(`JSON parse error: ${parseErr}`, 500, { responseText: responseText.slice(0, 500), results });
     }
     
     // Step 6: Check embedding
     results.push('[14] Checking embedding array...');
     
     if (!data.embedding) {
-      return NextResponse.json({ 
-        success: false, 
-        error: 'No embedding in response',
-        data,
-        results 
-      });
+      return apiError('No embedding in response', 500, { data, results });
     }
-    
+
     if (!Array.isArray(data.embedding)) {
-      return NextResponse.json({ 
-        success: false, 
-        error: `embedding is not array: ${typeof data.embedding}`,
-        results 
-      });
+      return apiError(`embedding is not array: ${typeof data.embedding}`, 500, { results });
     }
     
     results.push(`[15] Embedding dimensions: ${data.embedding.length}`);
     results.push(`[16] First 3 values: ${data.embedding.slice(0, 3)}`);
     
-    return NextResponse.json({ 
-      success: true, 
-      embeddingLength: data.embedding.length,
-      results 
-    });
+    return apiSuccess({ embeddingLength: data.embedding.length, results });
     
   } catch (err) {
-    return NextResponse.json({ 
-      success: false, 
-      error: err instanceof Error ? err.message : String(err),
-      stack: err instanceof Error ? err.stack : undefined,
-      results 
-    });
+    return apiError(
+      err instanceof Error ? err.message : String(err),
+      500,
+      { stack: err instanceof Error ? err.stack : undefined, results },
+    );
   }
 }
 

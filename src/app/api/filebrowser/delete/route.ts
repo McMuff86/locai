@@ -1,5 +1,6 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest } from 'next/server';
 import { deleteFile } from '@/lib/filebrowser/scanner';
+import { apiError, apiSuccess } from '../../_utils/responses';
 
 export const runtime = 'nodejs';
 
@@ -10,27 +11,18 @@ export async function DELETE(req: NextRequest) {
     const relativePath = req.nextUrl.searchParams.get('path') || '';
 
     if (!rootId || !relativePath) {
-      return NextResponse.json(
-        { success: false, error: 'rootId und path sind erforderlich' },
-        { status: 400 },
-      );
+      return apiError('rootId und path sind erforderlich', 400);
     }
 
     if (rootId !== 'workspace') {
-      return NextResponse.json(
-        { success: false, error: 'Löschen ist nur im Workspace erlaubt' },
-        { status: 403 },
-      );
+      return apiError('Löschen ist nur im Workspace erlaubt', 403);
     }
 
     await deleteFile(rootId, relativePath);
 
-    return NextResponse.json({ success: true });
+    return apiSuccess();
   } catch (err) {
     console.error('[FileBrowser] Delete error:', err);
-    return NextResponse.json(
-      { success: false, error: err instanceof Error ? err.message : 'Fehler beim Löschen' },
-      { status: 500 },
-    );
+    return apiError(err instanceof Error ? err.message : 'Fehler beim Löschen', 500);
   }
 }

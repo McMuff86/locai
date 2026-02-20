@@ -5,7 +5,7 @@
 // Supports multipart/form-data with a single 'file' field.
 // ============================================================================
 
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest } from 'next/server';
 import { createHash, randomBytes } from 'crypto';
 import {
   Document,
@@ -16,7 +16,6 @@ import {
   MAX_FILE_SIZE,
   MAX_DOCUMENTS,
   DEFAULT_EMBEDDING_MODEL,
-  DEFAULT_OLLAMA_HOST,
   MAX_EMBED_TEXT_LENGTH,
 } from '@/lib/documents/constants';
 import { parseDocument, detectDocumentType } from '@/lib/documents/parser';
@@ -29,7 +28,8 @@ import {
   loadDocuments,
 } from '@/lib/documents/store';
 import { embedQuery } from '@/lib/notes/embeddings';
-import { validateOllamaHost } from '../../_utils/security';
+import { resolveAndValidateOllamaHost } from '../../_utils/ollama';
+import { apiError, apiSuccess } from '../../_utils/responses';
 
 export const runtime = 'nodejs';
 
@@ -47,20 +47,14 @@ export async function POST(req: NextRequest) {
     const file = formData.get('file') as File | null;
 
     if (!file) {
-      return NextResponse.json(
-        { success: false, error: 'Keine Datei hochgeladen' },
-        { status: 400 },
-      );
+      return apiError('Keine Datei hochgeladen', 400);
     }
 
     // Validate file size
     if (file.size > MAX_FILE_SIZE) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: `Datei zu gross (${(file.size / 1024 / 1024).toFixed(1)} MB). Maximum: ${MAX_FILE_SIZE / 1024 / 1024} MB`,
-        },
-        { status: 400 },
+      return apiError(
+        `Datei zu gross (${(file.size / 1024 / 1024).toFixed(1)} MB). Maximum: ${MAX_FILE_SIZE / 1024 / 1024} MB`,
+        400,
       );
     }
 
@@ -69,7 +63,7 @@ export async function POST(req: NextRequest) {
       model:
         (formData.get('model') as string) || DEFAULT_EMBEDDING_MODEL,
       host:
-        (formData.get('host') as string) || DEFAULT_OLLAMA_HOST,
+        (formData.get('host') as string) || undefined,
       chunkSize: formData.get('chunkSize')
         ? parseInt(formData.get('chunkSize') as string, 10)
         : undefined,
@@ -78,13 +72,12 @@ export async function POST(req: NextRequest) {
         : undefined,
     };
 
-    // SSRF: validate user-supplied Ollama host
-    const rawHost = options.host || DEFAULT_OLLAMA_HOST;
-    const hostCheck = validateOllamaHost(rawHost);
-    if (!hostCheck.valid) {
-      return NextResponse.json({ success: false, error: hostCheck.reason }, { status: 400 });
+    let host: string;
+    try {
+      host = resolveAndValidateOllamaHost(options.host);
+    } catch (err) {
+      return apiError(err instanceof Error ? err.message : 'Invalid Ollama host', 400);
     }
-    const host = hostCheck.url;
     const model = options.model || DEFAULT_EMBEDDING_MODEL;
 
     // Read file into buffer
@@ -104,24 +97,18 @@ export async function POST(req: NextRequest) {
     const existingDocs = await loadDocuments();
 
     if (existingDocs.length >= MAX_DOCUMENTS) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: `Maximale Anzahl Dokumente erreicht (${MAX_DOCUMENTS}). Bitte lösche zuerst alte Dokumente.`,
-        },
-        { status: 400 },
+      return apiError(
+        `Maximale Anzahl Dokumente erreicht (${MAX_DOCUMENTS}). Bitte lösche zuerst alte Dokumente.`,
+        400,
       );
     }
 
     const duplicate = existingDocs.find((d) => d.contentHash === hash);
     if (duplicate) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: `Dieses Dokument wurde bereits hochgeladen als "${duplicate.name}"`,
-          existingId: duplicate.id,
-        },
-        { status: 409 },
+      return apiError(
+        `Dieses Dokument wurde bereits hochgeladen als "${duplicate.name}"`,
+        409,
+        { existingId: duplicate.id },
       );
     }
 
@@ -178,8 +165,7 @@ export async function POST(req: NextRequest) {
         chunkCount: chunks.length,
       });
 
-      return NextResponse.json({
-        success: true,
+      return apiSuccess({
         document: {
           ...doc,
           status: IndexStatus.Ready,
@@ -197,30 +183,23 @@ export async function POST(req: NextRequest) {
         error: errorMsg,
       });
 
-      return NextResponse.json(
+      return apiError(
+        `Datei hochgeladen, aber Indexierung fehlgeschlagen: ${errorMsg}`,
+        500,
         {
-          success: false,
-          error: `Datei hochgeladen, aber Indexierung fehlgeschlagen: ${errorMsg}`,
           document: {
             ...doc,
             status: IndexStatus.Error,
             error: errorMsg,
           },
         },
-        { status: 500 },
       );
     }
   } catch (err) {
     console.error('[Upload] Error:', err);
-    return NextResponse.json(
-      {
-        success: false,
-        error:
-          err instanceof Error
-            ? err.message
-            : 'Upload fehlgeschlagen',
-      },
-      { status: 500 },
+    return apiError(
+      err instanceof Error ? err.message : 'Upload fehlgeschlagen',
+      500,
     );
   }
 }

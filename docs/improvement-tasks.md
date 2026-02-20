@@ -62,11 +62,9 @@ Hauptbereiche für Verbesserungen:
 **Aufwand:** 30min
 **Fix:** Systematisch durchgehen, unused imports entfernen, Types hinzufügen.
 
-### CQ-2: Duplicate Code in ollama.ts (sendChatMessage vs sendStreamingChatMessage)
+### ~~CQ-2: Duplicate Code in ollama.ts (sendChatMessage vs sendStreamingChatMessage)~~ ✅ Erledigt
 **Beschreibung:** Die Message-Formatting-Logik (Vision-Model Check, Image-Extraktion) ist in beiden Funktionen (~80 Zeilen) dupliziert.
-**Priorität:** 🟡 Mittel
-**Aufwand:** 1h
-**Fix:** `formatMessagesForApi()` Hilfsfunktion extrahieren, die beide nutzen.
+**Fix:** `formatMessagesForApi()` war bereits extrahiert. Zusätzlich: `SendChatOptions`/`StreamingChatOptions` zu einheitlichem `ChatCallOptions` zusammengelegt, gemeinsame `parseChatOptions()` + `fetchOllamaChat()` Helper extrahiert.
 
 ### CQ-3: Console.log Statements in Production Code
 **Beschreibung:** Viele `console.log()` / `console.error()` direkt im Code, z.B.:
@@ -151,31 +149,18 @@ Hauptbereiche für Verbesserungen:
 
 ## 🟡 Mittel – Architektur
 
-### ARCH-1: Keine zentrale Error-Handling-Strategie in API Routes
+### ~~ARCH-1: Keine zentrale Error-Handling-Strategie in API Routes~~ ✅ Erledigt
 **Beschreibung:** Jede API Route hat eigenes try/catch mit inkonsistenten Error-Responses. Manche geben `{ error: "..." }`, andere `{ success: false, error: "..." }`. Status Codes variieren.
-**Priorität:** 🟡 Mittel
-**Aufwand:** 2-3h
-**Fix:** Error-Utility erstellen:
-```ts
-// lib/api-utils.ts
-export function apiError(message: string, status: number, details?: object) {
-  return NextResponse.json({ success: false, error: message, ...details }, { status });
-}
-export function apiSuccess(data: object) {
-  return NextResponse.json({ success: true, ...data });
-}
-```
+**Fix:** `apiError()` / `apiSuccess()` Helpers in `src/app/api/_utils/responses.ts`. Alle ~30 Route-Dateien umgestellt auf einheitliches `{ success: true/false, ... }` Format.
 
-### ARCH-2: Ollama Host Resolution ist verstreut
+### ~~ARCH-2: Ollama Host Resolution ist verstreut~~ ✅ Erledigt
 **Beschreibung:** Die Ollama-Host-Auflösung existiert in mehreren Varianten:
 - `ollama.ts`: `resolveOllamaHost()` (mit localStorage + env + default)
 - `system-stats/route.ts`: Eigener `sanitizeHost()` + Query-Param
 - `notes/ai/route.ts`: `body.host || DEFAULT_HOST`
 - `search/route.ts`: `options.ollamaHost || 'http://localhost:11434'`
 
-**Priorität:** 🟡 Mittel
-**Aufwand:** 2h
-**Fix:** Zentrale Server-Side Host-Resolution in einer shared Utility.
+**Fix:** `resolveAndValidateOllamaHost()` in `src/app/api/_utils/ollama.ts`. Alle 11 betroffenen Route-Dateien umgestellt. Client-seitige `resolveOllamaHost()` in `src/lib/ollama.ts` bleibt unberührt (nutzt localStorage).
 
 ### ARCH-3: Fehlende .env.example
 **Beschreibung:** Es gibt keine `.env.example` Datei, obwohl der Code mehrere Environment Variables unterstützt: `LOCAI_API_TOKEN`, `LOCAI_ALLOW_REMOTE`, `LOCAL_NOTES_PATH`, `NEXT_PUBLIC_OLLAMA_URL`.

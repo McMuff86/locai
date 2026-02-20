@@ -7,6 +7,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { loadConversation, updateConversationMetadata } from '@/lib/conversations/store';
+import { apiError, apiSuccess } from '../../_utils/responses';
 
 export const dynamic = 'force-dynamic';
 
@@ -18,21 +19,18 @@ export async function GET(
   try {
     const { id } = await params;
     if (!id) {
-      return NextResponse.json({ error: 'Conversation ID required' }, { status: 400 });
+      return apiError('Conversation ID required', 400);
     }
 
     const conversation = await loadConversation(id);
     if (!conversation) {
-      return NextResponse.json({ error: 'Conversation not found' }, { status: 404 });
+      return apiError('Conversation not found', 404);
     }
 
     return NextResponse.json(conversation);
   } catch (err) {
     console.error('[API] GET /api/conversations/[id] error:', err);
-    return NextResponse.json(
-      { error: err instanceof Error ? err.message : 'Failed to load conversation' },
-      { status: 500 },
-    );
+    return apiError(err instanceof Error ? err.message : 'Failed to load conversation', 500);
   }
 }
 
@@ -44,7 +42,7 @@ export async function PUT(
   try {
     const { id } = await params;
     if (!id) {
-      return NextResponse.json({ error: 'Conversation ID required' }, { status: 400 });
+      return apiError('Conversation ID required', 400);
     }
 
     const body = await request.json();
@@ -54,15 +52,12 @@ export async function PUT(
 
     const success = await updateConversationMetadata(id, updates);
     if (!success) {
-      return NextResponse.json({ error: 'Conversation not found' }, { status: 404 });
+      return apiError('Conversation not found', 404);
     }
 
-    return NextResponse.json({ success: true });
+    return apiSuccess();
   } catch (err) {
     console.error('[API] PUT /api/conversations/[id] error:', err);
-    return NextResponse.json(
-      { error: err instanceof Error ? err.message : 'Failed to update conversation' },
-      { status: 500 },
-    );
+    return apiError(err instanceof Error ? err.message : 'Failed to update conversation', 500);
   }
 }

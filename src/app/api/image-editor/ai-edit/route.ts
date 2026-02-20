@@ -1,6 +1,7 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest } from 'next/server';
 import fs from 'fs';
 import path from 'path';
+import { apiError, apiSuccess } from '../../_utils/responses';
 
 export const runtime = 'nodejs';
 
@@ -21,7 +22,7 @@ export async function POST(req: NextRequest) {
     const { image, prompt, denoise = 0.6 } = body;
 
     if (!image || !prompt) {
-      return NextResponse.json({ success: false, error: 'Bild und Prompt erforderlich' }, { status: 400 });
+      return apiError('Bild und Prompt erforderlich', 400);
     }
 
     const settings = getSettings();
@@ -35,7 +36,7 @@ export async function POST(req: NextRequest) {
       });
       if (!statusRes.ok) throw new Error('ComfyUI not running');
     } catch {
-      return NextResponse.json({ success: false, error: 'ComfyUI ist nicht gestartet' }, { status: 503 });
+      return apiError('ComfyUI ist nicht gestartet', 503);
     }
 
     // Upload the image to ComfyUI
@@ -120,12 +121,12 @@ export async function POST(req: NextRequest) {
     }
 
     if (!resultImage) {
-      return NextResponse.json({ success: false, error: 'Timeout: ComfyUI hat nicht rechtzeitig geantwortet' }, { status: 504 });
+      return apiError('Timeout: ComfyUI hat nicht rechtzeitig geantwortet', 504);
     }
 
-    return NextResponse.json({ success: true, resultImage });
+    return apiSuccess({ resultImage });
   } catch (err) {
     console.error('[ImageEditor] AI edit error:', err);
-    return NextResponse.json({ success: false, error: err instanceof Error ? err.message : 'Fehler' }, { status: 500 });
+    return apiError(err instanceof Error ? err.message : 'Fehler', 500);
   }
 }

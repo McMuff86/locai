@@ -6,13 +6,14 @@
 // DELETE → delete one or clear all
 // ============================================================================
 
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest } from 'next/server';
 import {
   loadIndex,
   saveConversation,
   deleteConversation,
   clearAllConversations,
 } from '@/lib/conversations/store';
+import { apiError, apiSuccess } from '../_utils/responses';
 
 export const dynamic = 'force-dynamic';
 
@@ -20,13 +21,10 @@ export const dynamic = 'force-dynamic';
 export async function GET() {
   try {
     const conversations = await loadIndex();
-    return NextResponse.json({ conversations });
+    return apiSuccess({ conversations });
   } catch (err) {
     console.error('[API] GET /api/conversations error:', err);
-    return NextResponse.json(
-      { error: err instanceof Error ? err.message : 'Failed to load conversations' },
-      { status: 500 },
-    );
+    return apiError(err instanceof Error ? err.message : 'Failed to load conversations', 500);
   }
 }
 
@@ -37,17 +35,14 @@ export async function POST(request: NextRequest) {
     const { conversation } = body;
 
     if (!conversation?.id) {
-      return NextResponse.json({ error: 'Conversation with id is required' }, { status: 400 });
+      return apiError('Conversation with id is required', 400);
     }
 
     await saveConversation(conversation);
-    return NextResponse.json({ success: true, id: conversation.id });
+    return apiSuccess({ id: conversation.id });
   } catch (err) {
     console.error('[API] POST /api/conversations error:', err);
-    return NextResponse.json(
-      { error: err instanceof Error ? err.message : 'Failed to save conversation' },
-      { status: 500 },
-    );
+    return apiError(err instanceof Error ? err.message : 'Failed to save conversation', 500);
   }
 }
 
@@ -60,24 +55,21 @@ export async function DELETE(request: NextRequest) {
 
     if (all === 'true') {
       await clearAllConversations();
-      return NextResponse.json({ success: true });
+      return apiSuccess();
     }
 
     if (!id) {
-      return NextResponse.json({ error: 'id or all=true parameter required' }, { status: 400 });
+      return apiError('id or all=true parameter required', 400);
     }
 
     const deleted = await deleteConversation(id);
     if (!deleted) {
-      return NextResponse.json({ error: 'Conversation not found' }, { status: 404 });
+      return apiError('Conversation not found', 404);
     }
 
-    return NextResponse.json({ success: true });
+    return apiSuccess();
   } catch (err) {
     console.error('[API] DELETE /api/conversations error:', err);
-    return NextResponse.json(
-      { error: err instanceof Error ? err.message : 'Failed to delete conversation' },
-      { status: 500 },
-    );
+    return apiError(err instanceof Error ? err.message : 'Failed to delete conversation', 500);
   }
 }

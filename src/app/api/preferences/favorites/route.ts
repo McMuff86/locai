@@ -5,8 +5,9 @@
 // POST → save favorites
 // ============================================================================
 
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest } from 'next/server';
 import { getLocaiBasePath } from '@/app/api/_utils/security';
+import { apiError, apiSuccess } from '../../_utils/responses';
 import path from 'path';
 import { promises as fs } from 'fs';
 
@@ -23,15 +24,12 @@ export async function GET() {
     const filePath = await getFavoritesPath();
     const raw = await fs.readFile(filePath, 'utf-8');
     const favorites = JSON.parse(raw);
-    return NextResponse.json({ favorites });
+    return apiSuccess({ favorites });
   } catch (err) {
     if ((err as NodeJS.ErrnoException).code === 'ENOENT') {
-      return NextResponse.json({ favorites: [] });
+      return apiSuccess({ favorites: [] });
     }
-    return NextResponse.json(
-      { error: err instanceof Error ? err.message : 'Failed to load favorites' },
-      { status: 500 },
-    );
+    return apiError(err instanceof Error ? err.message : 'Failed to load favorites', 500);
   }
 }
 
@@ -42,16 +40,13 @@ export async function POST(request: NextRequest) {
     const { favorites } = body;
 
     if (!Array.isArray(favorites)) {
-      return NextResponse.json({ error: 'favorites must be an array' }, { status: 400 });
+      return apiError('favorites must be an array', 400);
     }
 
     const filePath = await getFavoritesPath();
     await fs.writeFile(filePath, JSON.stringify(favorites, null, 2), 'utf-8');
-    return NextResponse.json({ success: true });
+    return apiSuccess();
   } catch (err) {
-    return NextResponse.json(
-      { error: err instanceof Error ? err.message : 'Failed to save favorites' },
-      { status: 500 },
-    );
+    return apiError(err instanceof Error ? err.message : 'Failed to save favorites', 500);
   }
 }

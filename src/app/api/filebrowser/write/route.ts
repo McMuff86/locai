@@ -1,5 +1,6 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest } from 'next/server';
 import { writeFileContent, writeFileBinary } from '@/lib/filebrowser/scanner';
+import { apiError, apiSuccess } from '../../_utils/responses';
 
 export const runtime = 'nodejs';
 
@@ -19,17 +20,14 @@ export async function POST(req: NextRequest) {
     const content = body.content ?? '';
 
     if (!rootId || !relativePath) {
-      return NextResponse.json(
-        { success: false, error: 'rootId und path sind erforderlich' },
-        { status: 400 },
-      );
+      return apiError('rootId und path sind erforderlich', 400);
     }
 
     const entry = body.encoding === 'base64'
       ? await writeFileBinary(rootId, relativePath, content)
       : await writeFileContent(rootId, relativePath, content);
 
-    return NextResponse.json({ success: true, entry });
+    return apiSuccess({ entry });
   } catch (err) {
     console.error('[FileBrowser] Write error:', err);
     const message = err instanceof Error ? err.message : 'Fehler beim Speichern';
@@ -41,6 +39,6 @@ export async function POST(req: NextRequest) {
           ? 404
           : 500;
 
-    return NextResponse.json({ success: false, error: message }, { status });
+    return apiError(message, status);
   }
 }

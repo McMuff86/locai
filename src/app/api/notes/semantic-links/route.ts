@@ -1,6 +1,7 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest } from 'next/server';
 import { loadEmbeddings, cosineSimilarity } from '@/lib/notes/embeddings';
 import { sanitizeBasePath } from '../../_utils/security';
+import { apiError, apiSuccess } from '../../_utils/responses';
 
 export const runtime = 'nodejs';
 
@@ -50,22 +51,22 @@ export async function GET(req: NextRequest) {
   const threshold = parseFloat(req.nextUrl.searchParams.get('threshold') || '0.7');
   
   if (!rawBasePath) {
-    return NextResponse.json({ error: 'basePath is required' }, { status: 400 });
+    return apiError('basePath is required', 400);
   }
 
   // SEC-2: Validate basePath (no traversal)
   const basePath = sanitizeBasePath(rawBasePath);
   if (!basePath) {
-    return NextResponse.json({ error: 'Invalid basePath' }, { status: 400 });
+    return apiError('Invalid basePath', 400);
   }
-  
+
   try {
     const embeddings = await loadEmbeddings(basePath);
-    
+
     if (embeddings.length === 0) {
-      return NextResponse.json({ 
-        links: [], 
-        message: 'Keine Embeddings vorhanden. Klicke "Embeddings" um Vektoren zu generieren.' 
+      return apiSuccess({
+        links: [],
+        message: 'Keine Embeddings vorhanden. Klicke "Embeddings" um Vektoren zu generieren.'
       });
     }
     
@@ -109,18 +110,19 @@ export async function GET(req: NextRequest) {
     // Sort by similarity (highest first)
     semanticLinks.sort((a, b) => b.similarity - a.similarity);
     
-    return NextResponse.json({
+    return apiSuccess({
       links: semanticLinks,
       noteCount: noteIds.length,
       embeddingCount: embeddings.length,
       threshold
     });
-    
+
   } catch (err) {
     console.error('Semantic links error:', err);
-    return NextResponse.json({ 
-      error: err instanceof Error ? err.message : 'Fehler beim Laden der Embeddings' 
-    }, { status: 500 });
+    return apiError(
+      err instanceof Error ? err.message : 'Fehler beim Laden der Embeddings',
+      500,
+    );
   }
 }
 
