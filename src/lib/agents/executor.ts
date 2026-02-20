@@ -5,13 +5,16 @@
 //   User message → LLM (with tools) → tool_calls? → execute → feed back → repeat
 // Yields each turn so the caller (API route) can stream progress to the UI.
 // ============================================================================
+// Provider-agnostic: uses ChatProvider interface, not Ollama directly.
+// ============================================================================
 
-import {
-  sendAgentChatMessage,
-  OllamaChatMessage,
-  OllamaTool,
-  OllamaToolCall,
-} from '../ollama';
+import type {
+  ChatProvider,
+  ChatMessage,
+  ChatResponse,
+  ToolDefinition as ProviderToolDefinition,
+  ToolCallRequest,
+} from '../providers/types';
 import {
   AgentTurn,
   AgentOptions,
@@ -28,15 +31,15 @@ import { parseToolCallsFromText } from './textToolParser';
 
 export interface AgentLoopParams {
   /** Conversation messages (system + user + history) */
-  messages: OllamaChatMessage[];
+  messages: ChatMessage[];
   /** Model name to use */
   model: string;
   /** Tool registry to draw tools from */
   registry: ToolRegistry;
   /** Options for execution limits */
   options?: AgentOptions;
-  /** Ollama host override */
-  host?: string;
+  /** Chat provider to use (if omitted, must be set externally) */
+  provider: ChatProvider;
 }
 
 /** The final yield of the generator includes the assistant's text answer */
@@ -56,14 +59,76 @@ function makeCallId(): string {
   return `tc_${Date.now()}_${callCounter}`;
 }
 
-function ollamaToolCallsToToolCalls(
-  raw: OllamaToolCall[]
-): ToolCall[] {
+/**
+ * Convert ToolCallRequest[] (provider-agnostic) to internal ToolCall[].
+ */
+function providerToolCallsToToolCalls(raw: ToolCallRequest[]): ToolCall[] {
   return raw.map((tc) => ({
-    id: makeCallId(),
+    id: tc.id || makeCallId(),
     name: tc.function.name,
     arguments: tc.function.arguments ?? {},
   }));
+}
+
+/**
+ * Convert internal ToolCall[] back to ToolCallRequest[] for conversation history.
+ */
+function toolCallsToProviderFormat(calls: ToolCall[]): ToolCallRequest[] {
+  return calls.map((tc) => ({
+    id: tc.id,
+    function: {
+      name: tc.name,
+      arguments: tc.arguments,
+    },
+  }));
+}
+
+/**
+ * Convert registry tools to provider ToolDefinition[] format.
+ */
+function registryToProviderTools(
+  registry: ToolRegistry,
+  enabledTools?: string[],
+): ProviderToolDefinition[] {
+  // registry.list() returns OllamaTool[] which already has the right shape
+  const ollamaTools = registry.list(enabledTools);
+  return ollamaTools.map((t) => ({
+    type: 'function' as const,
+    function: {
+      name: t.function.name,
+      description: t.function.description,
+      parameters: {
+        type: t.function.parameters.type,
+        properties: t.function.parameters.properties as Record<string, unknown>,
+        required: t.function.parameters.required,
+      },
+    },
+  }));
+}
+
+/**
+ * Send a chat message via the provider and return a normalized response.
+ */
+async function chatViaProvider(
+  provider: ChatProvider,
+  model: string,
+  messages: ChatMessage[],
+  tools: ProviderToolDefinition[],
+  signal?: AbortSignal,
+  chatOptions?: Record<string, unknown>,
+): Promise<{ content: string; tool_calls?: ToolCallRequest[] }> {
+  const response: ChatResponse = await provider.chat(messages, {
+    model,
+    tools: tools.length > 0 ? tools : undefined,
+    signal,
+    temperature: chatOptions?.temperature as number | undefined,
+    maxTokens: chatOptions?.num_predict as number | undefined,
+  });
+
+  return {
+    content: response.content,
+    tool_calls: response.toolCalls,
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -76,23 +141,25 @@ const PLANNING_PROMPT =
   'Antworte NUR mit dem Plan als nummerierte Liste, ohne weitere Erklaerung.';
 
 async function executePlanningStep(
-  messages: OllamaChatMessage[],
+  provider: ChatProvider,
+  messages: ChatMessage[],
   model: string,
-  host?: string,
   signal?: AbortSignal,
   chatOptions?: Record<string, unknown>,
 ): Promise<string | null> {
-  const planningMessages: OllamaChatMessage[] = [
+  const planningMessages: ChatMessage[] = [
     ...messages,
     { role: 'user', content: PLANNING_PROMPT },
   ];
 
   try {
-    const response = await sendAgentChatMessage(
+    const response = await chatViaProvider(
+      provider,
       model,
       planningMessages,
       [], // No tools for planning
-      { host, signal, chatOptions },
+      signal,
+      chatOptions,
     );
     return response.content || null;
   } catch {
@@ -122,7 +189,7 @@ export async function* executeAgentLoop(
     model,
     registry,
     options = {},
-    host,
+    provider,
   } = params;
 
   const maxIterations = options.maxIterations ?? AGENT_DEFAULTS.maxIterations;
@@ -130,7 +197,7 @@ export async function* executeAgentLoop(
 
   // Optional planning step
   if (options.enablePlanning) {
-    const plan = await executePlanningStep(messages, model, host, signal, options.chatOptions);
+    const plan = await executePlanningStep(provider, messages, model, signal, options.chatOptions);
     if (plan) {
       // Yield a special planning turn with index -1
       const planTurn: AgentFinalTurn = {
@@ -151,11 +218,11 @@ export async function* executeAgentLoop(
     }
   }
 
-  // Build the OllamaTool[] from the registry
-  const ollamaTools: OllamaTool[] = registry.list(options.enabledTools);
+  // Build provider-compatible tool definitions from the registry
+  const providerTools = registryToProviderTools(registry, options.enabledTools);
 
   // Working copy of the conversation
-  const conversationMessages: OllamaChatMessage[] = [...messages];
+  const conversationMessages: ChatMessage[] = [...messages];
 
   for (let i = 0; i < maxIterations; i++) {
     // Check abort
@@ -165,12 +232,14 @@ export async function* executeAgentLoop(
 
     const startedAt = new Date().toISOString();
 
-    // Send to Ollama (non-streaming, tool-calling)
-    const response = await sendAgentChatMessage(
+    // Send to provider (non-streaming, tool-calling)
+    const response = await chatViaProvider(
+      provider,
       model,
       conversationMessages,
-      ollamaTools,
-      { host, signal, chatOptions: options.chatOptions },
+      providerTools,
+      signal,
+      options.chatOptions,
     );
 
     // No tool_calls → check for tool calls embedded in text (fallback)
@@ -235,14 +304,14 @@ export async function* executeAgentLoop(
       continue; // Next iteration
     }
 
-    // Convert Ollama tool_calls to our ToolCall type
-    const toolCalls = ollamaToolCallsToToolCalls(response.tool_calls);
+    // Convert provider tool_calls to our ToolCall type
+    const toolCalls = providerToolCallsToToolCalls(response.tool_calls);
 
     // Append the assistant's tool-calling message to the conversation
     conversationMessages.push({
       role: 'assistant',
       content: response.content || '',
-      tool_calls: response.tool_calls,
+      tool_calls: toolCallsToProviderFormat(toolCalls),
     });
 
     // Execute each tool call
@@ -275,11 +344,13 @@ export async function* executeAgentLoop(
   }
 
   // If we exhausted max iterations, ask the model for a final answer without tools
-  const finalResponse = await sendAgentChatMessage(
+  const finalResponse = await chatViaProvider(
+    provider,
     model,
     conversationMessages,
     [], // No tools → force text answer
-    { host, signal, chatOptions: options.chatOptions },
+    signal,
+    options.chatOptions,
   );
 
   const exhaustedTurn: AgentFinalTurn = {

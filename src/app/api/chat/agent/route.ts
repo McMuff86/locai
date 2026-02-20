@@ -12,8 +12,10 @@ import { registerBuiltinTools } from '@/lib/agents/tools';
 import { getRelevantMemories, formatMemories } from '@/lib/memory/store';
 import { getPresetById } from '@/lib/agents/presets';
 import { resolveWorkspacePath } from '@/lib/settings/store';
-import type { OllamaChatMessage } from '@/lib/ollama';
+import type { ChatMessage } from '@/lib/providers/types';
+import type { ProviderType } from '@/lib/providers/types';
 import type { AgentOptions } from '@/lib/agents/types';
+import { createServerProvider, getDefaultServerProvider } from '@/lib/providers/server';
 import { apiError } from '../../_utils/responses';
 
 // ---------------------------------------------------------------------------
@@ -73,6 +75,10 @@ interface AgentRequestBody {
   enablePlanning?: boolean;
   /** Ollama chat options (e.g. temperature) */
   chatOptions?: Record<string, unknown>;
+  /** Provider type to use (default: ollama) */
+  provider?: ProviderType;
+  /** API key override (env vars take precedence) */
+  apiKey?: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -93,10 +99,34 @@ export async function POST(request: NextRequest) {
       presetId,
       enablePlanning = false,
       chatOptions,
+      provider: providerType,
+      apiKey,
     } = body;
 
     if (!message?.trim()) {
       return apiError('Message is required', 400);
+    }
+
+    // Resolve the ChatProvider
+    let chatProvider;
+    if (providerType && providerType !== 'ollama') {
+      chatProvider = createServerProvider(providerType, {
+        ...(apiKey ? { apiKey } : {}),
+      });
+      if (!chatProvider) {
+        return apiError(
+          `Provider "${providerType}" is not configured. Set the appropriate API key environment variable.`,
+          400,
+        );
+      }
+    } else {
+      // Ollama (default) — pass host override if provided
+      chatProvider = createServerProvider('ollama', {
+        baseUrl: host || undefined,
+      });
+      if (!chatProvider) {
+        chatProvider = getDefaultServerProvider();
+      }
     }
 
     // Set up tool registry
@@ -106,8 +136,8 @@ export async function POST(request: NextRequest) {
     // Determine which tools will be available
     const resolvedTools = enabledTools ?? registry.listNames();
 
-    // Build conversation messages
-    const messages: OllamaChatMessage[] = [
+    // Build conversation messages (using provider-agnostic ChatMessage)
+    const messages: ChatMessage[] = [
       ...conversationHistory.map((m) => ({
         role: m.role as 'system' | 'user' | 'assistant',
         content: m.content,
@@ -171,7 +201,7 @@ export async function POST(request: NextRequest) {
             model,
             registry,
             options,
-            host,
+            provider: chatProvider,
           });
 
           for await (const turn of generator) {

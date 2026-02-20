@@ -14,7 +14,8 @@
 
 import { executeAgentLoop, AgentLoopParams } from './executor';
 import { ToolRegistry } from './registry';
-import { sendAgentChatMessage, OllamaChatMessage } from '../ollama';
+import type { ChatProvider, ChatMessage } from '../providers/types';
+import { OllamaProvider } from '../providers/ollama-provider';
 import {
   WorkflowStatus,
   WorkflowPlan,
@@ -37,7 +38,7 @@ export interface WorkflowEngineOptions {
   /** User message that starts the workflow */
   message: string;
   /** Conversation history (system prompts + prior messages) */
-  messages: OllamaChatMessage[];
+  messages: ChatMessage[];
   /** Model to use */
   model: string;
   /** Tool registry */
@@ -48,8 +49,10 @@ export interface WorkflowEngineOptions {
   conversationId?: string;
   /** Optional externally compiled plan (e.g. visual flow) */
   initialPlan?: WorkflowPlan;
-  /** Ollama host override */
+  /** Ollama host override (deprecated — use provider) */
   host?: string;
+  /** Chat provider to use (default: OllamaProvider) */
+  provider?: ChatProvider;
 }
 
 // ---------------------------------------------------------------------------
@@ -233,8 +236,9 @@ function parseReflection(text: string): WorkflowStepReflection | null {
 export class WorkflowEngine {
   private state: WorkflowState;
   private config: WorkflowConfig;
-  private messages: OllamaChatMessage[];
+  private messages: ChatMessage[];
   private registry: ToolRegistry;
+  private provider: ChatProvider;
   private abortController: AbortController;
 
   constructor(options: WorkflowEngineOptions) {
@@ -249,6 +253,7 @@ export class WorkflowEngine {
 
     this.registry = registry;
     this.messages = messages;
+    this.provider = options.provider ?? new OllamaProvider(options.host);
     this.abortController = new AbortController();
 
     // Merge config with defaults
@@ -507,21 +512,16 @@ export class WorkflowEngine {
       `Aufgabe: ${this.state.userMessage}`;
 
     try {
-      const planningMessages: OllamaChatMessage[] = [
+      const planningMessages: ChatMessage[] = [
         ...this.messages,
         { role: 'user', content: prompt },
       ];
 
-      const response = await sendAgentChatMessage(
-        this.config.model,
-        planningMessages,
-        [],
-        {
-          host: this.config.host,
-          signal: this.abortController.signal,
-          chatOptions: { temperature: 0.1 }, // Low temp for structured output
-        },
-      );
+      const response = await this.provider.chat(planningMessages, {
+        model: this.config.model,
+        signal: this.abortController.signal,
+        temperature: 0.1, // Low temp for structured output
+      });
 
       if (response.content) {
         const plan = parsePlan(response.content, availableTools);
@@ -564,14 +564,12 @@ export class WorkflowEngine {
       `Erstelle einen überarbeiteten Plan für die verbleibenden Schritte.`;
 
     try {
-      const response = await sendAgentChatMessage(
-        this.config.model,
+      const response = await this.provider.chat(
         [...this.messages, { role: 'user', content: prompt }],
-        [],
         {
-          host: this.config.host,
+          model: this.config.model,
           signal: this.abortController.signal,
-          chatOptions: { temperature: 0.1 },
+          temperature: 0.1,
         },
       );
 
@@ -619,7 +617,7 @@ export class WorkflowEngine {
 
     // Build a focused message for this specific step
     const stepContext = this.buildStepContext(planStep);
-    const stepMessages: OllamaChatMessage[] = [
+    const stepMessages: ChatMessage[] = [
       ...this.messages,
       { role: 'user', content: stepContext },
     ];
@@ -635,7 +633,7 @@ export class WorkflowEngine {
         signal: this.abortController.signal,
         chatOptions: { temperature: 0.3 },
       },
-      host: this.config.host,
+      provider: this.provider,
     };
 
     let callIndex = 0;
@@ -741,14 +739,12 @@ export class WorkflowEngine {
     const prompt = buildReflectionPrompt(step, remainingSteps);
 
     try {
-      const response = await sendAgentChatMessage(
-        this.config.model,
+      const response = await this.provider.chat(
         [...this.messages, { role: 'user', content: prompt }],
-        [],
         {
-          host: this.config.host,
+          model: this.config.model,
           signal: this.abortController.signal,
-          chatOptions: { temperature: 0.1 },
+          temperature: 0.1,
         },
       );
 
@@ -784,14 +780,12 @@ export class WorkflowEngine {
       `basierend auf diesen Ergebnissen. Antworte direkt und präzise.`;
 
     try {
-      const response = await sendAgentChatMessage(
-        this.config.model,
+      const response = await this.provider.chat(
         [...this.messages, { role: 'user', content: finalPrompt }],
-        [],
         {
-          host: this.config.host,
+          model: this.config.model,
           signal: this.abortController.signal,
-          chatOptions: { temperature: 0.4 },
+          temperature: 0.4,
         },
       );
 
