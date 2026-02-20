@@ -27,6 +27,7 @@ export interface InputNodeConfig {
 }
 
 export interface AgentNodeConfig {
+  provider?: 'ollama' | 'anthropic' | 'openai' | 'openrouter';
   model: string;
   prompt: string;
   systemPrompt?: string;
