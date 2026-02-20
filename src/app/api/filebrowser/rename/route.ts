@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { assertLocalRequest } from '@/app/api/_utils/security';
 import { renameEntry } from '@/lib/filebrowser/scanner';
 
 export const runtime = 'nodejs';
@@ -11,8 +10,6 @@ interface RenameBody {
 }
 
 export async function POST(req: NextRequest) {
-  const forbidden = assertLocalRequest(req);
-  if (forbidden) return forbidden;
 
   try {
     const body = (await req.json()) as RenameBody;

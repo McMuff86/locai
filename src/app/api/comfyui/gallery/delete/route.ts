@@ -1,14 +1,12 @@
 import { NextResponse } from 'next/server';
 import fs from 'fs';
 import path from 'path';
-import { assertLocalRequest, sanitizeBasePath, validatePath } from '../../../_utils/security';
+import { sanitizeBasePath, validatePath } from '../../../_utils/security';
 import { invalidateGalleryCache } from '@/lib/galleryCache';
 
 export const dynamic = 'force-dynamic';
 
 export async function DELETE(request: Request) {
-  const forbidden = assertLocalRequest(request);
-  if (forbidden) return forbidden;
 
   try {
     const { searchParams } = new URL(request.url);

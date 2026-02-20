@@ -2,13 +2,10 @@ import { NextResponse } from 'next/server';
 import { spawn } from 'child_process';
 import path from 'path';
 import fs from 'fs';
-import { assertLocalRequest } from '../../_utils/security';
 
 export const dynamic = 'force-dynamic';
 
 export async function POST(request: Request) {
-  const forbidden = assertLocalRequest(request);
-  if (forbidden) return forbidden;
 
   try {
     const body = await request.json();

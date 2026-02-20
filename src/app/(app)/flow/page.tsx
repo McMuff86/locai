@@ -105,23 +105,30 @@ export default function FlowPage() {
     return () => window.clearTimeout(timer);
   }, [isHydrated, toast, workflow]);
 
+  // Keyboard shortcut refs (to avoid stale closures)
+  const handleSaveRef = useRef<() => void>(() => {});
+  const handleRunRef = useRef<() => void>(() => {});
+
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
-      if (!(event.metaKey || event.ctrlKey)) {
-        return;
-      }
+      if (!(event.metaKey || event.ctrlKey)) return;
+      const key = event.key.toLowerCase();
 
-      if (event.key.toLowerCase() !== 'k') {
-        return;
+      if (key === 'k') {
+        event.preventDefault();
+        setIsCommandPaletteOpen(true);
+      } else if (key === 's') {
+        event.preventDefault();
+        handleSaveRef.current();
+      } else if (key === 'enter' && !isRunning) {
+        event.preventDefault();
+        handleRunRef.current();
       }
-
-      event.preventDefault();
-      setIsCommandPaletteOpen(true);
     };
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, []);
+  }, [isRunning]);
 
   const handleInsertNodeFromCommand = useCallback((kind: FlowNodeKind) => {
     setPendingInsertNodeKind(kind);
@@ -150,6 +157,9 @@ export default function FlowPage() {
       });
     }
   }, [toast, workflow]);
+
+  // Keep refs in sync for keyboard shortcuts
+  handleSaveRef.current = handleSaveNow;
 
   const handleClearStatus = useCallback(() => {
     setCompileWarnings([]);
@@ -433,6 +443,8 @@ export default function FlowPage() {
     workflow.graph,
   ]);
 
+  handleRunRef.current = handleRun;
+
   if (!isHydrated) {
     return (
       <div className="flex h-full items-center justify-center">
@@ -477,6 +489,7 @@ export default function FlowPage() {
           >
             <Save className="h-3.5 w-3.5" />
             Save
+            <kbd className="ml-1 hidden text-[10px] opacity-50 sm:inline">⌘S</kbd>
           </Button>
 
           <Button
@@ -487,6 +500,7 @@ export default function FlowPage() {
           >
             {isRunning ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Play className="h-3.5 w-3.5" />}
             {isRunning ? 'Running...' : 'Run'}
+            {!isRunning && <kbd className="ml-1 hidden text-[10px] opacity-50 sm:inline">⌘↵</kbd>}
           </Button>
 
           {isRunning && (

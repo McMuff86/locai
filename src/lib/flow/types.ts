@@ -27,6 +27,7 @@ export interface InputNodeConfig {
 }
 
 export interface AgentNodeConfig {
+  provider?: 'ollama' | 'anthropic' | 'openai' | 'openrouter';
   model: string;
   prompt: string;
   systemPrompt?: string;
@@ -120,6 +121,7 @@ export interface FlowCompileResult {
   plan: WorkflowPlan;
   entryMessage: string;
   model: string;
+  provider?: 'ollama' | 'anthropic' | 'openai' | 'openrouter';
   systemPrompt?: string;
   enabledTools: string[];
   outputNodeId: string | null;

@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { getOllamaModels } from '@/lib/ollama';
+import { loadProviderSettings, createProvider, type ProviderType } from '@/lib/providers';
 import type { AgentNodeData, InputNodeData, OutputNodeData, TemplateNodeData } from '@/lib/flow/types';
 import { saveFlowOutput } from '@/lib/flow/saveOutput';
 import { cn } from '@/lib/utils';
@@ -34,6 +35,29 @@ const FALLBACK_AGENT_MODELS = [
   'gemma3',
 ];
 
+const ANTHROPIC_MODELS = [
+  'claude-sonnet-4-20250514',
+  'claude-opus-4-20250514',
+  'claude-3-5-haiku-20241022',
+];
+
+const OPENAI_MODELS = [
+  'gpt-4o',
+  'gpt-4o-mini',
+  'gpt-4-turbo',
+  'o3-mini',
+];
+
+const OPENROUTER_MODELS = [
+  'anthropic/claude-sonnet-4-20250514',
+  'anthropic/claude-3-5-haiku-20241022',
+  'openai/gpt-4o',
+  'openai/gpt-4o-mini',
+  'google/gemini-2.0-flash-exp',
+  'meta-llama/llama-3.3-70b-instruct',
+  'deepseek/deepseek-r1',
+];
+
 function SectionTitle({ children }: { children: React.ReactNode }) {
   return <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{children}</h3>;
 }
@@ -46,6 +70,7 @@ export function ConfigPanel() {
   const updateNodeConfig = useFlowStore((state) => state.updateNodeConfig);
   const removeNode = useFlowStore((state) => state.removeNode);
   const [availableModels, setAvailableModels] = useState<string[]>([]);
+  const [activeProviders, setActiveProviders] = useState<ProviderType[]>(['ollama']);
   const [isSaving, setIsSaving] = useState(false);
   const [panelWidth, setPanelWidth] = useState(360);
   const isResizingRef = useRef(false);
@@ -60,10 +85,9 @@ export function ConfigPanel() {
     let cancelled = false;
 
     const loadModels = async () => {
+      // Load Ollama models
       const models = await getOllamaModels();
-      if (cancelled) {
-        return;
-      }
+      if (cancelled) return;
 
       const uniqueModels = Array.from(
         new Set(
@@ -74,6 +98,16 @@ export function ConfigPanel() {
       ).sort((left, right) => left.localeCompare(right));
 
       setAvailableModels(uniqueModels);
+
+      // Detect active providers
+      const settings = loadProviderSettings();
+      const active: ProviderType[] = ['ollama'];
+      for (const [type, config] of Object.entries(settings.providers)) {
+        if (config.enabled && config.apiKey && type !== 'ollama') {
+          active.push(type as ProviderType);
+        }
+      }
+      if (!cancelled) setActiveProviders(active);
     };
 
     void loadModels();
@@ -86,21 +120,35 @@ export function ConfigPanel() {
   const agentModelOptions = useMemo(() => {
     const options = new Set<string>();
     const currentModel = agentData?.config.model?.trim();
+    const provider = agentData?.config.provider ?? 'ollama';
 
     if (currentModel) {
       options.add(currentModel);
     }
 
-    for (const modelName of availableModels) {
-      options.add(modelName);
-    }
-
-    for (const modelName of FALLBACK_AGENT_MODELS) {
-      options.add(modelName);
+    if (provider === 'ollama') {
+      for (const modelName of availableModels) {
+        options.add(modelName);
+      }
+      for (const modelName of FALLBACK_AGENT_MODELS) {
+        options.add(modelName);
+      }
+    } else if (provider === 'anthropic') {
+      for (const modelName of ANTHROPIC_MODELS) {
+        options.add(modelName);
+      }
+    } else if (provider === 'openai') {
+      for (const modelName of OPENAI_MODELS) {
+        options.add(modelName);
+      }
+    } else if (provider === 'openrouter') {
+      for (const modelName of OPENROUTER_MODELS) {
+        options.add(modelName);
+      }
     }
 
     return Array.from(options);
-  }, [agentData?.config.model, availableModels]);
+  }, [agentData?.config.model, agentData?.config.provider, availableModels]);
 
   const handleResizeStart = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
     e.preventDefault();
@@ -213,6 +261,28 @@ export function ConfigPanel() {
 
         {agentData && (
           <>
+            {activeProviders.length > 1 && (
+              <div className="space-y-2">
+                <SectionTitle>Provider</SectionTitle>
+                <select
+                  value={agentData.config.provider ?? 'ollama'}
+                  onChange={(event) =>
+                    updateNodeConfig(selectedNode.id, {
+                      provider: event.target.value as ProviderType,
+                      model: '', // reset model when switching provider
+                    })
+                  }
+                  className="h-9 w-full rounded-md border border-input bg-background px-2 text-xs outline-none transition-[color,box-shadow] focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
+                >
+                  {activeProviders.map((p) => (
+                    <option key={p} value={p}>
+                      {p === 'ollama' ? '🦙 Ollama (Local)' : p === 'anthropic' ? '🧠 Anthropic (Claude)' : p === 'openai' ? '💚 OpenAI' : '🔀 OpenRouter'}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+
             <div className="space-y-2">
               <SectionTitle>Model</SectionTitle>
               <select

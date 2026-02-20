@@ -183,6 +183,10 @@ export function compileVisualWorkflowToPlan(workflow: VisualWorkflow): FlowCompi
     firstAgentNode && firstAgentNode.data.kind === 'agent'
       ? firstAgentNode.data.config.model.trim() || 'llama3'
       : 'llama3';
+  const provider =
+    firstAgentNode && firstAgentNode.data.kind === 'agent'
+      ? firstAgentNode.data.config.provider ?? 'ollama'
+      : 'ollama' as const;
   const systemPrompt =
     firstAgentNode && firstAgentNode.data.kind === 'agent'
       ? firstAgentNode.data.config.systemPrompt?.trim() || undefined
@@ -202,6 +206,7 @@ export function compileVisualWorkflowToPlan(workflow: VisualWorkflow): FlowCompi
     plan,
     entryMessage,
     model,
+    provider,
     systemPrompt,
     enabledTools,
     outputNodeId: outputNode?.id ?? null,

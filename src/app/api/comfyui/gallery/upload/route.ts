@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import fs from 'fs';
 import path from 'path';
-import { assertLocalRequest, sanitizeBasePath } from '../../../_utils/security';
+import { sanitizeBasePath } from '../../../_utils/security';
 import { invalidateGalleryCache } from '@/lib/galleryCache';
 
 export const runtime = 'nodejs';
@@ -36,8 +36,6 @@ function ensureUniquePath(targetDir: string, filename: string): string {
 }
 
 export async function POST(req: NextRequest) {
-  const forbidden = assertLocalRequest(req);
-  if (forbidden) return forbidden;
 
   try {
     const formData = await req.formData();

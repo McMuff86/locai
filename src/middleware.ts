@@ -48,6 +48,11 @@ function forbidden(error: string, details?: Record<string, unknown>) {
 }
 
 export function middleware(request: NextRequest) {
+  // Allow health check without auth
+  if (request.nextUrl.pathname === '/api/health' && request.method === 'GET') {
+    return NextResponse.next();
+  }
+
   // --- Token-based auth ---
   const requiredToken = process.env.LOCAI_API_TOKEN?.trim();
   if (requiredToken) {

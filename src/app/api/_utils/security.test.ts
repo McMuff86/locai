@@ -1,5 +1,7 @@
 import { describe, it, expect, afterEach } from 'vitest';
-import { sanitizeBasePath, validatePath, assertLocalRequest } from './security';
+import { sanitizeBasePath, validatePath } from './security';
+import { middleware } from '@/middleware';
+import { NextRequest } from 'next/server';
 import path from 'path';
 
 // ── sanitizeBasePath ────────────────────────────────────────────────
@@ -50,14 +52,13 @@ describe('validatePath', () => {
   });
 
   it('rejects a path that starts with the prefix string but is not a subdirectory', () => {
-    // "/tmp/testXXX" starts with "/tmp/test" but is a sibling, not a child
     expect(validatePath('/tmp/testXXX', prefix)).toBeNull();
   });
 });
 
-// ── assertLocalRequest ──────────────────────────────────────────────
+// ── middleware ───────────────────────────────────────────────────────
 
-describe('assertLocalRequest', () => {
+describe('middleware', () => {
   const savedEnv: Record<string, string | undefined> = {};
 
   function saveEnv(...keys: string[]) {
@@ -71,74 +72,109 @@ describe('assertLocalRequest', () => {
     }
   });
 
-  function makeRequest(url: string, headers: Record<string, string> = {}) {
-    return new Request(url, { headers });
+  function makeRequest(
+    url: string,
+    headers: Record<string, string> = {},
+    method = 'GET',
+  ) {
+    return new NextRequest(new URL(url, 'http://localhost:3000'), {
+      method,
+      headers,
+    });
   }
+
+  // ── health check bypass ──
+
+  it('allows GET /api/health without auth', () => {
+    saveEnv('LOCAI_API_TOKEN');
+    process.env.LOCAI_API_TOKEN = 'secret';
+    const req = makeRequest('/api/health', {}, 'GET');
+    const res = middleware(req);
+    expect(res.status).not.toBe(403);
+  });
+
+  it('enforces auth on POST /api/health', async () => {
+    saveEnv('LOCAI_API_TOKEN');
+    process.env.LOCAI_API_TOKEN = 'secret';
+    const req = makeRequest('/api/health', { host: 'localhost:3000' }, 'POST');
+    const res = middleware(req);
+    expect(res.status).toBe(403);
+  });
 
   // ── local origins ──
 
   it('accepts request with localhost origin', () => {
-    const req = makeRequest('http://localhost/api/test', {
+    const req = makeRequest('/api/test', {
       origin: 'http://localhost:3000',
     });
-    const res = assertLocalRequest(req);
-    expect(res).toBeNull();
+    const res = middleware(req);
+    expect(res.status).not.toBe(403);
   });
 
   it('accepts request with 127.0.0.1 host', () => {
-    const req = makeRequest('http://127.0.0.1/api/test', {
+    const req = makeRequest('/api/test', {
       host: '127.0.0.1:3000',
     });
-    const res = assertLocalRequest(req);
-    expect(res).toBeNull();
+    const res = middleware(req);
+    expect(res.status).not.toBe(403);
   });
 
   it('accepts request with ::1 host', () => {
-    const req = makeRequest('http://[::1]/api/test', {
+    const req = makeRequest('/api/test', {
       host: '[::1]:3000',
     });
-    const res = assertLocalRequest(req);
-    expect(res).toBeNull();
+    const res = middleware(req);
+    expect(res.status).not.toBe(403);
   });
 
   // ── remote origin ──
 
   it('rejects request from remote origin', async () => {
-    const req = makeRequest('http://example.com/api/test', {
+    const req = makeRequest('/api/test', {
       origin: 'http://example.com',
     });
-    const res = assertLocalRequest(req);
-    expect(res).not.toBeNull();
-    const body = await res!.json();
+    const res = middleware(req);
+    expect(res.status).toBe(403);
+    const body = await res.json();
     expect(body.success).toBe(false);
-    expect(res!.status).toBe(403);
   });
 
   // ── token auth ──
 
-  it('accepts request with correct LOCAI_API_TOKEN', () => {
+  it('accepts request with correct LOCAI_API_TOKEN via x-locai-token', () => {
     saveEnv('LOCAI_API_TOKEN');
     process.env.LOCAI_API_TOKEN = 'secret-token-123';
 
-    const req = makeRequest('http://localhost/api/test', {
+    const req = makeRequest('/api/test', {
       'x-locai-token': 'secret-token-123',
       origin: 'http://localhost',
     });
-    const res = assertLocalRequest(req);
-    expect(res).toBeNull();
+    const res = middleware(req);
+    expect(res.status).not.toBe(403);
+  });
+
+  it('accepts request with correct LOCAI_API_TOKEN via Bearer', () => {
+    saveEnv('LOCAI_API_TOKEN');
+    process.env.LOCAI_API_TOKEN = 'secret-token-123';
+
+    const req = makeRequest('/api/test', {
+      authorization: 'Bearer secret-token-123',
+      origin: 'http://localhost',
+    });
+    const res = middleware(req);
+    expect(res.status).not.toBe(403);
   });
 
   it('rejects request with wrong LOCAI_API_TOKEN', async () => {
     saveEnv('LOCAI_API_TOKEN');
     process.env.LOCAI_API_TOKEN = 'secret-token-123';
 
-    const req = makeRequest('http://localhost/api/test', {
+    const req = makeRequest('/api/test', {
       'x-locai-token': 'wrong-token',
       origin: 'http://localhost',
     });
-    const res = assertLocalRequest(req);
-    expect(res).not.toBeNull();
-    expect(res!.status).toBe(403);
+    const res = middleware(req);
+    expect(res.status).toBe(403);
   });
 
   // ── LOCAI_ALLOW_REMOTE ──
@@ -147,10 +183,18 @@ describe('assertLocalRequest', () => {
     saveEnv('LOCAI_ALLOW_REMOTE');
     process.env.LOCAI_ALLOW_REMOTE = 'true';
 
-    const req = makeRequest('http://evil.example.com/api/test', {
+    const req = makeRequest('/api/test', {
       origin: 'http://evil.example.com',
     });
-    const res = assertLocalRequest(req);
-    expect(res).toBeNull();
+    const res = middleware(req);
+    expect(res.status).not.toBe(403);
+  });
+
+  // ── missing headers ──
+
+  it('rejects request with no origin or host headers', async () => {
+    const req = makeRequest('/api/test', {});
+    const res = middleware(req);
+    expect(res.status).toBe(403);
   });
 });
