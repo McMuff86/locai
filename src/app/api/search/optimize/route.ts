@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { validateOllamaHost } from '../../_utils/security';
 
 export const runtime = 'nodejs';
 
@@ -47,7 +48,13 @@ export async function POST(req: NextRequest) {
     }
 
     const model = body.model || 'llama3';
-    const host = (body.host || 'http://localhost:11434').replace(/\/$/, '');
+    const rawHost = body.host || 'http://localhost:11434';
+    // SSRF: validate user-supplied Ollama host
+    const hostCheck = validateOllamaHost(rawHost);
+    if (!hostCheck.valid) {
+      return NextResponse.json({ error: hostCheck.reason }, { status: 400 });
+    }
+    const host = hostCheck.url;
     const numCtx = body.numCtx || 8192;
 
     // Build the context from snippets (increased limit to ~1500 chars per snippet for up to 5 sources)

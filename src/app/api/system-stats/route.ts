@@ -1,14 +1,11 @@
 import { NextResponse } from 'next/server';
 import os from 'os';
-import { exec } from 'child_process';
+import { execFile } from 'child_process';
 import { promisify } from 'util';
+import { validateOllamaHost } from '../_utils/security';
 
-const execAsync = promisify(exec);
+const execFileAsync = promisify(execFile);
 const DEFAULT_OLLAMA_HOST = 'http://localhost:11434';
-
-function sanitizeHost(host: string): string {
-  return host.replace(/\/$/, '');
-}
 
 /**
  * System Stats API
@@ -150,9 +147,10 @@ async function getGpuStats(): Promise<GpuStats> {
   };
 
   try {
-    // Query GPU info with nvidia-smi
-    const { stdout: gpuInfo } = await execAsync(
-      'nvidia-smi --query-gpu=name,driver_version,memory.total,memory.used,memory.free,utilization.gpu,temperature.gpu,power.draw,power.limit --format=csv,noheader,nounits',
+    // Query GPU info with nvidia-smi (SEC-3: execFile instead of exec)
+    const { stdout: gpuInfo } = await execFileAsync(
+      'nvidia-smi',
+      ['--query-gpu=name,driver_version,memory.total,memory.used,memory.free,utilization.gpu,temperature.gpu,power.draw,power.limit', '--format=csv,noheader,nounits'],
       { timeout: 5000 }
     );
 
@@ -171,8 +169,9 @@ async function getGpuStats(): Promise<GpuStats> {
     // Get GPU processes
     let processes: GpuProcess[] = [];
     try {
-      const { stdout: processInfo } = await execAsync(
-        'nvidia-smi --query-compute-apps=pid,process_name,used_memory --format=csv,noheader,nounits',
+      const { stdout: processInfo } = await execFileAsync(
+        'nvidia-smi',
+        ['--query-compute-apps=pid,process_name,used_memory', '--format=csv,noheader,nounits'],
         { timeout: 5000 }
       );
 
@@ -221,7 +220,7 @@ async function getGpuStats(): Promise<GpuStats> {
 // Get Ollama running models
 async function getOllamaStats(ollamaHost?: string): Promise<SystemStats['ollama']> {
   try {
-    const base = sanitizeHost(ollamaHost || DEFAULT_OLLAMA_HOST);
+    const base = (ollamaHost || DEFAULT_OLLAMA_HOST).replace(/\/+$/, '');
     const response = await fetch(`${base}/api/ps`, {
       signal: AbortSignal.timeout(2000)
     });
@@ -253,12 +252,22 @@ async function getOllamaStats(ollamaHost?: string): Promise<SystemStats['ollama'
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
-    const ollamaHost = searchParams.get('ollamaHost') || undefined;
+    const rawOllamaHost = searchParams.get('ollamaHost') || undefined;
+
+    // SSRF: validate user-supplied Ollama host
+    let ollamaHost: string | undefined;
+    if (rawOllamaHost) {
+      const check = validateOllamaHost(rawOllamaHost);
+      if (!check.valid) {
+        return NextResponse.json({ error: check.reason }, { status: 400 });
+      }
+      ollamaHost = check.url;
+    }
 
     const [cpuUsage, gpuStats, ollamaStats] = await Promise.all([
       getCpuUsage(),
       getGpuStats(),
-      getOllamaStats(ollamaHost ? sanitizeHost(ollamaHost) : undefined)
+      getOllamaStats(ollamaHost)
     ]);
     
     const memoryStats = getMemoryStats();

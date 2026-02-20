@@ -1,13 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { 
-  performWebSearch, 
-  searchWeb, 
+import {
+  performWebSearch,
+  searchWeb,
   optimizeQuery,
   fetchPageContent,
   formatForChat,
   WebSearchOptions,
   WebSearchResult
 } from '@/lib/webSearch';
+import { validateOllamaHost, validateSearxngUrl, validateExternalUrl } from '../_utils/security';
 
 /**
  * GET /api/search
@@ -27,6 +28,14 @@ export async function GET(request: NextRequest) {
       { error: 'Query parameter "q" is required' },
       { status: 400 }
     );
+  }
+
+  // SSRF: validate user-supplied SearXNG URL
+  if (searxngUrl) {
+    const check = validateSearxngUrl(searxngUrl);
+    if (!check.valid) {
+      return NextResponse.json({ error: check.reason }, { status: 400 });
+    }
   }
 
   try {
@@ -78,6 +87,20 @@ export async function POST(request: NextRequest) {
         { error: 'Question is required' },
         { status: 400 }
       );
+    }
+
+    // SSRF: validate user-supplied URLs
+    if (options.ollamaHost) {
+      const check = validateOllamaHost(options.ollamaHost);
+      if (!check.valid) {
+        return NextResponse.json({ error: check.reason }, { status: 400 });
+      }
+    }
+    if (options.searxngUrl) {
+      const check = validateSearxngUrl(options.searxngUrl);
+      if (!check.valid) {
+        return NextResponse.json({ error: check.reason }, { status: 400 });
+      }
     }
 
     // Merge default options
@@ -139,8 +162,14 @@ export async function PUT(request: NextRequest) {
       );
     }
 
+    // SSRF: validate external URL
+    const urlCheck = validateExternalUrl(url);
+    if (!urlCheck.valid) {
+      return NextResponse.json({ error: urlCheck.reason }, { status: 400 });
+    }
+
     console.debug(`[Search API] Fetching content from: ${url}`);
-    
+
     const content = await fetchPageContent(url, { maxLength });
 
     return NextResponse.json(content);
@@ -176,8 +205,16 @@ export async function PATCH(request: NextRequest) {
       );
     }
 
+    // SSRF: validate user-supplied Ollama host
+    if (ollamaHost) {
+      const check = validateOllamaHost(ollamaHost);
+      if (!check.valid) {
+        return NextResponse.json({ error: check.reason }, { status: 400 });
+      }
+    }
+
     console.debug(`[Search API] Optimizing query: "${question}"`);
-    
+
     const result = await optimizeQuery(question, {
       ollamaHost: ollamaHost || 'http://localhost:11434',
       model: model || 'llama3',

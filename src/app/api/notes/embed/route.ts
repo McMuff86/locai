@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { FileNoteStorage } from '@/lib/notes/fileNoteStorage';
 import { upsertEmbeddingsForNote, loadEmbeddings } from '@/lib/notes/embeddings';
 import { Note } from '@/lib/notes/types';
-import { sanitizeBasePath } from '../../_utils/security';
+import { sanitizeBasePath, validateOllamaHost } from '../../_utils/security';
 import { createHash } from 'crypto';
 
 export const runtime = 'nodejs';
@@ -59,7 +59,13 @@ export async function POST(req: NextRequest) {
   const basePath = getBasePath(req, body.basePath || null);
   const noteId: string | undefined = body.noteId;
   const model: string = body.model || DEFAULT_MODEL;
-  const host: string = (body.host || DEFAULT_HOST).replace(/\/$/, '');
+  // SSRF: validate user-supplied Ollama host
+  const rawHost = body.host || DEFAULT_HOST;
+  const hostCheck = validateOllamaHost(rawHost);
+  if (!hostCheck.valid) {
+    return NextResponse.json({ error: hostCheck.reason }, { status: 400 });
+  }
+  const host: string = hostCheck.url;
   const chunkSize: number | undefined = body.chunkSize;
   const chunkOverlap: number | undefined = body.chunkOverlap;
   const streaming: boolean = body.streaming ?? true;

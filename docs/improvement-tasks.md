@@ -21,35 +21,30 @@ Hauptbereiche für Verbesserungen:
 
 ## 🔴 Hoch – Security
 
-### SEC-1: Fehlende Security-Checks auf API Routes
-**Beschreibung:** `assertLocalRequest()` wird nur in `/api/gpu/kill-process` und `/api/comfyui/launch` verwendet. Folgende Routes haben **keinen** Security-Check:
-- `/api/system-stats` – Gibt CPU, RAM, GPU, laufende Prozesse preis
-- `/api/comfyui/gallery` – Listet Dateien auf dem Filesystem
-- `/api/comfyui/gallery/[id]` – Liefert Dateien direkt aus
-- `/api/comfyui/gallery/metadata` – Liest Datei-Metadaten
-- `/api/comfyui/gallery/delete` – **Löscht Dateien** ohne Auth!
-- `/api/comfyui/gallery/copy-to-input` – Kopiert Dateien
-- `/api/notes/*` – CRUD auf Filesystem-Notizen
-- `/api/settings` – Liest/schreibt App-Einstellungen
-- `/api/search/*` – Web-Suche
-- `/api/folder-picker` – Öffnet OS-Dialog
-- `/api/ollama/pull` – Kann Models runterladen
+### ~~SEC-1: Fehlende Security-Checks auf API Routes~~ ✅ Erledigt (PR #36)
+**Fix:** Global Middleware in `src/middleware.ts` schützt alle `/api/*` Routes (localhost + token auth).
 
-**Priorität:** 🔴 Hoch
-**Aufwand:** 2-3h
-**Fix:** `assertLocalRequest()` als Middleware oder in jede Route einfügen. Am besten als Next.js Middleware (`middleware.ts`) für alle `/api/*` Routes.
+### ~~SEC-2: Path Traversal in Gallery/Notes Routes~~ ✅ Erledigt (PR #36)
+**Fix:** `sanitizeBasePath()` + `validatePath()` in `src/app/api/_utils/security.ts`.
 
-### SEC-2: Path Traversal in Gallery/Notes Routes
-**Beschreibung:** Die Gallery-Route akzeptiert `outputPath` als Query-Parameter und liest direkt vom Filesystem. Keine Validierung gegen Path Traversal (z.B. `../../etc/passwd`). Gleiches Problem bei Notes mit `basePath`.
-**Priorität:** 🔴 Hoch
-**Aufwand:** 2h
-**Fix:** Pfade gegen eine Allowlist oder ein Basis-Verzeichnis normalisieren und validieren. `path.resolve()` + check ob resolved path mit erlaubtem Prefix beginnt.
+### ~~SEC-3: ComfyUI Launch – Command Injection Risiko~~ ✅ Erledigt (PR #36)
+**Fix:** `shell: false`, `execFile()`, Metachar-Validierung.
 
-### SEC-3: ComfyUI Launch – Command Injection Risiko
-**Beschreibung:** `/api/comfyui/launch` nutzt `spawn()` mit `shell: true` und akzeptiert `comfyUIPath` aus dem Request Body. Zwar wird der Pfad mit `path.normalize()` behandelt, aber `shell: true` macht Command Injection möglich.
-**Priorität:** 🔴 Hoch
-**Aufwand:** 1h
-**Fix:** `shell: false` verwenden oder Pfad strenger validieren (keine Shell-Metazeichen erlauben).
+### ~~SEC-4: SSRF-Schutz für server-seitige fetch() Aufrufe~~ ✅ Erledigt
+**Beschreibung:** 13 Route-Dateien akzeptierten user-kontrollierte URLs/Hosts für server-seitige `fetch()` Aufrufe ohne Validierung. SSRF-Risiko besonders wenn `LOCAI_ALLOW_REMOTE=true`.
+**Fix:** `validateServiceUrl()` + Convenience-Wrapper (`validateOllamaHost()`, `validateSearxngUrl()`, `validateExternalUrl()`, `validateComfyuiUrl()`) in `security.ts`. Angewendet auf alle 13 betroffenen Route-Dateien.
+
+### ~~SEC-5: exec() mit Shell in system-stats~~ ✅ Erledigt
+**Beschreibung:** `system-stats/route.ts` verwendete `exec()` (mit Shell) für nvidia-smi.
+**Fix:** Umgestellt auf `execFile()` mit Args-Array (kein Shell-Interpreter).
+
+### ~~SEC-6: Settings-Validierung fehlt~~ ✅ Erledigt
+**Beschreibung:** `POST /api/settings` akzeptierte beliebiges JSON und schrieb es auf Disk.
+**Fix:** Schema-basierte Validierung mit erlaubten Keys, Typ-Prüfung, Bereichs-Validierung (Port 1-65535, sidebarWidth 100-2000, theme enum), String-Längen-Limit, URL-Format-Prüfung, Pfade ohne `..`.
+
+### ~~SEC-7: Duplizierte Security-Helpers (DRY)~~ ✅ Erledigt
+**Beschreibung:** 6 Funktionen waren zwischen `middleware.ts` und `security.ts` dupliziert.
+**Fix:** Extrahiert nach `src/lib/security-shared.ts` (Edge-kompatibel). Beide Dateien importieren von dort.
 
 ---
 

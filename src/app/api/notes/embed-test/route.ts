@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { validateOllamaHost } from '../../_utils/security';
 
 export const runtime = 'nodejs';
 
@@ -9,7 +10,14 @@ export async function POST(req: NextRequest) {
   const body = await req.json();
   const text: string = body.text || 'Test embedding';
   const model: string = body.model || 'nomic-embed-text';
-  const host: string = (body.host || DEFAULT_HOST).replace(/\/$/, '');
+
+  // SSRF: validate user-supplied Ollama host
+  const rawHost = body.host || DEFAULT_HOST;
+  const hostCheck = validateOllamaHost(rawHost);
+  if (!hostCheck.valid) {
+    return NextResponse.json({ success: false, error: hostCheck.reason }, { status: 400 });
+  }
+  const host: string = hostCheck.url;
 
   const results: string[] = [];
   

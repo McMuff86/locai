@@ -1,6 +1,13 @@
-import { NextResponse } from 'next/server';
 import path from 'path';
 import { promises as fs } from 'fs';
+import {
+  isTruthyEnv,
+  parseHostnameFromOrigin,
+  parseHostnameFromHost,
+  isLocalHostname,
+  getBearerToken,
+  forbidden,
+} from '@/lib/security-shared';
 
 /**
  * SEC-2: Validate that a user-supplied path doesn't contain traversal sequences.
@@ -26,47 +33,6 @@ export function validatePath(userPath: string, allowedPrefix: string): string | 
   return null;
 }
 
-function isTruthyEnv(value: string | undefined) {
-  if (!value) return false;
-  return value === '1' || value.toLowerCase() === 'true' || value.toLowerCase() === 'yes';
-}
-
-function parseHostnameFromOrigin(originHeader: string | null) {
-  if (!originHeader || originHeader === 'null') return null;
-  try {
-    return new URL(originHeader).hostname;
-  } catch {
-    return null;
-  }
-}
-
-function parseHostnameFromHost(hostHeader: string | null) {
-  if (!hostHeader) return null;
-  const trimmed = hostHeader.trim();
-  if (trimmed.startsWith('[')) {
-    const endBracket = trimmed.indexOf(']');
-    if (endBracket > 1) return trimmed.slice(1, endBracket);
-    return null;
-  }
-  const colonIndex = trimmed.indexOf(':');
-  if (colonIndex === -1) return trimmed;
-  return trimmed.slice(0, colonIndex);
-}
-
-function isLocalHostname(hostname: string) {
-  return hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '::1';
-}
-
-function getBearerToken(authorizationHeader: string | null) {
-  if (!authorizationHeader) return null;
-  const match = authorizationHeader.match(/^Bearer\s+(.+)$/i);
-  return match?.[1]?.trim() || null;
-}
-
-function forbidden(error: string, details?: Record<string, unknown>) {
-  return NextResponse.json({ success: false, error, ...details }, { status: 403 });
-}
-
 /**
  * Get the base path for a LocAI subdirectory (e.g. 'conversations', 'memory').
  * Creates the directory if it doesn't exist.
@@ -77,6 +43,123 @@ export async function getLocaiBasePath(subdir?: string): Promise<string> {
   const base = subdir ? path.join(home, '.locai', subdir) : path.join(home, '.locai');
   await fs.mkdir(base, { recursive: true });
   return base;
+}
+
+// ── SSRF Protection ─────────────────────────────────────────────────
+
+/**
+ * Private/reserved IPv4 ranges that must not be reached via user-supplied URLs.
+ * Localhost (127.x) is intentionally allowed — Ollama and ComfyUI run there.
+ */
+const PRIVATE_IP_PATTERNS = [
+  /^10\./,                   // 10.0.0.0/8
+  /^172\.(1[6-9]|2\d|3[01])\./, // 172.16.0.0/12
+  /^192\.168\./,             // 192.168.0.0/16
+  /^169\.254\./,             // link-local
+  /^0\./,                    // 0.0.0.0/8
+];
+
+function isPrivateIp(hostname: string): boolean {
+  return PRIVATE_IP_PATTERNS.some((re) => re.test(hostname));
+}
+
+const ALLOWED_PROTOCOLS = new Set(['http:', 'https:']);
+
+export type UrlValidationResult =
+  | { valid: true; url: string }
+  | { valid: false; reason: string };
+
+/**
+ * Validate a user-supplied URL for server-side fetch to prevent SSRF.
+ *
+ * Rules:
+ *  - Only http/https protocols
+ *  - Blocks private IP ranges (10.x, 172.16-31.x, 192.168.x, 169.254.x, 0.x)
+ *  - Allows localhost / 127.0.0.1 / ::1 (local services like Ollama)
+ *  - Blocks file://, gopher://, data:, etc.
+ */
+export function validateServiceUrl(
+  raw: string | undefined | null,
+  options?: { allowLocalhost?: boolean; label?: string },
+): UrlValidationResult {
+  const allowLocalhost = options?.allowLocalhost ?? true;
+  const label = options?.label ?? 'URL';
+
+  if (!raw || typeof raw !== 'string') {
+    return { valid: false, reason: `${label} is required` };
+  }
+
+  const trimmed = raw.trim();
+  if (!trimmed) {
+    return { valid: false, reason: `${label} is empty` };
+  }
+
+  let parsed: URL;
+  try {
+    parsed = new URL(trimmed);
+  } catch {
+    return { valid: false, reason: `${label} is not a valid URL` };
+  }
+
+  if (!ALLOWED_PROTOCOLS.has(parsed.protocol)) {
+    return { valid: false, reason: `${label}: protocol "${parsed.protocol}" is not allowed` };
+  }
+
+  const hostname = parsed.hostname;
+
+  // Allow localhost when requested (default)
+  if (isLocalHostname(hostname) || hostname === '127.0.0.1') {
+    if (!allowLocalhost) {
+      return { valid: false, reason: `${label}: localhost is not allowed` };
+    }
+    return { valid: true, url: trimmed.replace(/\/+$/, '') };
+  }
+
+  // Block private IP ranges
+  if (isPrivateIp(hostname)) {
+    return { valid: false, reason: `${label}: private IP addresses are not allowed` };
+  }
+
+  return { valid: true, url: trimmed.replace(/\/+$/, '') };
+}
+
+/** Validate a URL intended for an Ollama host (must be http(s), allows localhost). */
+export function validateOllamaHost(raw: string | undefined | null): UrlValidationResult {
+  return validateServiceUrl(raw, { allowLocalhost: true, label: 'Ollama host' });
+}
+
+/** Validate a URL intended for a SearXNG instance. */
+export function validateSearxngUrl(raw: string | undefined | null): UrlValidationResult {
+  return validateServiceUrl(raw, { allowLocalhost: true, label: 'SearXNG URL' });
+}
+
+/** Validate an arbitrary external URL (e.g. page content fetch). */
+export function validateExternalUrl(raw: string | undefined | null): UrlValidationResult {
+  return validateServiceUrl(raw, { allowLocalhost: false, label: 'External URL' });
+}
+
+/**
+ * Construct and validate a ComfyUI URL from separate host + port params.
+ * This is the most dangerous SSRF vector because the URL is assembled from parts.
+ */
+export function validateComfyuiUrl(
+  host: string | undefined | null,
+  port: string | number | undefined | null,
+): UrlValidationResult {
+  const h = (host || 'localhost').trim();
+  const p = Number(port) || 8188;
+
+  if (p < 1 || p > 65535 || !Number.isInteger(p)) {
+    return { valid: false, reason: 'ComfyUI port must be 1-65535' };
+  }
+
+  // Reject shell metacharacters in host (extra paranoia)
+  if (/[;&|`$(){}!#]/.test(h)) {
+    return { valid: false, reason: 'ComfyUI host contains invalid characters' };
+  }
+
+  const url = `http://${h}:${p}`;
+  return validateServiceUrl(url, { allowLocalhost: true, label: 'ComfyUI URL' });
 }
 
 export function assertLocalRequest(request: Request) {

@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { FileNoteStorage } from '@/lib/notes/fileNoteStorage';
 import { Note } from '@/lib/notes/types';
 import { performWebSearch, formatForChat } from '@/lib/webSearch';
-import { sanitizeBasePath } from '../../_utils/security';
+import { sanitizeBasePath, validateOllamaHost, validateSearxngUrl } from '../../_utils/security';
 
 export const runtime = 'nodejs';
 
@@ -88,7 +88,21 @@ export async function POST(req: NextRequest) {
     const note = await loadContent(basePath, body.noteId, body.content);
 
     const model = body.model || DEFAULT_MODEL;
-    const host = (body.host || DEFAULT_HOST).replace(/\/$/, '');
+    // SSRF: validate user-supplied hosts
+    const rawHost = body.host || DEFAULT_HOST;
+    const hostCheck = validateOllamaHost(rawHost);
+    if (!hostCheck.valid) {
+      return NextResponse.json({ error: hostCheck.reason }, { status: 400 });
+    }
+    const host = hostCheck.url;
+
+    if (body.searxngUrl) {
+      const searxCheck = validateSearxngUrl(body.searxngUrl);
+      if (!searxCheck.valid) {
+        return NextResponse.json({ error: searxCheck.reason }, { status: 400 });
+      }
+    }
+
     // Optional: Web search enrichment
     let webContext = '';
     if (body.useWebSearch) {
