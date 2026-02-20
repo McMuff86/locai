@@ -1,6 +1,6 @@
-import { NextResponse } from 'next/server';
 import fs from 'fs';
 import path from 'path';
+import { apiError, apiSuccess } from '../_utils/responses';
 
 export const dynamic = 'force-dynamic';
 
@@ -142,33 +142,31 @@ function ensureDir(filePath: string): void {
 export async function GET() {
   try {
     const settingsPath = getSettingsPath();
-    
+
     if (!fs.existsSync(settingsPath)) {
-      return NextResponse.json({
-        success: true,
+      return apiSuccess({
         settings: DEFAULT_SETTINGS,
         source: 'default',
         path: settingsPath,
       });
     }
-    
+
     const content = fs.readFileSync(settingsPath, 'utf-8');
     const settings = JSON.parse(content);
-    
-    return NextResponse.json({
-      success: true,
+
+    return apiSuccess({
       settings: { ...DEFAULT_SETTINGS, ...settings },
       source: 'file',
       path: settingsPath,
     });
-    
+
   } catch (error) {
     console.error('Error loading settings:', error);
-    return NextResponse.json({
-      success: false,
-      error: error instanceof Error ? error.message : 'Failed to load settings',
-      settings: DEFAULT_SETTINGS,
-    });
+    return apiError(
+      error instanceof Error ? error.message : 'Failed to load settings',
+      500,
+      { settings: DEFAULT_SETTINGS },
+    );
   }
 }
 
@@ -179,19 +177,13 @@ export async function POST(request: Request) {
     const { settings } = body;
 
     if (!settings) {
-      return NextResponse.json(
-        { success: false, error: 'No settings provided' },
-        { status: 400 }
-      );
+      return apiError('No settings provided', 400);
     }
 
     // Validate and sanitize settings (strip unknown keys, check types/ranges)
     const validation = validateSettings(settings);
     if (!validation.valid) {
-      return NextResponse.json(
-        { success: false, error: validation.error },
-        { status: 400 }
-      );
+      return apiError(validation.error, 400);
     }
 
     // Merge validated settings with existing ones (so partial updates work)
@@ -214,20 +206,16 @@ export async function POST(request: Request) {
     // Write settings
     fs.writeFileSync(settingsPath, JSON.stringify(merged, null, 2), 'utf-8');
 
-    return NextResponse.json({
-      success: true,
+    return apiSuccess({
       message: 'Settings saved',
       path: settingsPath,
     });
-    
+
   } catch (error) {
     console.error('Error saving settings:', error);
-    return NextResponse.json(
-      { 
-        success: false, 
-        error: error instanceof Error ? error.message : 'Failed to save settings' 
-      },
-      { status: 500 }
+    return apiError(
+      error instanceof Error ? error.message : 'Failed to save settings',
+      500,
     );
   }
 }
@@ -236,24 +224,18 @@ export async function POST(request: Request) {
 export async function DELETE() {
   try {
     const settingsPath = getSettingsPath();
-    
+
     if (fs.existsSync(settingsPath)) {
       fs.unlinkSync(settingsPath);
     }
-    
-    return NextResponse.json({
-      success: true,
-      message: 'Settings reset',
-    });
-    
+
+    return apiSuccess({ message: 'Settings reset' });
+
   } catch (error) {
     console.error('Error deleting settings:', error);
-    return NextResponse.json(
-      { 
-        success: false, 
-        error: error instanceof Error ? error.message : 'Failed to reset settings' 
-      },
-      { status: 500 }
+    return apiError(
+      error instanceof Error ? error.message : 'Failed to reset settings',
+      500,
     );
   }
 }

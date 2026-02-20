@@ -1,8 +1,10 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest } from 'next/server';
 import { FileNoteStorage } from '@/lib/notes/fileNoteStorage';
 import { Note } from '@/lib/notes/types';
-import { performWebSearch, formatForChat } from '@/lib/webSearch';
-import { sanitizeBasePath, validateOllamaHost, validateSearxngUrl } from '../../_utils/security';
+import { performWebSearch } from '@/lib/webSearch';
+import { sanitizeBasePath, validateSearxngUrl } from '../../_utils/security';
+import { resolveAndValidateOllamaHost } from '../../_utils/ollama';
+import { apiError } from '../../_utils/responses';
 
 export const runtime = 'nodejs';
 
@@ -24,7 +26,6 @@ interface AiBody {
 }
 
 const DEFAULT_MODEL = 'llama3';
-const DEFAULT_HOST = 'http://localhost:11434';
 const MAX_WEB_CONTEXT = 4000;
 const MAX_WEB_SNIPPET = 600;
 const MAX_WEB_RESULTS = 3;
@@ -79,27 +80,26 @@ export async function POST(req: NextRequest) {
   try {
     const body = (await req.json()) as AiBody;
     const rawBasePath = resolveBasePath(req, body);
-    if (!rawBasePath) return NextResponse.json({ error: 'basePath is required' }, { status: 400 });
+    if (!rawBasePath) return apiError('basePath is required', 400);
     // SEC-2: Validate basePath (no traversal)
     const basePath = sanitizeBasePath(rawBasePath);
-    if (!basePath) return NextResponse.json({ error: 'Invalid basePath' }, { status: 400 });
+    if (!basePath) return apiError('Invalid basePath', 400);
 
     const action: AiAction = body.action || 'complete';
     const note = await loadContent(basePath, body.noteId, body.content);
 
     const model = body.model || DEFAULT_MODEL;
-    // SSRF: validate user-supplied hosts
-    const rawHost = body.host || DEFAULT_HOST;
-    const hostCheck = validateOllamaHost(rawHost);
-    if (!hostCheck.valid) {
-      return NextResponse.json({ error: hostCheck.reason }, { status: 400 });
+    let host: string;
+    try {
+      host = resolveAndValidateOllamaHost(body.host);
+    } catch (err) {
+      return apiError(err instanceof Error ? err.message : 'Invalid Ollama host', 400);
     }
-    const host = hostCheck.url;
 
     if (body.searxngUrl) {
       const searxCheck = validateSearxngUrl(body.searxngUrl);
       if (!searxCheck.valid) {
-        return NextResponse.json({ error: searxCheck.reason }, { status: 400 });
+        return apiError(searxCheck.reason, 400);
       }
     }
 
@@ -109,8 +109,8 @@ export async function POST(req: NextRequest) {
       try {
         const webResult = await performWebSearch(body.searchQuery || note.title, {
           searxngUrl: body.searxngUrl,
-          ollamaHost: body.host || DEFAULT_HOST,
-          model: body.model || DEFAULT_MODEL,
+          ollamaHost: host,
+          model,
           maxResults: 5,
           fetchContent: true,
           selectBestResult: true,
@@ -186,7 +186,7 @@ export async function POST(req: NextRequest) {
 
     if (!response.ok) {
       const text = await response.text();
-      return NextResponse.json({ error: `Model error: ${text}` }, { status: 500 });
+      return apiError(`Model error: ${text}`, 500);
     }
 
     // Stream the response to the client
@@ -240,7 +240,7 @@ export async function POST(req: NextRequest) {
     });
   } catch (error) {
     console.error('notes/ai error', error);
-    return NextResponse.json({ error: 'AI request failed' }, { status: 500 });
+    return apiError('AI request failed', 500);
   }
 }
 

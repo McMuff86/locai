@@ -1,9 +1,11 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest } from 'next/server';
 import { FileNoteStorage } from '@/lib/notes/fileNoteStorage';
 import { basicSearch, semanticSearch } from '@/lib/notes/search';
 import { embedQuery, loadEmbeddings } from '@/lib/notes/embeddings';
 import { EmbeddingSearchResult, Note } from '@/lib/notes/types';
-import { sanitizeBasePath, validateOllamaHost } from '../../_utils/security';
+import { sanitizeBasePath } from '../../_utils/security';
+import { resolveAndValidateOllamaHost } from '../../_utils/ollama';
+import { apiError, apiSuccess } from '../../_utils/responses';
 
 export const runtime = 'nodejs';
 
@@ -23,16 +25,16 @@ export async function GET(req: NextRequest) {
   const query = req.nextUrl.searchParams.get('query');
   
   if (!rawBasePath) {
-    return NextResponse.json({ success: false, error: 'basePath is required' }, { status: 400 });
+    return apiError('basePath is required', 400);
   }
   // SEC-2: Validate basePath (no traversal)
   const basePath = sanitizeBasePath(rawBasePath);
   if (!basePath) {
-    return NextResponse.json({ success: false, error: 'Invalid basePath' }, { status: 400 });
+    return apiError('Invalid basePath', 400);
   }
-  
+
   if (!query || query.length < 2) {
-    return NextResponse.json({ success: true, results: [] });
+    return apiSuccess({ results: [] });
   }
   
   try {
@@ -107,14 +109,14 @@ export async function GET(req: NextRequest) {
     // Sort by score
     results.sort((a, b) => b.score - a.score);
     
-    return NextResponse.json({ success: true, results });
+    return apiSuccess({ results });
   } catch (error) {
     console.error('Search error:', error);
-    return NextResponse.json({ 
-      success: false, 
-      error: error instanceof Error ? error.message : 'Search failed',
-      results: []
-    });
+    return apiError(
+      error instanceof Error ? error.message : 'Search failed',
+      500,
+      { results: [] },
+    );
   }
 }
 
@@ -127,27 +129,27 @@ export async function POST(req: NextRequest) {
   const model: string | undefined = body.model;
 
   // SSRF: validate user-supplied Ollama host
-  let host: string | undefined = body.host;
-  if (host) {
-    const hostCheck = validateOllamaHost(host);
-    if (!hostCheck.valid) {
-      return NextResponse.json({ error: hostCheck.reason }, { status: 400 });
+  let host: string | undefined;
+  if (body.host) {
+    try {
+      host = resolveAndValidateOllamaHost(body.host);
+    } catch (err) {
+      return apiError(err instanceof Error ? err.message : 'Invalid Ollama host', 400);
     }
-    host = hostCheck.url;
   }
 
   if (!basePath) {
-    return NextResponse.json({ error: 'basePath is required' }, { status: 400 });
+    return apiError('basePath is required', 400);
   }
 
   // SEC-2: Validate basePath (no traversal)
   const safeBasePath = sanitizeBasePath(basePath);
   if (!safeBasePath) {
-    return NextResponse.json({ error: 'Invalid basePath' }, { status: 400 });
+    return apiError('Invalid basePath', 400);
   }
 
   if (!query || typeof query !== 'string') {
-    return NextResponse.json({ error: 'query is required' }, { status: 400 });
+    return apiError('query is required', 400);
   }
 
   const storage = new FileNoteStorage(safeBasePath);
@@ -173,7 +175,7 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  return NextResponse.json({
+  return apiSuccess({
     lexical,
     semantic,
     embeddingsUsed,

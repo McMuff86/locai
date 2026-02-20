@@ -1,5 +1,6 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest } from 'next/server';
 import { moveEntry } from '@/lib/filebrowser/scanner';
+import { apiError, apiSuccess } from '../../_utils/responses';
 
 export const runtime = 'nodejs';
 
@@ -18,15 +19,12 @@ export async function POST(req: NextRequest) {
     const targetPath = body.targetPath;
 
     if (!rootId || !relativePath || targetPath === undefined) {
-      return NextResponse.json(
-        { success: false, error: 'rootId, path und targetPath sind erforderlich' },
-        { status: 400 },
-      );
+      return apiError('rootId, path und targetPath sind erforderlich', 400);
     }
 
     const entry = await moveEntry(rootId, relativePath, targetPath);
 
-    return NextResponse.json({ success: true, entry });
+    return apiSuccess({ entry });
   } catch (err) {
     console.error('[FileBrowser] Move error:', err);
     const message = err instanceof Error ? err.message : 'Fehler beim Verschieben';
@@ -38,6 +36,6 @@ export async function POST(req: NextRequest) {
           ? 409
           : 500;
 
-    return NextResponse.json({ success: false, error: message }, { status });
+    return apiError(message, status);
   }
 }

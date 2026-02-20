@@ -9,7 +9,7 @@
 // Reference: docs/adr/ADR-001-workflow-engine.md
 // ============================================================================
 
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest } from 'next/server';
 import { WorkflowEngine } from '@/lib/agents/workflow';
 import { ToolRegistry } from '@/lib/agents/registry';
 import { registerBuiltinTools } from '@/lib/agents/tools';
@@ -19,6 +19,7 @@ import { resolveWorkspacePath } from '@/lib/settings/store';
 import type { OllamaChatMessage } from '@/lib/ollama';
 import type { WorkflowApiRequest, WorkflowPlan } from '@/lib/agents/workflowTypes';
 import { WORKFLOW_DEFAULTS } from '@/lib/agents/workflowTypes';
+import { apiError } from '../../../_utils/responses';
 
 // ---------------------------------------------------------------------------
 // Agent System Prompt (same as /api/chat/agent for consistency)
@@ -121,7 +122,7 @@ export async function POST(request: NextRequest) {
     } = body;
 
     if (!message?.trim()) {
-      return NextResponse.json({ error: 'Message is required' }, { status: 400 });
+      return apiError('Message is required', 400);
     }
 
     // Set up tool registry
@@ -233,6 +234,6 @@ export async function POST(request: NextRequest) {
     });
   } catch (err) {
     const errMsg = err instanceof Error ? err.message : 'Internal server error';
-    return NextResponse.json({ error: errMsg }, { status: 500 });
+    return apiError(errMsg, 500);
   }
 }

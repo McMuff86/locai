@@ -521,12 +521,75 @@ function extractTokenStats(data: {
   };
 }
 
-/** Options for sendChatMessage with tool support */
-export interface SendChatOptions {
+/** Options for sendChatMessage and sendStreamingChatMessage (CQ-2: unified) */
+export interface ChatCallOptions {
   options?: Record<string, unknown>;
   host?: string;
   tools?: OllamaTool[];
   signal?: AbortSignal;
+}
+
+/** @deprecated Use ChatCallOptions instead */
+export type SendChatOptions = ChatCallOptions;
+/** @deprecated Use ChatCallOptions instead */
+export type StreamingChatOptions = ChatCallOptions;
+
+// ---------------------------------------------------------------------------
+// CQ-2: Shared helpers for sendChatMessage / sendStreamingChatMessage
+// ---------------------------------------------------------------------------
+
+interface ResolvedChatOptions {
+  chatOptions: Record<string, unknown>;
+  host: string | undefined;
+  tools: OllamaTool[] | undefined;
+  signal: AbortSignal | undefined;
+}
+
+/** Parse both the new ChatCallOptions and the legacy (options, host?) signatures. */
+function parseChatOptions(
+  optionsOrLegacy: ChatCallOptions | Record<string, unknown>,
+  hostLegacy?: string,
+): ResolvedChatOptions {
+  if ('tools' in optionsOrLegacy || 'host' in optionsOrLegacy || 'signal' in optionsOrLegacy) {
+    const opts = optionsOrLegacy as ChatCallOptions;
+    return {
+      chatOptions: opts.options ?? {},
+      host: opts.host,
+      tools: opts.tools,
+      signal: opts.signal,
+    };
+  }
+  return {
+    chatOptions: optionsOrLegacy as Record<string, unknown>,
+    host: hostLegacy,
+    tools: undefined,
+    signal: undefined,
+  };
+}
+
+/** Shared fetch + error handling for the Ollama /api/chat endpoint. */
+async function fetchOllamaChat(
+  model: string,
+  messages: ChatInputMessage[],
+  stream: boolean,
+  opts: ResolvedChatOptions,
+): Promise<Response> {
+  const formattedMessages = formatMessagesForApi(model, messages);
+  const chatRequest = buildChatRequest(model, formattedMessages, stream, opts.chatOptions, opts.tools);
+
+  const response = await fetch(`${resolveOllamaApiBase(opts.host)}/chat`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(chatRequest),
+    signal: opts.signal,
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`Error in chat request: ${response.statusText}. Details: ${errorText}`);
+  }
+
+  return response;
 }
 
 /**
@@ -536,46 +599,14 @@ export interface SendChatOptions {
 export async function sendChatMessage(
   model: string,
   messages: ChatInputMessage[],
-  optionsOrLegacy: SendChatOptions | Record<string, unknown> = {},
+  optionsOrLegacy: ChatCallOptions | Record<string, unknown> = {},
   hostLegacy?: string
 ): Promise<ChatResponse> {
   try {
-    // Support both new and legacy call signatures
-    let chatOptions: Record<string, unknown> = {};
-    let host: string | undefined;
-    let tools: OllamaTool[] | undefined;
-    let signal: AbortSignal | undefined;
-
-    if ('tools' in optionsOrLegacy || 'host' in optionsOrLegacy || 'signal' in optionsOrLegacy) {
-      const opts = optionsOrLegacy as SendChatOptions;
-      chatOptions = opts.options ?? {};
-      host = opts.host;
-      tools = opts.tools;
-      signal = opts.signal;
-    } else {
-      chatOptions = optionsOrLegacy as Record<string, unknown>;
-      host = hostLegacy;
-    }
-
-    const formattedMessages = formatMessagesForApi(model, messages);
-    const chatRequest = buildChatRequest(model, formattedMessages, false, chatOptions, tools);
-    
-    const response = await fetch(`${resolveOllamaApiBase(host)}/chat`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify(chatRequest),
-      signal,
-    });
-    
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`Error in chat request: ${response.statusText}. Details: ${errorText}`);
-    }
-    
+    const opts = parseChatOptions(optionsOrLegacy, hostLegacy);
+    const response = await fetchOllamaChat(model, messages, false, opts);
     const data = await response.json() as OllamaChatResponse;
-    
+
     return {
       content: data.message.content,
       tokenStats: extractTokenStats(data),
@@ -590,14 +621,6 @@ export async function sendChatMessage(
   }
 }
 
-/** Options for sendStreamingChatMessage with tool support */
-export interface StreamingChatOptions {
-  options?: Record<string, unknown>;
-  host?: string;
-  tools?: OllamaTool[];
-  signal?: AbortSignal;
-}
-
 /**
  * Sends a streaming chat request to an Ollama model
  * Calls onChunk for each token received, onComplete when done
@@ -608,65 +631,36 @@ export async function sendStreamingChatMessage(
   onChunk: (content: string, fullContent: string) => void,
   onComplete: (response: ChatResponse) => void,
   onError?: (error: Error) => void,
-  optionsOrLegacy: StreamingChatOptions | Record<string, unknown> = {},
+  optionsOrLegacy: ChatCallOptions | Record<string, unknown> = {},
   hostLegacy?: string
 ): Promise<void> {
   try {
-    // Support both new and legacy call signatures
-    let chatOptions: Record<string, unknown> = {};
-    let host: string | undefined;
-    let tools: OllamaTool[] | undefined;
-    let signal: AbortSignal | undefined;
+    const opts = parseChatOptions(optionsOrLegacy, hostLegacy);
+    const response = await fetchOllamaChat(model, messages, true, opts);
 
-    if ('tools' in optionsOrLegacy || 'host' in optionsOrLegacy || 'signal' in optionsOrLegacy) {
-      const opts = optionsOrLegacy as StreamingChatOptions;
-      chatOptions = opts.options ?? {};
-      host = opts.host;
-      tools = opts.tools;
-      signal = opts.signal;
-    } else {
-      chatOptions = optionsOrLegacy as Record<string, unknown>;
-      host = hostLegacy;
-    }
-
-    const formattedMessages = formatMessagesForApi(model, messages);
-    const chatRequest = buildChatRequest(model, formattedMessages, true, chatOptions, tools);
-    
-    const response = await fetch(`${resolveOllamaApiBase(host)}/chat`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(chatRequest),
-      signal,
-    });
-    
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`Error in chat request: ${response.statusText}. Details: ${errorText}`);
-    }
-    
     if (!response.body) {
       throw new Error('Response body is null');
     }
-    
+
     const reader = response.body.getReader();
     const decoder = new TextDecoder();
     let fullContent = '';
     let finalChunk: StreamChunk | null = null;
     // Accumulate tool_calls across streaming chunks
     let accumulatedToolCalls: OllamaToolCall[] | undefined;
-    
+
     while (true) {
       const { done, value } = await reader.read();
-      
+
       if (done) break;
-      
+
       const text = decoder.decode(value, { stream: true });
       const lines = text.split('\n').filter(line => line.trim());
-      
+
       for (const line of lines) {
         try {
           const chunk = JSON.parse(line) as StreamChunk;
-          
+
           if (chunk.message?.content) {
             fullContent += chunk.message.content;
             onChunk(chunk.message.content, fullContent);
@@ -677,7 +671,7 @@ export async function sendStreamingChatMessage(
             if (!accumulatedToolCalls) accumulatedToolCalls = [];
             accumulatedToolCalls.push(...chunk.message.tool_calls);
           }
-          
+
           if (chunk.done) {
             finalChunk = chunk;
           }
@@ -686,13 +680,13 @@ export async function sendStreamingChatMessage(
         }
       }
     }
-    
+
     onComplete({
       content: fullContent,
       tokenStats: finalChunk ? extractTokenStats(finalChunk) : null,
       tool_calls: accumulatedToolCalls,
     });
-    
+
   } catch (error) {
     console.error('Error in streaming chat:', error);
     onError?.(error instanceof Error ? error : new Error('Unknown error'));

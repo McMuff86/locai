@@ -3,12 +3,13 @@
 // DELETE /api/documents/[id]  – Delete a specific document
 // ============================================================================
 
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest } from 'next/server';
 import {
   getDocument,
   deleteDocument,
   loadDocumentEmbeddingsById,
 } from '@/lib/documents/store';
+import { apiError, apiSuccess } from '../../_utils/responses';
 
 export const runtime = 'nodejs';
 
@@ -29,17 +30,13 @@ export async function GET(
     const doc = await getDocument(id);
 
     if (!doc) {
-      return NextResponse.json(
-        { success: false, error: 'Dokument nicht gefunden' },
-        { status: 404 },
-      );
+      return apiError('Dokument nicht gefunden', 404);
     }
 
     // Load embeddings to provide chunk info
     const embeddings = await loadDocumentEmbeddingsById(id);
 
-    return NextResponse.json({
-      success: true,
+    return apiSuccess({
       document: doc,
       chunks: embeddings.map((e) => ({
         id: e.id,
@@ -51,15 +48,9 @@ export async function GET(
     });
   } catch (err) {
     console.error('[Documents] Get error:', err);
-    return NextResponse.json(
-      {
-        success: false,
-        error:
-          err instanceof Error
-            ? err.message
-            : 'Dokument konnte nicht geladen werden',
-      },
-      { status: 500 },
+    return apiError(
+      err instanceof Error ? err.message : 'Dokument konnte nicht geladen werden',
+      500,
     );
   }
 }
@@ -77,22 +68,15 @@ export async function DELETE(
     const deleted = await deleteDocument(id);
 
     if (!deleted) {
-      return NextResponse.json(
-        { success: false, error: 'Dokument nicht gefunden' },
-        { status: 404 },
-      );
+      return apiError('Dokument nicht gefunden', 404);
     }
 
-    return NextResponse.json({ success: true, id });
+    return apiSuccess({ id });
   } catch (err) {
     console.error('[Documents] Delete error:', err);
-    return NextResponse.json(
-      {
-        success: false,
-        error:
-          err instanceof Error ? err.message : 'Löschen fehlgeschlagen',
-      },
-      { status: 500 },
+    return apiError(
+      err instanceof Error ? err.message : 'Löschen fehlgeschlagen',
+      500,
     );
   }
 }

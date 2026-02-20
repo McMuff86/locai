@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { saveUploadedFile } from '@/lib/filebrowser/scanner';
+import { apiError } from '../../_utils/responses';
 
 export const runtime = 'nodejs';
 
@@ -18,10 +19,7 @@ export async function POST(req: NextRequest) {
     const files = formData.getAll('files').filter((item): item is File => item instanceof File);
 
     if (!rootId || files.length === 0) {
-      return NextResponse.json(
-        { success: false, error: 'rootId und mindestens eine Datei sind erforderlich' },
-        { status: 400 },
-      );
+      return apiError('rootId und mindestens eine Datei sind erforderlich', 400);
     }
 
     const uploaded = [] as Array<{ name: string; relativePath: string }>;
@@ -57,6 +55,6 @@ export async function POST(req: NextRequest) {
   } catch (err) {
     console.error('[FileBrowser] Upload error:', err);
     const message = err instanceof Error ? err.message : 'Fehler beim Upload';
-    return NextResponse.json({ success: false, error: message }, { status: 500 });
+    return apiError(message, 500);
   }
 }

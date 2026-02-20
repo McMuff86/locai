@@ -5,8 +5,9 @@
 // POST → save graph settings
 // ============================================================================
 
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest } from 'next/server';
 import { getLocaiBasePath } from '@/app/api/_utils/security';
+import { apiError, apiSuccess } from '../../_utils/responses';
 import path from 'path';
 import { promises as fs } from 'fs';
 
@@ -23,15 +24,12 @@ export async function GET() {
     const filePath = await getGraphSettingsPath();
     const raw = await fs.readFile(filePath, 'utf-8');
     const settings = JSON.parse(raw);
-    return NextResponse.json({ settings });
+    return apiSuccess({ settings });
   } catch (err) {
     if ((err as NodeJS.ErrnoException).code === 'ENOENT') {
-      return NextResponse.json({ settings: null });
+      return apiSuccess({ settings: null });
     }
-    return NextResponse.json(
-      { error: err instanceof Error ? err.message : 'Failed to load graph settings' },
-      { status: 500 },
-    );
+    return apiError(err instanceof Error ? err.message : 'Failed to load graph settings', 500);
   }
 }
 
@@ -42,16 +40,13 @@ export async function POST(request: NextRequest) {
     const { settings } = body;
 
     if (!settings || typeof settings !== 'object') {
-      return NextResponse.json({ error: 'settings object required' }, { status: 400 });
+      return apiError('settings object required', 400);
     }
 
     const filePath = await getGraphSettingsPath();
     await fs.writeFile(filePath, JSON.stringify(settings, null, 2), 'utf-8');
-    return NextResponse.json({ success: true });
+    return apiSuccess();
   } catch (err) {
-    return NextResponse.json(
-      { error: err instanceof Error ? err.message : 'Failed to save graph settings' },
-      { status: 500 },
-    );
+    return apiError(err instanceof Error ? err.message : 'Failed to save graph settings', 500);
   }
 }

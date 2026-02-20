@@ -5,7 +5,7 @@
 // POST /api/chat/agent
 // ============================================================================
 
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest } from 'next/server';
 import { executeAgentLoop } from '@/lib/agents/executor';
 import { ToolRegistry } from '@/lib/agents/registry';
 import { registerBuiltinTools } from '@/lib/agents/tools';
@@ -14,6 +14,7 @@ import { getPresetById } from '@/lib/agents/presets';
 import { resolveWorkspacePath } from '@/lib/settings/store';
 import type { OllamaChatMessage } from '@/lib/ollama';
 import type { AgentOptions } from '@/lib/agents/types';
+import { apiError } from '../../_utils/responses';
 
 // ---------------------------------------------------------------------------
 // Default agent system prompt (always injected in agent mode)
@@ -95,7 +96,7 @@ export async function POST(request: NextRequest) {
     } = body;
 
     if (!message?.trim()) {
-      return NextResponse.json({ error: 'Message is required' }, { status: 400 });
+      return apiError('Message is required', 400);
     }
 
     // Set up tool registry
@@ -223,6 +224,6 @@ export async function POST(request: NextRequest) {
     });
   } catch (err) {
     const errMsg = err instanceof Error ? err.message : 'Internal server error';
-    return NextResponse.json({ error: errMsg }, { status: 500 });
+    return apiError(errMsg, 500);
   }
 }

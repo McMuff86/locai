@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { FileNoteStorage } from '@/lib/notes/fileNoteStorage';
 import { NoteInput } from '@/lib/notes/types';
 import { sanitizeBasePath } from '../_utils/security';
+import { apiError, apiSuccess } from '../_utils/responses';
 
 export const runtime = 'nodejs';
 
@@ -18,12 +19,12 @@ function getBasePath(req: NextRequest, bodyBasePath?: string | null): string | n
 function buildStorage(req: NextRequest, bodyBasePath?: string | null) {
   const raw = getBasePath(req, bodyBasePath);
   if (!raw) {
-    return { error: NextResponse.json({ error: 'basePath is required' }, { status: 400 }) };
+    return { error: apiError('basePath is required', 400) };
   }
   // SEC-2: Validate basePath (no traversal)
   const basePath = sanitizeBasePath(raw);
   if (!basePath) {
-    return { error: NextResponse.json({ error: 'Invalid basePath' }, { status: 400 }) };
+    return { error: apiError('Invalid basePath', 400) };
   }
   return { storage: new FileNoteStorage(basePath) };
 }
@@ -35,7 +36,7 @@ export async function GET(req: NextRequest) {
   const id = req.nextUrl.searchParams.get('id');
   if (id) {
     const note = await storage.getNote(id);
-    if (!note) return NextResponse.json({ error: 'Note not found' }, { status: 404 });
+    if (!note) return apiError('Note not found', 404);
     return NextResponse.json(note);
   }
 
@@ -49,7 +50,7 @@ export async function POST(req: NextRequest) {
   if (error || !storage) return error;
 
   if (!body.title || typeof body.title !== 'string') {
-    return NextResponse.json({ error: 'title is required' }, { status: 400 });
+    return apiError('title is required', 400);
   }
 
   const saved = await storage.saveNote({
@@ -68,12 +69,12 @@ export async function DELETE(req: NextRequest) {
   if (error || !storage) return error;
 
   const id = req.nextUrl.searchParams.get('id');
-  if (!id) return NextResponse.json({ error: 'id is required' }, { status: 400 });
+  if (!id) return apiError('id is required', 400);
 
   const ok = await storage.deleteNote(id);
-  if (!ok) return NextResponse.json({ error: 'Note not found' }, { status: 404 });
+  if (!ok) return apiError('Note not found', 404);
 
-  return NextResponse.json({ success: true });
+  return apiSuccess();
 }
 
 

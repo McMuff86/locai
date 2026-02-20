@@ -2,10 +2,10 @@ import { NextResponse } from 'next/server';
 import os from 'os';
 import { execFile } from 'child_process';
 import { promisify } from 'util';
-import { validateOllamaHost } from '../_utils/security';
+import { resolveAndValidateOllamaHost } from '../_utils/ollama';
+import { apiError } from '../_utils/responses';
 
 const execFileAsync = promisify(execFile);
-const DEFAULT_OLLAMA_HOST = 'http://localhost:11434';
 
 /**
  * System Stats API
@@ -218,10 +218,9 @@ async function getGpuStats(): Promise<GpuStats> {
 }
 
 // Get Ollama running models
-async function getOllamaStats(ollamaHost?: string): Promise<SystemStats['ollama']> {
+async function getOllamaStats(ollamaHost: string): Promise<SystemStats['ollama']> {
   try {
-    const base = (ollamaHost || DEFAULT_OLLAMA_HOST).replace(/\/+$/, '');
-    const response = await fetch(`${base}/api/ps`, {
+    const response = await fetch(`${ollamaHost}/api/ps`, {
       signal: AbortSignal.timeout(2000)
     });
     
@@ -254,14 +253,11 @@ export async function GET(request: Request) {
     const { searchParams } = new URL(request.url);
     const rawOllamaHost = searchParams.get('ollamaHost') || undefined;
 
-    // SSRF: validate user-supplied Ollama host
-    let ollamaHost: string | undefined;
-    if (rawOllamaHost) {
-      const check = validateOllamaHost(rawOllamaHost);
-      if (!check.valid) {
-        return NextResponse.json({ error: check.reason }, { status: 400 });
-      }
-      ollamaHost = check.url;
+    let ollamaHost: string;
+    try {
+      ollamaHost = resolveAndValidateOllamaHost(rawOllamaHost);
+    } catch (err) {
+      return apiError(err instanceof Error ? err.message : 'Invalid Ollama host', 400);
     }
 
     const [cpuUsage, gpuStats, ollamaStats] = await Promise.all([
@@ -287,9 +283,6 @@ export async function GET(request: Request) {
     return NextResponse.json(stats);
   } catch (error) {
     console.error('Error getting system stats:', error);
-    return NextResponse.json(
-      { error: 'Failed to get system stats' },
-      { status: 500 }
-    );
+    return apiError('Failed to get system stats', 500);
   }
 }

@@ -1,5 +1,6 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest } from 'next/server';
 import { renameEntry } from '@/lib/filebrowser/scanner';
+import { apiError, apiSuccess } from '../../_utils/responses';
 
 export const runtime = 'nodejs';
 
@@ -18,15 +19,12 @@ export async function POST(req: NextRequest) {
     const newName = body.newName;
 
     if (!rootId || !relativePath || !newName) {
-      return NextResponse.json(
-        { success: false, error: 'rootId, path und newName sind erforderlich' },
-        { status: 400 },
-      );
+      return apiError('rootId, path und newName sind erforderlich', 400);
     }
 
     const entry = await renameEntry(rootId, relativePath, newName);
 
-    return NextResponse.json({ success: true, entry });
+    return apiSuccess({ entry });
   } catch (err) {
     console.error('[FileBrowser] Rename error:', err);
     const message = err instanceof Error ? err.message : 'Fehler beim Umbenennen';
@@ -38,6 +36,6 @@ export async function POST(req: NextRequest) {
           ? 409
           : 500;
 
-    return NextResponse.json({ success: false, error: message }, { status });
+    return apiError(message, status);
   }
 }
