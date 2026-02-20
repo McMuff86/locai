@@ -9,6 +9,7 @@ import {
   DEFAULT_EMBEDDING_MODEL,
   DEFAULT_OLLAMA_HOST,
 } from '@/lib/documents/constants';
+import { validateOllamaHost } from '../../_utils/security';
 
 export const runtime = 'nodejs';
 
@@ -22,10 +23,13 @@ export async function POST(req: NextRequest) {
     const documentIds: string[] | undefined = body.documentIds;
     const types: DocumentType[] | undefined = body.types;
     const model: string = body.model || DEFAULT_EMBEDDING_MODEL;
-    const host: string = (body.host || DEFAULT_OLLAMA_HOST).replace(
-      /\/$/,
-      '',
-    );
+    // SSRF: validate user-supplied Ollama host
+    const rawHost = body.host || DEFAULT_OLLAMA_HOST;
+    const hostCheck = validateOllamaHost(rawHost);
+    if (!hostCheck.valid) {
+      return NextResponse.json({ success: false, error: hostCheck.reason }, { status: 400 });
+    }
+    const host: string = hostCheck.url;
 
     if (!query || typeof query !== 'string' || query.trim().length < 2) {
       return NextResponse.json(

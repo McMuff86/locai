@@ -1,12 +1,9 @@
 import { NextResponse } from 'next/server';
+import { validateOllamaHost } from '../../_utils/security';
 
 export const dynamic = 'force-dynamic';
 
 const OLLAMA_BASE_URL = process.env.NEXT_PUBLIC_OLLAMA_URL || 'http://localhost:11434';
-
-function sanitizeHost(host: string): string {
-  return host.replace(/\/$/, '');
-}
 
 // Comprehensive model list organized by category
 const POPULAR_MODELS = [
@@ -98,8 +95,14 @@ export async function POST(request: Request) {
       );
     }
 
-    const baseUrl = sanitizeHost((typeof host === 'string' && host.trim()) ? host.trim() : OLLAMA_BASE_URL);
-    
+    const rawHost = (typeof host === 'string' && host.trim()) ? host.trim() : OLLAMA_BASE_URL;
+    // SSRF: validate user-supplied Ollama host
+    const hostCheck = validateOllamaHost(rawHost);
+    if (!hostCheck.valid) {
+      return NextResponse.json({ success: false, error: hostCheck.reason }, { status: 400 });
+    }
+    const baseUrl = hostCheck.url;
+
     // Start pull request to Ollama
     const response = await fetch(`${baseUrl}/api/pull`, {
       method: 'POST',

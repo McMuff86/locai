@@ -1,5 +1,13 @@
 import { describe, it, expect, afterEach } from 'vitest';
-import { sanitizeBasePath, validatePath } from './security';
+import {
+  sanitizeBasePath,
+  validatePath,
+  validateServiceUrl,
+  validateOllamaHost,
+  validateSearxngUrl,
+  validateExternalUrl,
+  validateComfyuiUrl,
+} from './security';
 import { middleware } from '@/middleware';
 import { NextRequest } from 'next/server';
 import path from 'path';
@@ -53,6 +61,150 @@ describe('validatePath', () => {
 
   it('rejects a path that starts with the prefix string but is not a subdirectory', () => {
     expect(validatePath('/tmp/testXXX', prefix)).toBeNull();
+  });
+});
+
+// ── SSRF: validateServiceUrl ─────────────────────────────────────────
+
+describe('validateServiceUrl', () => {
+  // ── Blocked protocols ──
+  it('blocks file:// protocol', () => {
+    const r = validateServiceUrl('file:///etc/passwd');
+    expect(r.valid).toBe(false);
+    if (!r.valid) expect(r.reason).toContain('protocol');
+  });
+
+  it('blocks gopher:// protocol', () => {
+    const r = validateServiceUrl('gopher://localhost/');
+    expect(r.valid).toBe(false);
+    if (!r.valid) expect(r.reason).toContain('protocol');
+  });
+
+  it('blocks data: protocol', () => {
+    const r = validateServiceUrl('data:text/html,<h1>hi</h1>');
+    expect(r.valid).toBe(false);
+    if (!r.valid) expect(r.reason).toContain('protocol');
+  });
+
+  // ── Blocked private IPs ──
+  it('blocks 10.x.x.x', () => {
+    const r = validateServiceUrl('http://10.0.0.1:8080/');
+    expect(r.valid).toBe(false);
+    if (!r.valid) expect(r.reason).toContain('private');
+  });
+
+  it('blocks 192.168.x.x', () => {
+    const r = validateServiceUrl('http://192.168.1.1/');
+    expect(r.valid).toBe(false);
+    if (!r.valid) expect(r.reason).toContain('private');
+  });
+
+  it('blocks 172.16.x.x', () => {
+    const r = validateServiceUrl('http://172.16.0.1/');
+    expect(r.valid).toBe(false);
+    if (!r.valid) expect(r.reason).toContain('private');
+  });
+
+  it('blocks 169.254.x.x (link-local)', () => {
+    const r = validateServiceUrl('http://169.254.169.254/latest/meta-data/');
+    expect(r.valid).toBe(false);
+    if (!r.valid) expect(r.reason).toContain('private');
+  });
+
+  // ── Allowed localhost ──
+  it('allows http://localhost:11434', () => {
+    const r = validateServiceUrl('http://localhost:11434/');
+    expect(r.valid).toBe(true);
+    if (r.valid) expect(r.url).toBe('http://localhost:11434');
+  });
+
+  it('allows http://127.0.0.1:11434', () => {
+    const r = validateServiceUrl('http://127.0.0.1:11434/');
+    expect(r.valid).toBe(true);
+  });
+
+  // ── Localhost blocked when allowLocalhost=false ──
+  it('blocks localhost when allowLocalhost=false', () => {
+    const r = validateServiceUrl('http://localhost:11434', { allowLocalhost: false });
+    expect(r.valid).toBe(false);
+    if (!r.valid) expect(r.reason).toContain('localhost');
+  });
+
+  // ── External URLs ──
+  it('allows normal external URLs', () => {
+    const r = validateServiceUrl('https://example.com/api');
+    expect(r.valid).toBe(true);
+  });
+
+  // ── Edge cases ──
+  it('returns invalid for empty string', () => {
+    const r = validateServiceUrl('');
+    expect(r.valid).toBe(false);
+  });
+
+  it('returns invalid for null/undefined', () => {
+    expect(validateServiceUrl(null).valid).toBe(false);
+    expect(validateServiceUrl(undefined).valid).toBe(false);
+  });
+
+  it('returns invalid for non-URL strings', () => {
+    expect(validateServiceUrl('not-a-url').valid).toBe(false);
+  });
+
+  it('strips trailing slashes', () => {
+    const r = validateServiceUrl('http://localhost:11434///');
+    expect(r.valid).toBe(true);
+    if (r.valid) expect(r.url).toBe('http://localhost:11434');
+  });
+});
+
+// ── SSRF: convenience wrappers ──────────────────────────────────────
+
+describe('validateOllamaHost', () => {
+  it('allows default Ollama host', () => {
+    const r = validateOllamaHost('http://localhost:11434');
+    expect(r.valid).toBe(true);
+  });
+
+  it('blocks private IP', () => {
+    expect(validateOllamaHost('http://10.0.0.5:11434').valid).toBe(false);
+  });
+});
+
+describe('validateSearxngUrl', () => {
+  it('allows localhost SearXNG', () => {
+    const r = validateSearxngUrl('http://localhost:8080');
+    expect(r.valid).toBe(true);
+  });
+});
+
+describe('validateExternalUrl', () => {
+  it('blocks localhost (external URLs should not target local services)', () => {
+    expect(validateExternalUrl('http://localhost:3000').valid).toBe(false);
+  });
+
+  it('allows external HTTPS URLs', () => {
+    expect(validateExternalUrl('https://example.com/page').valid).toBe(true);
+  });
+});
+
+describe('validateComfyuiUrl', () => {
+  it('allows default localhost:8188', () => {
+    const r = validateComfyuiUrl('localhost', '8188');
+    expect(r.valid).toBe(true);
+    if (r.valid) expect(r.url).toBe('http://localhost:8188');
+  });
+
+  it('rejects port out of range', () => {
+    expect(validateComfyuiUrl('localhost', '99999').valid).toBe(false);
+  });
+
+  it('rejects shell metacharacters in host', () => {
+    expect(validateComfyuiUrl('localhost;rm -rf /', '8188').valid).toBe(false);
+  });
+
+  it('rejects private IP hosts', () => {
+    expect(validateComfyuiUrl('10.0.0.1', '8188').valid).toBe(false);
   });
 });
 

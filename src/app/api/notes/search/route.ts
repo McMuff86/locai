@@ -3,7 +3,7 @@ import { FileNoteStorage } from '@/lib/notes/fileNoteStorage';
 import { basicSearch, semanticSearch } from '@/lib/notes/search';
 import { embedQuery, loadEmbeddings } from '@/lib/notes/embeddings';
 import { EmbeddingSearchResult, Note } from '@/lib/notes/types';
-import { sanitizeBasePath } from '../../_utils/security';
+import { sanitizeBasePath, validateOllamaHost } from '../../_utils/security';
 
 export const runtime = 'nodejs';
 
@@ -124,8 +124,17 @@ export async function POST(req: NextRequest) {
   const basePath = getBasePath(req, body.basePath || null);
   const topK: number = body.topK || 10;
   const useEmbeddings: boolean = body.useEmbeddings ?? true;
-  const host: string | undefined = body.host;
   const model: string | undefined = body.model;
+
+  // SSRF: validate user-supplied Ollama host
+  let host: string | undefined = body.host;
+  if (host) {
+    const hostCheck = validateOllamaHost(host);
+    if (!hostCheck.valid) {
+      return NextResponse.json({ error: hostCheck.reason }, { status: 400 });
+    }
+    host = hostCheck.url;
+  }
 
   if (!basePath) {
     return NextResponse.json({ error: 'basePath is required' }, { status: 400 });

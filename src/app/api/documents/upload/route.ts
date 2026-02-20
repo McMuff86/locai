@@ -29,6 +29,7 @@ import {
   loadDocuments,
 } from '@/lib/documents/store';
 import { embedQuery } from '@/lib/notes/embeddings';
+import { validateOllamaHost } from '../../_utils/security';
 
 export const runtime = 'nodejs';
 
@@ -77,7 +78,13 @@ export async function POST(req: NextRequest) {
         : undefined,
     };
 
-    const host = (options.host || DEFAULT_OLLAMA_HOST).replace(/\/$/, '');
+    // SSRF: validate user-supplied Ollama host
+    const rawHost = options.host || DEFAULT_OLLAMA_HOST;
+    const hostCheck = validateOllamaHost(rawHost);
+    if (!hostCheck.valid) {
+      return NextResponse.json({ success: false, error: hostCheck.reason }, { status: 400 });
+    }
+    const host = hostCheck.url;
     const model = options.model || DEFAULT_EMBEDDING_MODEL;
 
     // Read file into buffer

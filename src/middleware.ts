@@ -1,51 +1,18 @@
 import { NextResponse, NextRequest } from 'next/server';
+import {
+  isTruthyEnv,
+  parseHostnameFromOrigin,
+  parseHostnameFromHost,
+  isLocalHostname,
+  getBearerToken,
+  forbidden,
+} from '@/lib/security-shared';
 
 /**
  * SEC-1: Middleware that enforces local-only access for all API routes.
  * This mirrors the logic from assertLocalRequest() but works at the middleware level
  * to protect ALL /api/* routes uniformly.
  */
-
-function isTruthyEnv(value: string | undefined) {
-  if (!value) return false;
-  return value === '1' || value.toLowerCase() === 'true' || value.toLowerCase() === 'yes';
-}
-
-function parseHostnameFromOrigin(originHeader: string | null) {
-  if (!originHeader || originHeader === 'null') return null;
-  try {
-    return new URL(originHeader).hostname;
-  } catch {
-    return null;
-  }
-}
-
-function parseHostnameFromHost(hostHeader: string | null) {
-  if (!hostHeader) return null;
-  const trimmed = hostHeader.trim();
-  if (trimmed.startsWith('[')) {
-    const endBracket = trimmed.indexOf(']');
-    if (endBracket > 1) return trimmed.slice(1, endBracket);
-    return null;
-  }
-  const colonIndex = trimmed.indexOf(':');
-  if (colonIndex === -1) return trimmed;
-  return trimmed.slice(0, colonIndex);
-}
-
-function isLocalHostname(hostname: string) {
-  return hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '::1';
-}
-
-function getBearerToken(authorizationHeader: string | null) {
-  if (!authorizationHeader) return null;
-  const match = authorizationHeader.match(/^Bearer\s+(.+)$/i);
-  return match?.[1]?.trim() || null;
-}
-
-function forbidden(error: string, details?: Record<string, unknown>) {
-  return NextResponse.json({ success: false, error, ...details }, { status: 403 });
-}
 
 export function middleware(request: NextRequest) {
   // Allow health check without auth
