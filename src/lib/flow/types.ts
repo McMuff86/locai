@@ -121,6 +121,7 @@ export interface FlowCompileResult {
   plan: WorkflowPlan;
   entryMessage: string;
   model: string;
+  provider?: 'ollama' | 'anthropic' | 'openai' | 'openrouter';
   systemPrompt?: string;
   enabledTools: string[];
   outputNodeId: string | null;
