@@ -16,7 +16,8 @@ import { registerBuiltinTools } from '@/lib/agents/tools';
 import { getRelevantMemories, formatMemories } from '@/lib/memory/store';
 import { getPresetById } from '@/lib/agents/presets';
 import { resolveWorkspacePath } from '@/lib/settings/store';
-import type { OllamaChatMessage } from '@/lib/ollama';
+import type { ChatMessage, ProviderType } from '@/lib/providers/types';
+import { createServerProvider, getDefaultServerProvider } from '@/lib/providers/server';
 import type { WorkflowApiRequest, WorkflowPlan } from '@/lib/agents/workflowTypes';
 import { WORKFLOW_DEFAULTS } from '@/lib/agents/workflowTypes';
 import { apiError } from '../../../_utils/responses';
@@ -139,7 +140,13 @@ export async function POST(request: NextRequest) {
         : WORKFLOW_DEFAULTS.maxSteps);
 
     // Build conversation messages
-    const messages: OllamaChatMessage[] = [
+    // Resolve provider
+    const providerType = (body as unknown as Record<string, unknown>).provider as ProviderType | undefined;
+    const chatProvider = providerType && providerType !== 'ollama'
+      ? createServerProvider(providerType) ?? getDefaultServerProvider()
+      : createServerProvider('ollama', { baseUrl: host || undefined }) ?? getDefaultServerProvider();
+
+    const messages: ChatMessage[] = [
       ...conversationHistory.map((m) => ({
         role: m.role as 'system' | 'user' | 'assistant',
         content: m.content,
@@ -184,6 +191,7 @@ export async function POST(request: NextRequest) {
       registry,
       conversationId,
       host,
+      provider: chatProvider,
       initialPlan: resolvedInitialPlan,
       config: {
         enabledTools: resolvedTools,
