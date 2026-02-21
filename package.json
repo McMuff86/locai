@@ -10,6 +10,7 @@
     "lint": "next lint",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
+    "postinstall": "node -e \"require('fs').copyFileSync('node_modules/pdfjs-dist/build/pdf.worker.mjs','public/pdf.worker.mjs')\"",
     "preflight": "npm run lint && npm run typecheck && npm run test && npm run build"
   },
   "dependencies": {
