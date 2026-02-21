@@ -1,77 +1,58 @@
 # LocAI
 
-Local AI workspace built with Next.js and Ollama.
+Local-first AI workspace built with Next.js and Ollama.
 
-LocAI runs chat, agent workflows, documents (RAG), notes, gallery, and file operations fully local on your machine.
+LocAI runs chat, agent workflows, documents (RAG), notes with knowledge graphs, a visual flow builder, an image editor, a gallery, and a web terminal — fully local on your machine.
 
-## Current Product Areas
+## Features
 
-| Area | Route | Status |
-| --- | --- | --- |
-| Chat | `/chat` | Stable |
-| Visual Flow Builder | `/flow` | MVP implemented (Phase 1) |
-| Documents + File Canvas | `/documents` | Stable |
-| Gallery | `/gallery` | Stable |
-| Notes + Graph | `/notes` | Stable |
-
-## Flow MVP (Phase 1)
-
-Implemented:
-
-- Node editor route: `/flow`
-- Node types: Input, Agent, Template, Output
-- Graph compile: Visual graph -> `WorkflowPlan`
-- Run integration: existing `POST /api/chat/agent/workflow`
-- Local persistence: IndexedDB (`idb`)
-- Runtime status: node-level `idle/running/success/error`
-
-Current runtime constraint:
-
-- Execution is linear for MVP (no true control-flow runtime yet).
-
-Specs:
-
-- `docs/adr/ADR-003-locai-flow-mvp.md`
-- `docs/task-briefs/M3-flow-mvp.md`
-
-## Tech Stack
-
-- Next.js 15
-- React 19
-- TypeScript 5
-- Tailwind CSS 4
-- Ollama
-- React Flow (`@xyflow/react`)
-- Zustand
-- IndexedDB (`idb`)
+| Area | Route | Description |
+|---|---|---|
+| Chat | `/chat` | Streaming chat with agent mode, tool execution, web search, RAG |
+| Flow Builder | `/flow` | Visual drag-and-drop workflow editor with node types, wire typing, run history |
+| Documents | `/documents` | File browser + desktop-like file canvas with windowed viewers/editors |
+| Notes | `/notes` | Markdown notes with AI actions and semantic search |
+| Knowledge Graph | `/notes/graph` | 2D/3D force-directed graph of note connections |
+| Gallery | `/gallery` | ComfyUI image gallery with metadata, favorites, lightbox |
+| Image Editor | — | Built into file canvas: crop, resize, rotate, draw, shapes, text, filters, AI describe/edit |
+| Web Terminal | `/terminal` | xterm.js terminal with full PTY (PowerShell / Bash) |
+| Search | `/search` | Global search across documents and notes |
+| Settings | `/settings` | Model selection, provider config, preferences |
 
 ## LLM Providers
 
-LocAI supports multiple LLM providers beyond Ollama:
-
 | Provider | Models | Key Required |
-|----------|--------|-------------|
-| **Ollama** (default) | Local models | No |
-| **Anthropic** | Claude Opus 4.6, Sonnet 4.6, 3.5 Haiku | Yes |
-| **OpenAI** | GPT-5.2, GPT-4o-mini, etc. | Yes |
+|---|---|---|
+| **Ollama** (default) | Local models (Llama 3, Mistral, etc.) | No |
+| **Anthropic** | Claude Opus, Sonnet, Haiku | Yes |
+| **OpenAI** | GPT-4o, GPT-4o-mini, etc. | Yes |
 | **OpenRouter** | 100+ models | Yes |
 
-Set API keys in `.env.local` and pass `"provider": "anthropic"` (etc.) in API requests. Ollama remains the default — no configuration needed for local-only usage.
+Set API keys in `.env.local`. Ollama is the default — no configuration needed for local-only usage.
 
-→ Full guide: [docs/PROVIDER-INTEGRATION.md](docs/PROVIDER-INTEGRATION.md)
+## Tech Stack
+
+- **Next.js 15** / React 19 / TypeScript 5
+- **Tailwind CSS 4** / Radix UI / Shadcn/UI / Framer Motion
+- **Ollama** (local LLM) + Anthropic, OpenAI, OpenRouter
+- **@xyflow/react** (flow builder)
+- **react-force-graph** + Three.js (knowledge graph)
+- **xterm.js** + node-pty (web terminal)
+- **Zustand** + IndexedDB (state & persistence)
+- **Vitest** (testing)
 
 ## Prerequisites
 
 - Node.js 22+
 - Ollama installed and running
-- At least one chat model, for example:
+- At least one chat model:
 
 ```bash
 ollama pull llama3
-ollama pull nomic-embed-text
+ollama pull nomic-embed-text   # for embeddings / RAG
 ```
 
-## Local Setup
+## Setup
 
 ```bash
 git clone https://github.com/McMuff86/locai.git
@@ -85,27 +66,21 @@ Open: `http://localhost:3000`
 ## Dev Commands
 
 ```bash
-npm run dev
-npm run lint
-npm run typecheck
-npm run test
-npm run build
-npm run preflight
+npm run dev          # Start dev server
+npm run lint         # ESLint
+npm run typecheck    # TypeScript check
+npm run test         # Run tests (Vitest)
+npm run build        # Production build
+npm run preflight    # All checks: lint + typecheck + test + build
 ```
 
-## Documentation Index
+## Documentation
 
-- Project handoff state: `CONTEXT-HANDOFF.md`
-- Contributing guide: `CONTRIBUTING.md`
-- Workflow engine ADR: `docs/adr/ADR-001-workflow-engine.md`
-- Flow MVP ADR: `docs/adr/ADR-003-locai-flow-mvp.md`
-- Flow MVP task brief: `docs/task-briefs/M3-flow-mvp.md`
-
-## Known Note (tests on Windows)
-
-Some existing `run_command` tests use Unix commands (`ls`, `cat`, `sleep`) and can fail on Windows shells. This is a pre-existing issue outside the Flow MVP changes.
+- Agent instructions: [`AGENTS.md`](AGENTS.md)
+- Contributing guide: [`CONTRIBUTING.md`](CONTRIBUTING.md)
+- Provider integration: [`docs/PROVIDER-INTEGRATION.md`](docs/PROVIDER-INTEGRATION.md)
+- Architecture decisions: [`docs/adr/`](docs/adr/)
 
 ## License
 
-MIT. See `LICENSE`.
-
+MIT. See [`LICENSE`](LICENSE).

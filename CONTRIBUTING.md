@@ -9,23 +9,26 @@ Thanks for wanting to contribute! LocAI is developed with an AI-assisted multi-a
 All feature branches follow this pattern:
 
 ```
-sprint5/<role>-<feature>
+<type>/<short-description>
 ```
 
-| Role prefix | Who/what uses it |
-|-------------|-----------------|
-| `feat-` | Feature implementation (Coder) |
-| `arch-` | Architecture decisions (Architect) |
-| `test-` | Tests and fixtures (Tester) |
-| `ui-` | Design, animations, polish (UI/UX) |
-| `docs-` | Documentation (Docs) |
+| Type prefix | When to use |
+|-------------|-------------|
+| `feat/` | New features |
+| `fix/` | Bug fixes |
+| `refactor/` | Code restructuring |
+| `test/` | Tests and fixtures |
+| `ui/` | Design, animations, polish |
+| `docs/` | Documentation |
+| `chore/` | Build, deps, config |
 
 **Examples:**
 ```bash
-sprint5/feat-workflow-engine
-sprint5/ui-chat-redesign
-sprint5/test-agent-tools
-sprint5/docs-readme
+feat/workflow-engine
+fix/chat-duplicate-messages
+ui/chat-redesign
+test/agent-tools
+docs/readme-update
 ```
 
 Create your branch from `main`:
@@ -33,7 +36,7 @@ Create your branch from `main`:
 ```bash
 git checkout main
 git pull origin main
-git checkout -b sprint5/feat-your-feature
+git checkout -b feat/your-feature
 ```
 
 ---
@@ -95,41 +98,11 @@ Keep the subject line under 72 characters. Reference issues if relevant (`Closes
 
 ---
 
-## 🤖 Agent Roles & CONTEXT-HANDOFF Workflow
+## 🤖 AI Agent Instructions
 
-LocAI uses a multi-agent development model during sprints. If you're an AI agent (or just curious how it works):
+If you're an AI coding agent, read [`AGENTS.md`](AGENTS.md) for project architecture, conventions, and important paths.
 
-### Agent Roles
-
-| Agent | Responsibility | Branch prefix |
-|-------|---------------|---------------|
-| 🏗️ **Architect** | API design, data flow, ADRs | `sprint5/arch-*` |
-| 💻 **Coder** | Feature implementation, bug fixes | `sprint5/feat-*` |
-| 🧪 **Tester** | Unit/integration tests, edge cases | `sprint5/test-*` |
-| 🎨 **UI/UX** | Design polish, animations, themes | `sprint5/ui-*` |
-| 📝 **Docs** | Documentation, comments, handoffs | `sprint5/docs-*` |
-
-### CONTEXT-HANDOFF.md
-
-`CONTEXT-HANDOFF.md` is the handoff document between agent sessions. Every agent **must** update it before ending their session.
-
-**Workflow:**
-1. **Session start:** Read `CONTEXT-HANDOFF.md` to know what the last agent did
-2. **During work:** Update for major milestones
-3. **Session end:** Fill in completely with current state, next steps, open questions
-
-**Required fields:**
-- Last agent role + date
-- Current branch + recent commits
-- What was done (concrete changes with file paths)
-- What's next (clear next steps for the next agent)
-- Open questions / blockers
-
-**Rules:**
-- No vague descriptions ("almost done") → use concrete percent/status
-- Always include file paths for changed/created files
-- If a task isn't done: describe exactly where it stopped and what's missing
-- The next agent should not have to guess
+For session handoff context, see [`docs/CONTEXT-HANDOFF.md`](docs/CONTEXT-HANDOFF.md).
 
 ---
 
