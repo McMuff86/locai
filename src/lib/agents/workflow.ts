@@ -29,6 +29,8 @@ import {
   WorkflowStreamEvent,
   WORKFLOW_DEFAULTS,
 } from './workflowTypes';
+import { DagScheduler } from './dagScheduler';
+import { AsyncEventChannel } from './asyncEventChannel';
 
 // ---------------------------------------------------------------------------
 // WorkflowEngine Options
@@ -344,132 +346,15 @@ export class WorkflowEngine {
       this.transition('executing');
 
       // -----------------------------------------------------------------------
-      // Phase 2: Execute Steps
+      // Phase 2: Execute Steps (DAG-based parallel execution)
       // -----------------------------------------------------------------------
-      let stepIndex = 0;
       const allPlanSteps = [...this.state.plan.steps];
+      const useParallelExecution = this.config.enableParallelExecution !== false;
 
-      while (stepIndex < allPlanSteps.length && stepIndex < this.config.maxSteps) {
-        if (this.isAborted()) break;
-
-        const planStep = allPlanSteps[stepIndex];
-        const step = this.createWorkflowStep(planStep, stepIndex);
-
-        this.state.steps.push(step);
-        this.state.currentStepIndex = stepIndex;
-
-        yield this.emit({
-          type: 'step_start',
-          stepId: planStep.id,
-          stepIndex,
-          totalSteps: allPlanSteps.length,
-          description: planStep.description,
-          expectedTools: planStep.expectedTools,
-        });
-
-        // Execute this step via the existing agent loop (one iteration)
-        yield* this.executeStep(step, planStep);
-
-        if (this.isAborted()) break;
-
-        // Mark step complete
-        step.status = step.toolResults.some((r) => !r.success) ? 'failed' : 'success';
-        step.completedAt = nowIso();
-        step.durationMs = Date.now() - new Date(step.startedAt).getTime();
-
-        yield this.emit({
-          type: 'step_end',
-          stepId: planStep.id,
-          stepIndex,
-          status: step.status,
-          durationMs: step.durationMs,
-        });
-
-        // Emit state snapshot after each step for persistence
-        yield this.emit({
-          type: 'state_snapshot',
-          state: this.getState(),
-        });
-
-        // -----------------------------------------------------------------------
-        // Phase 3: Reflection
-        // -----------------------------------------------------------------------
-        if (this.config.enableReflection) {
-          this.transition('reflecting');
-          const remainingSteps = allPlanSteps.slice(stepIndex + 1);
-          const reflection = await this.runReflectionPhase(step, remainingSteps);
-
-          if (reflection) {
-            step.reflection = reflection;
-
-            yield this.emit({
-              type: 'reflection',
-              stepId: planStep.id,
-              assessment: reflection.assessment,
-              nextAction: reflection.nextAction,
-              comment: reflection.comment,
-            });
-
-            // Handle reflection outcome
-            if (reflection.nextAction === 'complete' && reflection.finalAnswer) {
-              // Early exit: agent has the answer
-              this.state.finalAnswer = reflection.finalAnswer;
-              yield this.emit({
-                type: 'message',
-                content: reflection.finalAnswer,
-                done: true,
-              });
-              this.transition('done');
-              break;
-            }
-
-            if (reflection.nextAction === 'abort') {
-              this.state.errorMessage = reflection.abortReason ?? 'Agent hat Workflow abgebrochen';
-              this.transition('error');
-              yield this.emit({
-                type: 'error',
-                message: this.state.errorMessage,
-                recoverable: false,
-                stepId: planStep.id,
-              });
-              break;
-            }
-
-            if (
-              reflection.nextAction === 'adjust_plan' &&
-              reflection.planAdjustment?.newSteps &&
-              this.state.replanCount < this.config.maxRePlans
-            ) {
-              this.state.replanCount += 1;
-
-              // Re-planning phase
-              this.transition('planning');
-              const newPlan = await this.runAdjustmentPlanningPhase(
-                reflection.planAdjustment.reason,
-                reflection.planAdjustment.newSteps,
-              );
-
-              if (newPlan) {
-                this.state.plan = newPlan;
-                // Replace remaining steps with new plan steps
-                allPlanSteps.splice(stepIndex + 1, allPlanSteps.length - stepIndex - 1, ...newPlan.steps);
-
-                yield this.emit({
-                  type: 'plan',
-                  plan: newPlan,
-                  isAdjustment: true,
-                  adjustmentReason: reflection.planAdjustment.reason,
-                });
-              }
-
-              this.transition('executing');
-            }
-          }
-
-          this.transition('executing');
-        }
-
-        stepIndex += 1;
+      if (useParallelExecution) {
+        yield* this.executeDag(allPlanSteps);
+      } else {
+        yield* this.executeLinear(allPlanSteps);
       }
 
       // -----------------------------------------------------------------------
@@ -504,6 +389,614 @@ export class WorkflowEngine {
     }
 
     yield* this.finalize(startedAt);
+  }
+
+  // -------------------------------------------------------------------------
+  // Private: DAG Execution
+  // -------------------------------------------------------------------------
+
+  private async *executeDag(allPlanSteps: WorkflowPlanStep[]): AsyncGenerator<WorkflowStreamEvent> {
+    const scheduler = new DagScheduler(allPlanSteps);
+    const conditionResults = new Map<string, boolean>();
+    let stepExecutionIndex = 0;
+
+    while (!scheduler.isFinished() && !this.isAborted()) {
+      const ready = scheduler.getReadySteps();
+
+      if (ready.length === 0 && scheduler.getRunningCount() === 0) {
+        // No steps ready and nothing running — deadlock or all done
+        break;
+      }
+
+      // Skip steps in non-taken branches
+      const toExecute: string[] = [];
+      for (const id of ready) {
+        if (scheduler.shouldSkip(id, conditionResults)) {
+          scheduler.markSkipped(id);
+          yield this.emit({
+            type: 'step_skipped',
+            stepId: id,
+            reason: 'Branch nicht genommen',
+          });
+          continue;
+        }
+        toExecute.push(id);
+      }
+
+      if (toExecute.length === 0) {
+        // All ready steps were skipped, re-check
+        continue;
+      }
+
+      // Execute steps (parallel if multiple are ready)
+      if (toExecute.length === 1) {
+        // Single step — execute directly (no channel overhead)
+        const stepId = toExecute[0];
+        scheduler.markRunning(stepId);
+        yield* this.executeSingleDagStep(
+          stepId,
+          allPlanSteps,
+          scheduler,
+          conditionResults,
+          stepExecutionIndex++,
+        );
+      } else {
+        // Multiple steps ready — execute in parallel via channel
+        const channel = new AsyncEventChannel<WorkflowStreamEvent>();
+        let pendingCount = toExecute.length;
+
+        for (const stepId of toExecute) {
+          scheduler.markRunning(stepId);
+          const idx = stepExecutionIndex++;
+
+          // Fire-and-forget async execution
+          void this.executeParallelDagStep(
+            stepId,
+            allPlanSteps,
+            scheduler,
+            conditionResults,
+            idx,
+            channel,
+          ).finally(() => {
+            pendingCount--;
+            if (pendingCount === 0) {
+              channel.close();
+            }
+          });
+        }
+
+        // Yield events as they arrive from parallel steps
+        for await (const event of channel) {
+          yield event;
+          if (this.isAborted()) break;
+        }
+      }
+    }
+  }
+
+  private async *executeSingleDagStep(
+    stepId: string,
+    allPlanSteps: WorkflowPlanStep[],
+    scheduler: DagScheduler,
+    conditionResults: Map<string, boolean>,
+    executionIndex: number,
+  ): AsyncGenerator<WorkflowStreamEvent> {
+    const planStep = scheduler.getStep(stepId);
+    if (!planStep) {
+      scheduler.markFailed(stepId);
+      return;
+    }
+
+    // Handle condition steps
+    if (planStep.stepType === 'condition') {
+      yield* this.executeConditionStep(planStep, scheduler, conditionResults, executionIndex);
+      return;
+    }
+
+    // Handle loop steps
+    if (planStep.stepType === 'loop') {
+      yield* this.executeLoopStep(planStep, allPlanSteps, scheduler, conditionResults, executionIndex);
+      return;
+    }
+
+    // Regular step execution
+    const step = this.createWorkflowStep(planStep, executionIndex);
+    this.state.steps.push(step);
+    this.state.currentStepIndex = executionIndex;
+
+    yield this.emit({
+      type: 'step_start',
+      stepId: planStep.id,
+      stepIndex: executionIndex,
+      totalSteps: allPlanSteps.length,
+      description: planStep.description,
+      expectedTools: planStep.expectedTools,
+    });
+
+    yield* this.executeStep(step, planStep);
+
+    if (this.isAborted()) {
+      scheduler.markFailed(stepId);
+      return;
+    }
+
+    step.status = step.toolResults.some((r) => !r.success) ? 'failed' : 'success';
+    step.completedAt = nowIso();
+    step.durationMs = Date.now() - new Date(step.startedAt).getTime();
+
+    yield this.emit({
+      type: 'step_end',
+      stepId: planStep.id,
+      stepIndex: executionIndex,
+      status: step.status,
+      durationMs: step.durationMs,
+    });
+
+    yield this.emit({
+      type: 'state_snapshot',
+      state: this.getState(),
+    });
+
+    if (step.status === 'failed') {
+      scheduler.markFailed(stepId);
+    } else {
+      scheduler.markCompleted(stepId);
+    }
+
+    // Reflection for regular steps
+    if (this.config.enableReflection && step.status === 'success') {
+      this.transition('reflecting');
+      const remainingSteps = allPlanSteps.filter(
+        (s) => !scheduler.isSkipped(s.id) && s.id !== stepId,
+      );
+      const reflection = await this.runReflectionPhase(step, remainingSteps);
+
+      if (reflection) {
+        step.reflection = reflection;
+        yield this.emit({
+          type: 'reflection',
+          stepId: planStep.id,
+          assessment: reflection.assessment,
+          nextAction: reflection.nextAction,
+          comment: reflection.comment,
+        });
+
+        if (reflection.nextAction === 'complete' && reflection.finalAnswer) {
+          this.state.finalAnswer = reflection.finalAnswer;
+          yield this.emit({ type: 'message', content: reflection.finalAnswer, done: true });
+          this.transition('done');
+          return;
+        }
+
+        if (reflection.nextAction === 'abort') {
+          this.state.errorMessage = reflection.abortReason ?? 'Agent hat Workflow abgebrochen';
+          this.transition('error');
+          yield this.emit({
+            type: 'error',
+            message: this.state.errorMessage,
+            recoverable: false,
+            stepId: planStep.id,
+          });
+          return;
+        }
+      }
+      this.transition('executing');
+    }
+  }
+
+  private async executeParallelDagStep(
+    stepId: string,
+    allPlanSteps: WorkflowPlanStep[],
+    scheduler: DagScheduler,
+    conditionResults: Map<string, boolean>,
+    executionIndex: number,
+    channel: AsyncEventChannel<WorkflowStreamEvent>,
+  ): Promise<void> {
+    const planStep = scheduler.getStep(stepId);
+    if (!planStep) {
+      scheduler.markFailed(stepId);
+      return;
+    }
+
+    // For parallel execution, we don't support condition/loop steps
+    // (they need sequential control flow)
+    const step = this.createWorkflowStep(planStep, executionIndex);
+    this.state.steps.push(step);
+
+    channel.push(this.emit({
+      type: 'step_start',
+      stepId: planStep.id,
+      stepIndex: executionIndex,
+      totalSteps: allPlanSteps.length,
+      description: planStep.description,
+      expectedTools: planStep.expectedTools,
+    }));
+
+    try {
+      for await (const event of this.executeStep(step, planStep)) {
+        channel.push(event);
+        if (this.isAborted()) break;
+      }
+
+      step.status = step.toolResults.some((r) => !r.success) ? 'failed' : 'success';
+      step.completedAt = nowIso();
+      step.durationMs = Date.now() - new Date(step.startedAt).getTime();
+
+      channel.push(this.emit({
+        type: 'step_end',
+        stepId: planStep.id,
+        stepIndex: executionIndex,
+        status: step.status,
+        durationMs: step.durationMs,
+      }));
+
+      if (step.status === 'failed') {
+        scheduler.markFailed(stepId);
+      } else {
+        scheduler.markCompleted(stepId);
+      }
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Paralleler Step-Fehler';
+      step.error = msg;
+      step.status = 'failed';
+      scheduler.markFailed(stepId);
+      channel.push(this.emit({
+        type: 'error',
+        message: msg,
+        recoverable: true,
+        stepId: planStep.id,
+      }));
+    }
+  }
+
+  // -------------------------------------------------------------------------
+  // Private: Condition Evaluation
+  // -------------------------------------------------------------------------
+
+  private async *executeConditionStep(
+    planStep: WorkflowPlanStep,
+    scheduler: DagScheduler,
+    conditionResults: Map<string, boolean>,
+    executionIndex: number,
+  ): AsyncGenerator<WorkflowStreamEvent> {
+    const step = this.createWorkflowStep(planStep, executionIndex);
+    this.state.steps.push(step);
+
+    yield this.emit({
+      type: 'step_start',
+      stepId: planStep.id,
+      stepIndex: executionIndex,
+      totalSteps: 0,
+      description: planStep.description,
+      expectedTools: [],
+    });
+
+    step.status = 'running';
+
+    try {
+      const result = await this.evaluateCondition(planStep);
+      conditionResults.set(planStep.id, result);
+
+      yield this.emit({
+        type: 'condition_eval',
+        stepId: planStep.id,
+        result,
+        mode: planStep.conditionConfig?.mode ?? 'expression',
+      });
+
+      step.status = 'success';
+      step.completedAt = nowIso();
+      step.durationMs = Date.now() - new Date(step.startedAt).getTime();
+      scheduler.markCompleted(planStep.id);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Condition-Fehler';
+      step.error = msg;
+      step.status = 'failed';
+      step.completedAt = nowIso();
+      step.durationMs = Date.now() - new Date(step.startedAt).getTime();
+      scheduler.markFailed(planStep.id);
+
+      yield this.emit({
+        type: 'error',
+        message: msg,
+        recoverable: true,
+        stepId: planStep.id,
+      });
+    }
+
+    yield this.emit({
+      type: 'step_end',
+      stepId: planStep.id,
+      stepIndex: executionIndex,
+      status: step.status,
+      durationMs: step.durationMs ?? 0,
+    });
+  }
+
+  private async evaluateCondition(planStep: WorkflowPlanStep): Promise<boolean> {
+    const config = planStep.conditionConfig;
+    if (!config) return true;
+
+    if (config.mode === 'expression') {
+      return this.evaluateExpression(config.expression ?? 'true');
+    }
+
+    // LLM mode
+    return this.evaluateLlmCondition(config.prompt ?? '');
+  }
+
+  private evaluateExpression(expression: string): boolean {
+    try {
+      // Build context from completed steps
+      const lastStep = this.state.steps.filter((s) => s.status === 'success').pop();
+      const lastResult = lastStep?.toolResults.filter((r) => r.success).pop()?.content ?? '';
+
+      // Safe evaluation with limited scope
+      const fn = new Function('result', 'steps', `"use strict"; return Boolean(${expression})`);
+      return fn(lastResult, this.state.steps) as boolean;
+    } catch {
+      return false;
+    }
+  }
+
+  private async evaluateLlmCondition(prompt: string): Promise<boolean> {
+    try {
+      const lastStep = this.state.steps.filter((s) => s.status === 'success').pop();
+      const lastResult = lastStep?.toolResults.filter((r) => r.success).pop()?.content ?? '';
+
+      const fullPrompt =
+        `Kontext (letztes Ergebnis):\n${lastResult.slice(0, 1000)}\n\n` +
+        `Frage: ${prompt}\n\n` +
+        `Antworte NUR mit "true" oder "false". Keine weitere Erklärung.`;
+
+      const response = await this.provider.chat(
+        [...this.messages, { role: 'user', content: fullPrompt }],
+        {
+          model: this.config.model,
+          signal: this.abortController.signal,
+          temperature: 0.0,
+        },
+      );
+
+      const answer = (response.content ?? '').trim().toLowerCase();
+      return answer.includes('true');
+    } catch {
+      return false;
+    }
+  }
+
+  // -------------------------------------------------------------------------
+  // Private: Loop Execution
+  // -------------------------------------------------------------------------
+
+  private async *executeLoopStep(
+    planStep: WorkflowPlanStep,
+    allPlanSteps: WorkflowPlanStep[],
+    scheduler: DagScheduler,
+    conditionResults: Map<string, boolean>,
+    executionIndex: number,
+  ): AsyncGenerator<WorkflowStreamEvent> {
+    const loopConfig = planStep.loopConfig;
+    if (!loopConfig) {
+      scheduler.markCompleted(planStep.id);
+      return;
+    }
+
+    const step = this.createWorkflowStep(planStep, executionIndex);
+    this.state.steps.push(step);
+    step.status = 'running';
+
+    yield this.emit({
+      type: 'step_start',
+      stepId: planStep.id,
+      stepIndex: executionIndex,
+      totalSteps: 0,
+      description: planStep.description,
+      expectedTools: [],
+    });
+
+    const maxIter = loopConfig.maxIterations;
+    const targetCount = loopConfig.mode === 'count' ? (loopConfig.count ?? maxIter) : maxIter;
+    const bodySteps = loopConfig.bodyStepIds
+      .map((id) => allPlanSteps.find((s) => s.id === id))
+      .filter((s): s is WorkflowPlanStep => s !== undefined);
+
+    try {
+      for (let i = 0; i < targetCount && !this.isAborted(); i++) {
+        const continuing = i < targetCount - 1;
+
+        yield this.emit({
+          type: 'loop_iteration',
+          loopStepId: planStep.id,
+          iteration: i,
+          maxIterations: targetCount,
+          continuing,
+        });
+
+        // Execute body steps sequentially
+        for (const bodyStep of bodySteps) {
+          if (this.isAborted()) break;
+          const bodyWfStep = this.createWorkflowStep(bodyStep, this.state.steps.length);
+          this.state.steps.push(bodyWfStep);
+
+          yield this.emit({
+            type: 'step_start',
+            stepId: bodyStep.id,
+            stepIndex: bodyWfStep.executionIndex,
+            totalSteps: bodySteps.length,
+            description: bodyStep.description,
+            expectedTools: bodyStep.expectedTools,
+          });
+
+          yield* this.executeStep(bodyWfStep, bodyStep);
+
+          bodyWfStep.status = bodyWfStep.toolResults.some((r) => !r.success) ? 'failed' : 'success';
+          bodyWfStep.completedAt = nowIso();
+          bodyWfStep.durationMs = Date.now() - new Date(bodyWfStep.startedAt).getTime();
+
+          yield this.emit({
+            type: 'step_end',
+            stepId: bodyStep.id,
+            stepIndex: bodyWfStep.executionIndex,
+            status: bodyWfStep.status,
+            durationMs: bodyWfStep.durationMs,
+          });
+        }
+
+        // Check exit condition for non-count modes
+        if (loopConfig.mode === 'condition') {
+          const shouldContinue = this.evaluateExpression(loopConfig.expression ?? 'false');
+          if (!shouldContinue) break;
+        } else if (loopConfig.mode === 'llm') {
+          const shouldContinue = await this.evaluateLlmCondition(loopConfig.prompt ?? '');
+          if (!shouldContinue) break;
+        }
+      }
+
+      step.status = 'success';
+      step.completedAt = nowIso();
+      step.durationMs = Date.now() - new Date(step.startedAt).getTime();
+      scheduler.markCompleted(planStep.id);
+
+      // Mark body steps as completed in scheduler so downstream steps unblock
+      for (const bodyStep of bodySteps) {
+        scheduler.markCompleted(bodyStep.id);
+      }
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Loop-Fehler';
+      step.error = msg;
+      step.status = 'failed';
+      step.completedAt = nowIso();
+      step.durationMs = Date.now() - new Date(step.startedAt).getTime();
+      scheduler.markFailed(planStep.id);
+
+      yield this.emit({
+        type: 'error',
+        message: msg,
+        recoverable: true,
+        stepId: planStep.id,
+      });
+    }
+
+    yield this.emit({
+      type: 'step_end',
+      stepId: planStep.id,
+      stepIndex: executionIndex,
+      status: step.status,
+      durationMs: step.durationMs ?? 0,
+    });
+  }
+
+  // -------------------------------------------------------------------------
+  // Private: Linear Execution (backward compat)
+  // -------------------------------------------------------------------------
+
+  private async *executeLinear(allPlanSteps: WorkflowPlanStep[]): AsyncGenerator<WorkflowStreamEvent> {
+    let stepIndex = 0;
+
+    while (stepIndex < allPlanSteps.length && stepIndex < this.config.maxSteps) {
+      if (this.isAborted()) break;
+
+      const planStep = allPlanSteps[stepIndex];
+      const step = this.createWorkflowStep(planStep, stepIndex);
+
+      this.state.steps.push(step);
+      this.state.currentStepIndex = stepIndex;
+
+      yield this.emit({
+        type: 'step_start',
+        stepId: planStep.id,
+        stepIndex,
+        totalSteps: allPlanSteps.length,
+        description: planStep.description,
+        expectedTools: planStep.expectedTools,
+      });
+
+      yield* this.executeStep(step, planStep);
+
+      if (this.isAborted()) break;
+
+      step.status = step.toolResults.some((r) => !r.success) ? 'failed' : 'success';
+      step.completedAt = nowIso();
+      step.durationMs = Date.now() - new Date(step.startedAt).getTime();
+
+      yield this.emit({
+        type: 'step_end',
+        stepId: planStep.id,
+        stepIndex,
+        status: step.status,
+        durationMs: step.durationMs,
+      });
+
+      yield this.emit({
+        type: 'state_snapshot',
+        state: this.getState(),
+      });
+
+      if (this.config.enableReflection) {
+        this.transition('reflecting');
+        const remainingSteps = allPlanSteps.slice(stepIndex + 1);
+        const reflection = await this.runReflectionPhase(step, remainingSteps);
+
+        if (reflection) {
+          step.reflection = reflection;
+          yield this.emit({
+            type: 'reflection',
+            stepId: planStep.id,
+            assessment: reflection.assessment,
+            nextAction: reflection.nextAction,
+            comment: reflection.comment,
+          });
+
+          if (reflection.nextAction === 'complete' && reflection.finalAnswer) {
+            this.state.finalAnswer = reflection.finalAnswer;
+            yield this.emit({ type: 'message', content: reflection.finalAnswer, done: true });
+            this.transition('done');
+            break;
+          }
+
+          if (reflection.nextAction === 'abort') {
+            this.state.errorMessage = reflection.abortReason ?? 'Agent hat Workflow abgebrochen';
+            this.transition('error');
+            yield this.emit({
+              type: 'error',
+              message: this.state.errorMessage,
+              recoverable: false,
+              stepId: planStep.id,
+            });
+            break;
+          }
+
+          if (
+            reflection.nextAction === 'adjust_plan' &&
+            reflection.planAdjustment?.newSteps &&
+            this.state.replanCount < this.config.maxRePlans
+          ) {
+            this.state.replanCount += 1;
+            this.transition('planning');
+            const newPlan = await this.runAdjustmentPlanningPhase(
+              reflection.planAdjustment.reason,
+              reflection.planAdjustment.newSteps,
+            );
+
+            if (newPlan) {
+              this.state.plan = newPlan;
+              allPlanSteps.splice(stepIndex + 1, allPlanSteps.length - stepIndex - 1, ...newPlan.steps);
+              yield this.emit({
+                type: 'plan',
+                plan: newPlan,
+                isAdjustment: true,
+                adjustmentReason: reflection.planAdjustment.reason,
+              });
+            }
+            this.transition('executing');
+          }
+        }
+        this.transition('executing');
+      }
+
+      stepIndex += 1;
+    }
   }
 
   // -------------------------------------------------------------------------

@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ChevronDown, FileText, Loader2, Play, Plus, Save, Square, Trash2, X } from 'lucide-react';
+import { ChevronDown, Download, FileText, Loader2, Play, Plus, Save, Square, Trash2, Upload, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -26,6 +26,17 @@ import { useFlowStore } from '@/stores/flowStore';
 import type { WorkflowStatus, WorkflowStreamEvent } from '@/lib/agents/workflowTypes';
 import { saveFlowOutput } from '@/lib/flow/saveOutput';
 import type { FlowNodeKind, NodeRunStatus, OutputNodeData, SavedFlowTemplate, WorkflowRunSummary } from '@/lib/flow/types';
+import { buildTimelineFromEvents, type TimelineData } from '@/lib/flow/timeline';
+import { StepTimeline } from '@/components/flow/StepTimeline';
+import {
+  downloadAsFile,
+  exportWorkflowAsJson,
+  exportWorkflowAsYaml,
+  getFileExtension,
+  importWorkflowFromJson,
+  importWorkflowFromYaml,
+  readFileAsText,
+} from '@/lib/flow/importExport';
 
 export default function FlowPage() {
   const { toast } = useToast();
@@ -60,6 +71,8 @@ export default function FlowPage() {
   const [showLastRunInfo, setShowLastRunInfo] = useState(true);
   const [isSaveDialogOpen, setIsSaveDialogOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<SavedFlowTemplate | null>(null);
+  const [timelineData, setTimelineData] = useState<TimelineData | null>(null);
+  const timelineEventsRef = useRef<Array<{ stepId: string; label: string; type: 'start' | 'end'; timestampMs: number; status?: string }>>([]);
 
   const lastRun = useMemo(() => workflow.runs[0] ?? null, [workflow.runs]);
   const runningNodeLabels = useMemo(
@@ -217,6 +230,82 @@ export default function FlowPage() {
     toast({ title: 'Template gelöscht', description: `"${deleteTarget.name}" wurde entfernt.` });
   }, [deleteTarget, savedTemplates, activeTemplateId, setSavedTemplates, setActiveTemplate, toast]);
 
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleExportJson = useCallback(() => {
+    const json = exportWorkflowAsJson(workflow.graph);
+    const filename = `${workflow.name.replace(/\s+/g, '_')}.json`;
+    downloadAsFile(json, filename, 'application/json');
+    toast({ title: 'Exportiert', description: `Flow als ${filename} exportiert.` });
+  }, [workflow.graph, workflow.name, toast]);
+
+  const handleExportYaml = useCallback(() => {
+    const yamlStr = exportWorkflowAsYaml(workflow.graph);
+    const filename = `${workflow.name.replace(/\s+/g, '_')}.yaml`;
+    downloadAsFile(yamlStr, filename, 'application/x-yaml');
+    toast({ title: 'Exportiert', description: `Flow als ${filename} exportiert.` });
+  }, [workflow.graph, workflow.name, toast]);
+
+  const handleImportFile = useCallback(
+    async (event: React.ChangeEvent<HTMLInputElement>) => {
+      const file = event.target.files?.[0];
+      if (!file) return;
+
+      try {
+        const content = await readFileAsText(file);
+        const ext = getFileExtension(file.name);
+        const result =
+          ext === 'yaml' || ext === 'yml'
+            ? importWorkflowFromYaml(content)
+            : importWorkflowFromJson(content);
+
+        if (!result.valid || !result.workflow) {
+          toast({
+            title: 'Import fehlgeschlagen',
+            description: result.errors.join(', '),
+            variant: 'destructive',
+          });
+          return;
+        }
+
+        if (result.warnings.length > 0) {
+          toast({
+            title: 'Import-Warnung',
+            description: result.warnings.join(', '),
+          });
+        }
+
+        const now = new Date().toISOString();
+        loadWorkflow({
+          id: 'current',
+          name: result.workflow.metadata.name,
+          description: result.workflow.metadata.description,
+          graph: result.workflow,
+          runs: [],
+          createdAt: now,
+          updatedAt: now,
+          tags: [],
+          isFavorite: false,
+        });
+
+        toast({
+          title: 'Flow importiert',
+          description: `"${result.workflow.metadata.name}" wurde geladen.`,
+        });
+      } catch {
+        toast({
+          title: 'Import fehlgeschlagen',
+          description: 'Die Datei konnte nicht gelesen werden.',
+          variant: 'destructive',
+        });
+      }
+
+      // Reset file input
+      event.target.value = '';
+    },
+    [loadWorkflow, toast],
+  );
+
   // Keep refs in sync for keyboard shortcuts
   handleSaveRef.current = handleOpenSaveDialog;
 
@@ -239,6 +328,8 @@ export default function FlowPage() {
     setRunError(null);
     resetNodeRuntime();
     streamBufferRef.current = '';
+    timelineEventsRef.current = [];
+    setTimelineData(null);
 
     let compiled;
     try {
@@ -282,6 +373,12 @@ export default function FlowPage() {
           setNodeRuntime(event.stepId, { status: 'running' });
           setRunNodeStatus(event.stepId, 'running');
           totalSteps = Math.max(totalSteps ?? 0, event.stepIndex + 1);
+          timelineEventsRef.current.push({
+            stepId: event.stepId,
+            label: event.description,
+            type: 'start',
+            timestampMs: Date.now(),
+          });
           break;
 
         case 'step_end':
@@ -291,6 +388,14 @@ export default function FlowPage() {
           });
           setRunNodeStatus(event.stepId, event.status === 'success' ? 'success' : 'error');
           totalSteps = Math.max(totalSteps ?? 0, event.stepIndex + 1);
+          timelineEventsRef.current.push({
+            stepId: event.stepId,
+            label: '',
+            type: 'end',
+            timestampMs: Date.now(),
+            status: event.status === 'success' ? 'success' : 'error',
+          });
+          setTimelineData(buildTimelineFromEvents(timelineEventsRef.current));
           break;
 
         case 'message':
@@ -344,6 +449,29 @@ export default function FlowPage() {
             }
             setRunNodeStatus(compiled.outputNodeId ?? undefined, 'error');
           }
+          break;
+
+        case 'condition_eval':
+          setNodeRuntime(event.stepId, {
+            status: 'success',
+            message: `Ergebnis: ${event.result}`,
+          });
+          setRunNodeStatus(event.stepId, 'success');
+          break;
+
+        case 'step_skipped':
+          setNodeRuntime(event.stepId, {
+            status: 'idle',
+            message: event.reason,
+          });
+          setRunNodeStatus(event.stepId, 'idle');
+          break;
+
+        case 'loop_iteration':
+          setNodeRuntime(event.loopStepId, {
+            status: 'running',
+            message: `Iteration ${event.iteration + 1}/${event.maxIterations}`,
+          });
           break;
       }
     };
@@ -604,6 +732,48 @@ export default function FlowPage() {
             </span>
           </Button>
 
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-8 gap-1.5"
+                disabled={isRunning}
+              >
+                <Download className="h-3.5 w-3.5" />
+                Export
+                <ChevronDown className="h-3 w-3 opacity-50" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={handleExportJson}>
+                Als JSON exportieren
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={handleExportYaml}>
+                Als YAML exportieren
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-8 gap-1.5"
+            onClick={() => fileInputRef.current?.click()}
+            disabled={isRunning}
+          >
+            <Upload className="h-3.5 w-3.5" />
+            Import
+          </Button>
+
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".json,.yaml,.yml"
+            className="hidden"
+            onChange={handleImportFile}
+          />
+
           <Button
             variant="outline"
             size="sm"
@@ -648,7 +818,7 @@ export default function FlowPage() {
               {isRunning && (
                 <div className="mb-1 text-cyan-300">
                   Now running:{' '}
-                  {runningNodeLabels.length > 0 ? runningNodeLabels.join(' -> ') : 'Workflow wird gestartet...'}
+                  {runningNodeLabels.length > 0 ? runningNodeLabels.join(' | ') : 'Workflow wird gestartet...'}
                 </div>
               )}
               {compileWarnings.length > 0 && (
@@ -696,6 +866,8 @@ export default function FlowPage() {
           selectedRunId={selectedRunId}
           onSelectRun={handleSelectRun}
         />
+
+        <StepTimeline data={timelineData} />
       </div>
 
       <NodeCommandPalette

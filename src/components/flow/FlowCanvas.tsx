@@ -18,7 +18,9 @@ import {
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 import { AgentNode } from '@/components/flow/nodes/AgentNode';
+import { ConditionNode } from '@/components/flow/nodes/ConditionNode';
 import { InputNode } from '@/components/flow/nodes/InputNode';
+import { LoopNode } from '@/components/flow/nodes/LoopNode';
 import { OutputNode } from '@/components/flow/nodes/OutputNode';
 import { TemplateNode } from '@/components/flow/nodes/TemplateNode';
 import { useToast } from '@/components/ui/use-toast';
@@ -32,7 +34,7 @@ import type { FlowEdge, FlowNode, FlowNodeKind } from '@/lib/flow/types';
 import { useFlowStore } from '@/stores/flowStore';
 
 const FLOW_NODE_DRAG_MIME = 'application/locai-flow-node';
-const FLOW_NODE_KINDS: FlowNodeKind[] = ['input', 'agent', 'template', 'output'];
+const FLOW_NODE_KINDS: FlowNodeKind[] = ['input', 'agent', 'template', 'output', 'condition', 'loop'];
 
 function hasFlowNodePayload(event: React.DragEvent<HTMLDivElement>): boolean {
   return Array.from(event.dataTransfer.types).includes(FLOW_NODE_DRAG_MIME);
@@ -175,6 +177,8 @@ export function FlowCanvas({ insertNodeKind = null, onInsertNodeHandled }: FlowC
       agentNode: AgentNode,
       templateNode: TemplateNode,
       outputNode: OutputNode,
+      conditionNode: ConditionNode,
+      loopNode: LoopNode,
     }),
     [],
   );

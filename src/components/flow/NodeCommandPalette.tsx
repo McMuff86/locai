@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Brain, CircleDot, FileCode2, Rows3 } from 'lucide-react';
+import { Brain, CircleDot, FileCode2, GitBranch, Repeat, Rows3 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { FLOW_NODE_DEFINITIONS } from '@/lib/flow/registry';
@@ -24,6 +24,10 @@ function iconForKind(kind: FlowNodeKind) {
       return FileCode2;
     case 'output':
       return Rows3;
+    case 'condition':
+      return GitBranch;
+    case 'loop':
+      return Repeat;
   }
 }
 
