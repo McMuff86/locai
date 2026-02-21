@@ -9,7 +9,7 @@ import {
   type XYPosition,
 } from '@xyflow/react';
 import { create } from 'zustand';
-import { createDefaultStoredWorkflow, createFlowEdgeFromConnection, createFlowNode } from '@/lib/flow/registry';
+import { createDefaultStoredWorkflow, createFlowEdgeFromConnection, createFlowNode, createStoredWorkflowFromTemplate, type FlowTemplateId } from '@/lib/flow/registry';
 import type {
   FlowEdge,
   FlowNode,
@@ -28,6 +28,7 @@ interface FlowStoreState {
   runError: string | null;
   setHydrated: (hydrated: boolean) => void;
   loadWorkflow: (workflow: StoredWorkflow) => void;
+  loadTemplate: (templateId: FlowTemplateId) => void;
   setNodes: (nodes: FlowNode[]) => void;
   setEdges: (edges: FlowEdge[]) => void;
   onNodesChange: (changes: NodeChange<FlowNode>[]) => void;
@@ -69,6 +70,14 @@ export const useFlowStore = create<FlowStoreState>((set) => ({
   loadWorkflow: (workflow) =>
     set({
       workflow,
+      selectedNodeId: null,
+      selectedRunId: null,
+      runError: null,
+    }),
+
+  loadTemplate: (templateId) =>
+    set({
+      workflow: createStoredWorkflowFromTemplate(templateId),
       selectedNodeId: null,
       selectedRunId: null,
       runError: null,

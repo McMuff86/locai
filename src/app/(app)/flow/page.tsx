@@ -1,8 +1,16 @@
 "use client";
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Loader2, Play, Save, Square, X } from 'lucide-react';
+import { ChevronDown, FileText, Loader2, Play, Plus, Save, Square, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { useToast } from '@/components/ui/use-toast';
 import { ConfigPanel } from '@/components/flow/ConfigPanel';
 import { FlowCanvas } from '@/components/flow/FlowCanvas';
@@ -10,6 +18,7 @@ import { NodeCommandPalette } from '@/components/flow/NodeCommandPalette';
 import { NodePalette } from '@/components/flow/NodePalette';
 import { RunHistoryPanel } from '@/components/flow/RunHistoryPanel';
 import { FlowCompileError, compileVisualWorkflowToPlan } from '@/lib/flow/engine';
+import { FLOW_TEMPLATES, type FlowTemplateId } from '@/lib/flow/registry';
 import { loadCurrentWorkflow, saveCurrentWorkflow } from '@/lib/flow/serialization';
 import { useFlowStore } from '@/stores/flowStore';
 import type { WorkflowStatus, WorkflowStreamEvent } from '@/lib/agents/workflowTypes';
@@ -24,6 +33,7 @@ export default function FlowPage() {
   const isRunning = useFlowStore((state) => state.isRunning);
   const runError = useFlowStore((state) => state.runError);
   const loadWorkflow = useFlowStore((state) => state.loadWorkflow);
+  const loadTemplate = useFlowStore((state) => state.loadTemplate);
   const setHydrated = useFlowStore((state) => state.setHydrated);
   const resetNodeRuntime = useFlowStore((state) => state.resetNodeRuntime);
   const clearRunningNodeRuntime = useFlowStore((state) => state.clearRunningNodeRuntime);
@@ -129,6 +139,17 @@ export default function FlowPage() {
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isRunning]);
+
+  const handleLoadTemplate = useCallback(
+    (templateId: FlowTemplateId) => {
+      loadTemplate(templateId);
+      toast({
+        title: 'Template geladen',
+        description: FLOW_TEMPLATES.find((t) => t.id === templateId)?.name ?? templateId,
+      });
+    },
+    [loadTemplate, toast],
+  );
 
   const handleInsertNodeFromCommand = useCallback((kind: FlowNodeKind) => {
     setPendingInsertNodeKind(kind);
@@ -468,6 +489,39 @@ export default function FlowPage() {
         </div>
 
         <div className="flex items-center gap-2">
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-8 gap-1.5"
+                disabled={isRunning}
+              >
+                <Plus className="h-3.5 w-3.5" />
+                New Flow
+                <ChevronDown className="h-3 w-3 opacity-50" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuLabel>Flow Templates</DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              {FLOW_TEMPLATES.map((template) => (
+                <DropdownMenuItem
+                  key={template.id}
+                  onClick={() => handleLoadTemplate(template.id)}
+                >
+                  <div>
+                    <div className="text-sm font-medium">
+                      {template.id === 'pdf-processing' && <FileText className="mr-1.5 inline h-3.5 w-3.5 text-cyan-300" />}
+                      {template.name}
+                    </div>
+                    <div className="text-xs text-muted-foreground">{template.description}</div>
+                  </div>
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
+
           <Button
             variant="outline"
             size="sm"
