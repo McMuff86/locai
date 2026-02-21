@@ -58,6 +58,12 @@ import {
   applyAdjustmentLayerToCanvas,
   applySharpen,
   boxBlur,
+  createSelectionMask,
+  renderMarchingAnts,
+  floodFillSelection,
+  healBrushDab,
+  cloneStampDab,
+  spotRemoveDab,
 } from './image-editor/utils';
 
 // ── Component ─────────────────────────────────────────────────────────────────
@@ -147,6 +153,21 @@ export function ImageEditor({ imageUrl, rootId, relativePath, fileName }: ImageE
   const panScrollRef = useRef<Point>({ x: 0, y: 0 });
 
   const aspectRef = useRef(1);
+
+  // Selection state
+  const selectionMaskRef = useRef<ImageData | null>(null);
+  const selectionBoundsRef = useRef<{ x: number; y: number; w: number; h: number } | null>(null);
+  const [hasSelection, setHasSelection] = useState(false);
+  const marchingAntsOffsetRef = useRef(0);
+  const marchingAntsAnimRef = useRef<number | null>(null);
+  const lassoPointsRef = useRef<Point[]>([]);
+  const marqueeStartRef = useRef<Point | null>(null);
+  const clipboardCanvasRef = useRef<HTMLCanvasElement | null>(null);
+
+  // Source-point state (healing / clone stamp)
+  const sourcePointRef = useRef<Point | null>(null);
+  const sourceOffsetRef = useRef<Point>({ x: 0, y: 0 });
+  const hasSourceRef = useRef(false);
 
   // ── Load image ──────────────────────────────────────────────────
   useEffect(() => {
@@ -353,82 +374,6 @@ export function ImageEditor({ imageUrl, rootId, relativePath, fileName }: ImageE
     setActiveLayerId(layer.id);
     pushHistory(`Adjustment: ${adjustmentType}`);
   }, [adjustmentLayers.length, getLayerNamePrefix, pushHistory]);
-
-  // ── Keyboard shortcuts ──────────────────────────────────────────
-  useEffect(() => {
-    const handler = (e: KeyboardEvent) => {
-      const target = e.target as HTMLElement | null;
-      const typing = target?.tagName === 'INPUT' || target?.tagName === 'TEXTAREA' || target?.isContentEditable;
-
-      if (e.key === ' ' && !typing) {
-        e.preventDefault();
-        isSpaceDownRef.current = true;
-      }
-
-      if ((e.ctrlKey || e.metaKey) && e.key === 'z' && !e.shiftKey) {
-        e.preventDefault();
-        undoFromHistory();
-      }
-      if ((e.ctrlKey || e.metaKey) && (e.key === 'y' || (e.key === 'z' && e.shiftKey))) {
-        e.preventDefault();
-        redoFromHistory();
-      }
-      if ((e.ctrlKey || e.metaKey) && e.key === '0') {
-        e.preventDefault();
-        const canvas = editor.canvasRef.current;
-        const container = containerRef.current;
-        if (canvas && container) {
-          const fit = Math.min(1, container.clientWidth / canvas.width, container.clientHeight / canvas.height);
-          setZoom(fit);
-        }
-      }
-
-      if (!typing && !e.ctrlKey && !e.metaKey && !e.altKey) {
-        const key = e.key.toLowerCase();
-        if (key === 'b') editor.setActiveTool('draw');
-        if (key === 'e') editor.setActiveTool('eraser');
-        if (key === 't') editor.setActiveTool('text');
-        if (key === 'v') editor.setActiveTool('select');
-        if (key === '[') {
-          e.preventDefault();
-          editor.updateDrawSetting('brushSize', Math.max(1, editor.drawSettings.brushSize - 1));
-        }
-        if (key === ']') {
-          e.preventDefault();
-          editor.updateDrawSetting('brushSize', Math.min(200, editor.drawSettings.brushSize + 1));
-        }
-      }
-
-      if (activeLayerId && !typing && (e.key === 'Delete' || e.key === 'Backspace')) {
-        e.preventDefault();
-        const removedText = textLayers.some((layer) => layer.id === activeLayerId);
-        const removedShape = shapeLayers.some((layer) => layer.id === activeLayerId);
-        if (removedText) {
-          setTextLayers((prev) => prev.filter((layer) => layer.id !== activeLayerId));
-          setActiveLayerId(null);
-          pushHistory('Text-Layer gelöscht');
-        } else if (removedShape) {
-          setShapeLayers((prev) => prev.filter((layer) => layer.id !== activeLayerId));
-          setActiveLayerId(null);
-          pushHistory('Shape-Layer gelöscht');
-        }
-      }
-    };
-
-    const upHandler = (e: KeyboardEvent) => {
-      if (e.key === ' ') {
-        isSpaceDownRef.current = false;
-        isPanningRef.current = false;
-      }
-    };
-
-    window.addEventListener('keydown', handler);
-    window.addEventListener('keyup', upHandler);
-    return () => {
-      window.removeEventListener('keydown', handler);
-      window.removeEventListener('keyup', upHandler);
-    };
-  }, [activeLayerId, editor, pushHistory, redoFromHistory, shapeLayers, textLayers, undoFromHistory]);
 
   // ── Apply adjustments permanently ───────────────────────────────
   const applyAdjustments = useCallback(() => {
@@ -849,6 +794,243 @@ export function ImageEditor({ imageUrl, rootId, relativePath, fileName }: ImageE
     if (ctx) ctx.clearRect(0, 0, overlay.width, overlay.height);
   }, []);
 
+  // ── Selection helpers ─────────────────────────────────────────
+  const clearSelection = useCallback(() => {
+    selectionMaskRef.current = null;
+    selectionBoundsRef.current = null;
+    setHasSelection(false);
+    if (marchingAntsAnimRef.current) {
+      cancelAnimationFrame(marchingAntsAnimRef.current);
+      marchingAntsAnimRef.current = null;
+    }
+    clearOverlay();
+  }, [clearOverlay]);
+
+  // Source crosshair drawing helper
+  const drawSourceCrosshairOnOverlay = useCallback((ctx: CanvasRenderingContext2D) => {
+    const sp = sourcePointRef.current;
+    if (!sp) return;
+    ctx.save();
+    ctx.strokeStyle = '#00ff00';
+    ctx.lineWidth = 1.5;
+    const r = editor.drawSettings.brushSize / 2;
+    ctx.beginPath();
+    ctx.moveTo(sp.x - r - 4, sp.y);
+    ctx.lineTo(sp.x + r + 4, sp.y);
+    ctx.moveTo(sp.x, sp.y - r - 4);
+    ctx.lineTo(sp.x, sp.y + r + 4);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.arc(sp.x, sp.y, r, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.restore();
+  }, [editor.drawSettings.brushSize]);
+
+  const startMarchingAnts = useCallback(() => {
+    if (marchingAntsAnimRef.current) cancelAnimationFrame(marchingAntsAnimRef.current);
+    const animate = () => {
+      marchingAntsOffsetRef.current = (marchingAntsOffsetRef.current + 0.5) % 16;
+      const overlay = overlayCanvasRef.current;
+      const mask = selectionMaskRef.current;
+      if (overlay && mask) {
+        const ctx = overlay.getContext('2d');
+        if (ctx) {
+          ctx.clearRect(0, 0, overlay.width, overlay.height);
+          renderMarchingAnts(ctx, mask, marchingAntsOffsetRef.current, zoom);
+          if (hasSourceRef.current && sourcePointRef.current) {
+            drawSourceCrosshairOnOverlay(ctx);
+          }
+        }
+      }
+      marchingAntsAnimRef.current = requestAnimationFrame(animate);
+    };
+    marchingAntsAnimRef.current = requestAnimationFrame(animate);
+  }, [drawSourceCrosshairOnOverlay, zoom]);
+
+  const setSelectionFromMask = useCallback((mask: ImageData) => {
+    selectionMaskRef.current = mask;
+    const { width, height, data } = mask;
+    let minX = width, minY = height, maxX = 0, maxY = 0;
+    let found = false;
+    for (let y = 0; y < height; y++) {
+      for (let x = 0; x < width; x++) {
+        if (data[(y * width + x) * 4] >= 128) {
+          if (x < minX) minX = x;
+          if (x > maxX) maxX = x;
+          if (y < minY) minY = y;
+          if (y > maxY) maxY = y;
+          found = true;
+        }
+      }
+    }
+    if (found) {
+      selectionBoundsRef.current = { x: minX, y: minY, w: maxX - minX + 1, h: maxY - minY + 1 };
+      setHasSelection(true);
+      startMarchingAnts();
+    } else {
+      clearSelection();
+    }
+  }, [clearSelection, startMarchingAnts]);
+
+  const selectAll = useCallback(() => {
+    const canvas = editor.canvasRef.current;
+    if (!canvas) return;
+    const mask = createSelectionMask(canvas.width, canvas.height);
+    const d = mask.data;
+    for (let i = 0; i < d.length; i += 4) {
+      d[i] = 255; d[i + 1] = 255; d[i + 2] = 255; d[i + 3] = 255;
+    }
+    setSelectionFromMask(mask);
+  }, [editor.canvasRef, setSelectionFromMask]);
+
+  // Cleanup marching ants on unmount
+  useEffect(() => {
+    return () => {
+      if (marchingAntsAnimRef.current) cancelAnimationFrame(marchingAntsAnimRef.current);
+    };
+  }, []);
+
+  // ── Keyboard shortcuts ──────────────────────────────────────────
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement | null;
+      const typing = target?.tagName === 'INPUT' || target?.tagName === 'TEXTAREA' || target?.isContentEditable;
+
+      if (e.key === ' ' && !typing) {
+        e.preventDefault();
+        isSpaceDownRef.current = true;
+      }
+
+      if ((e.ctrlKey || e.metaKey) && e.key === 'z' && !e.shiftKey) {
+        e.preventDefault();
+        undoFromHistory();
+      }
+      if ((e.ctrlKey || e.metaKey) && (e.key === 'y' || (e.key === 'z' && e.shiftKey))) {
+        e.preventDefault();
+        redoFromHistory();
+      }
+      if ((e.ctrlKey || e.metaKey) && e.key === '0') {
+        e.preventDefault();
+        const canvas = editor.canvasRef.current;
+        const container = containerRef.current;
+        if (canvas && container) {
+          const fit = Math.min(1, container.clientWidth / canvas.width, container.clientHeight / canvas.height);
+          setZoom(fit);
+        }
+      }
+
+      // Ctrl+A = select all, Ctrl+D = deselect
+      if ((e.ctrlKey || e.metaKey) && e.key === 'a' && !typing) {
+        e.preventDefault();
+        selectAll();
+      }
+      if ((e.ctrlKey || e.metaKey) && e.key === 'd' && !typing) {
+        e.preventDefault();
+        clearSelection();
+      }
+
+      // Ctrl+C/X = copy/cut selection
+      if ((e.ctrlKey || e.metaKey) && (e.key === 'c' || e.key === 'x') && !typing && hasSelection && selectionMaskRef.current) {
+        e.preventDefault();
+        const canvas = editor.canvasRef.current;
+        if (canvas) {
+          const ctx = canvas.getContext('2d');
+          if (ctx) {
+            const mask = selectionMaskRef.current;
+            const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+            const clipCanvas = document.createElement('canvas');
+            clipCanvas.width = canvas.width;
+            clipCanvas.height = canvas.height;
+            const clipCtx = clipCanvas.getContext('2d')!;
+            const clipData = clipCtx.createImageData(canvas.width, canvas.height);
+            for (let i = 0; i < mask.data.length; i += 4) {
+              if (mask.data[i] >= 128) {
+                clipData.data[i] = imgData.data[i];
+                clipData.data[i + 1] = imgData.data[i + 1];
+                clipData.data[i + 2] = imgData.data[i + 2];
+                clipData.data[i + 3] = imgData.data[i + 3];
+              }
+            }
+            clipCtx.putImageData(clipData, 0, 0);
+            clipboardCanvasRef.current = clipCanvas;
+            if (e.key === 'x') {
+              for (let i = 0; i < mask.data.length; i += 4) {
+                if (mask.data[i] >= 128) {
+                  imgData.data[i + 3] = 0;
+                }
+              }
+              ctx.putImageData(imgData, 0, 0);
+              pushHistory('Ausschneiden');
+            }
+          }
+        }
+      }
+
+      // Ctrl+V = paste
+      if ((e.ctrlKey || e.metaKey) && e.key === 'v' && !typing && clipboardCanvasRef.current) {
+        e.preventDefault();
+        const canvas = editor.canvasRef.current;
+        if (canvas) {
+          const ctx = canvas.getContext('2d');
+          if (ctx) {
+            ctx.drawImage(clipboardCanvasRef.current, 0, 0);
+            pushHistory('Einfügen');
+          }
+        }
+      }
+
+      if (!typing && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        const key = e.key.toLowerCase();
+        if (key === 'b') editor.setActiveTool('draw');
+        if (key === 'e') editor.setActiveTool('eraser');
+        if (key === 't') editor.setActiveTool('text');
+        if (key === 'v') editor.setActiveTool('select');
+        if (key === 'm') editor.setActiveTool('marquee');
+        if (key === 'l') editor.setActiveTool('lasso');
+        if (key === 'w') editor.setActiveTool('magicWand');
+        if (key === 'j') editor.setActiveTool('healing');
+        if (key === 's') editor.setActiveTool('cloneStamp');
+        if (key === '[') {
+          e.preventDefault();
+          editor.updateDrawSetting('brushSize', Math.max(1, editor.drawSettings.brushSize - 1));
+        }
+        if (key === ']') {
+          e.preventDefault();
+          editor.updateDrawSetting('brushSize', Math.min(200, editor.drawSettings.brushSize + 1));
+        }
+      }
+
+      if (activeLayerId && !typing && (e.key === 'Delete' || e.key === 'Backspace')) {
+        e.preventDefault();
+        const removedText = textLayers.some((layer) => layer.id === activeLayerId);
+        const removedShape = shapeLayers.some((layer) => layer.id === activeLayerId);
+        if (removedText) {
+          setTextLayers((prev) => prev.filter((layer) => layer.id !== activeLayerId));
+          setActiveLayerId(null);
+          pushHistory('Text-Layer gelöscht');
+        } else if (removedShape) {
+          setShapeLayers((prev) => prev.filter((layer) => layer.id !== activeLayerId));
+          setActiveLayerId(null);
+          pushHistory('Shape-Layer gelöscht');
+        }
+      }
+    };
+
+    const upHandler = (e: KeyboardEvent) => {
+      if (e.key === ' ') {
+        isSpaceDownRef.current = false;
+        isPanningRef.current = false;
+      }
+    };
+
+    window.addEventListener('keydown', handler);
+    window.addEventListener('keyup', upHandler);
+    return () => {
+      window.removeEventListener('keydown', handler);
+      window.removeEventListener('keyup', upHandler);
+    };
+  }, [activeLayerId, clearSelection, editor, hasSelection, pushHistory, redoFromHistory, selectAll, shapeLayers, textLayers, undoFromHistory]);
+
   const ensureLayerMaskCanvas = useCallback((layerId: string) => {
     const existing = maskCanvasesRef.current[layerId];
     if (existing) return existing;
@@ -900,6 +1082,29 @@ export function ImageEditor({ imageUrl, rootId, relativePath, fileName }: ImageE
     ctx.save();
     ctx.globalCompositeOperation = erasing ? 'destination-out' : 'source-over';
     ctx.globalAlpha = alpha;
+
+    // Clip to selection mask if active
+    if (selectionMaskRef.current) {
+      const mask = selectionMaskRef.current;
+      const cw = mask.width;
+      const ch = mask.height;
+      const md = mask.data;
+      // Build a clip region from the selection
+      const region = new Path2D();
+      for (let sy = 0; sy < ch; sy++) {
+        let runStart = -1;
+        for (let sx = 0; sx <= cw; sx++) {
+          const selected = sx < cw && md[(sy * cw + sx) * 4] >= 128;
+          if (selected && runStart < 0) {
+            runStart = sx;
+          } else if (!selected && runStart >= 0) {
+            region.rect(runStart, sy, sx - runStart, 1);
+            runStart = -1;
+          }
+        }
+      }
+      ctx.clip(region);
+    }
 
     const drawDab = (x: number, y: number, angle: number) => {
       const jx = jitterPx > 0 ? (Math.random() - 0.5) * jitterPx : 0;
@@ -1104,8 +1309,127 @@ export function ImageEditor({ imageUrl, rootId, relativePath, fileName }: ImageE
       lastPosRef.current = realPos;
       return;
     }
+
+    // ── Marquee ──
+    if (editor.activeTool === 'marquee') {
+      marqueeStartRef.current = realPos;
+      isDrawingRef.current = true;
+      return;
+    }
+
+    // ── Lasso ──
+    if (editor.activeTool === 'lasso') {
+      lassoPointsRef.current = [realPos];
+      isDrawingRef.current = true;
+      return;
+    }
+
+    // ── Magic Wand ──
+    if (editor.activeTool === 'magicWand') {
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return;
+      const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+      const mask = floodFillSelection(
+        imgData,
+        realPos.x,
+        realPos.y,
+        editor.drawSettings.magicWandTolerance,
+        editor.drawSettings.magicWandContiguous,
+      );
+      setSelectionFromMask(mask);
+      return;
+    }
+
+    // ── Healing Brush ──
+    if (editor.activeTool === 'healing') {
+      if (e.altKey) {
+        sourcePointRef.current = { x: realPos.x, y: realPos.y };
+        hasSourceRef.current = true;
+        // Show crosshair on overlay
+        const overlay = overlayCanvasRef.current;
+        if (overlay) {
+          const octx = overlay.getContext('2d');
+          if (octx) {
+            octx.clearRect(0, 0, overlay.width, overlay.height);
+            drawSourceCrosshairOnOverlay(octx);
+          }
+        }
+        toast({ title: 'Quelle gesetzt', description: `(${Math.round(realPos.x)}, ${Math.round(realPos.y)})` });
+        return;
+      }
+      if (!hasSourceRef.current || !sourcePointRef.current) {
+        toast({ title: 'Alt+Klick', description: 'Zuerst Quellpunkt mit Alt+Klick setzen.' });
+        return;
+      }
+      sourceOffsetRef.current = {
+        x: sourcePointRef.current.x - realPos.x,
+        y: sourcePointRef.current.y - realPos.y,
+      };
+      isDrawingRef.current = true;
+      lastPosRef.current = realPos;
+      const ctx = canvas.getContext('2d');
+      if (ctx) {
+        healBrushDab(ctx, realPos.x, realPos.y,
+          realPos.x + sourceOffsetRef.current.x,
+          realPos.y + sourceOffsetRef.current.y,
+          editor.drawSettings.brushSize,
+          editor.drawSettings.brushHardness,
+          editor.drawSettings.brushOpacity);
+      }
+      return;
+    }
+
+    // ── Clone Stamp ──
+    if (editor.activeTool === 'cloneStamp') {
+      if (e.altKey) {
+        sourcePointRef.current = { x: realPos.x, y: realPos.y };
+        hasSourceRef.current = true;
+        const overlay = overlayCanvasRef.current;
+        if (overlay) {
+          const octx = overlay.getContext('2d');
+          if (octx) {
+            octx.clearRect(0, 0, overlay.width, overlay.height);
+            drawSourceCrosshairOnOverlay(octx);
+          }
+        }
+        toast({ title: 'Quelle gesetzt', description: `(${Math.round(realPos.x)}, ${Math.round(realPos.y)})` });
+        return;
+      }
+      if (!hasSourceRef.current || !sourcePointRef.current) {
+        toast({ title: 'Alt+Klick', description: 'Zuerst Quellpunkt mit Alt+Klick setzen.' });
+        return;
+      }
+      sourceOffsetRef.current = {
+        x: sourcePointRef.current.x - realPos.x,
+        y: sourcePointRef.current.y - realPos.y,
+      };
+      isDrawingRef.current = true;
+      lastPosRef.current = realPos;
+      const ctx = canvas.getContext('2d');
+      if (ctx) {
+        cloneStampDab(ctx, realPos.x, realPos.y,
+          realPos.x + sourceOffsetRef.current.x,
+          realPos.y + sourceOffsetRef.current.y,
+          editor.drawSettings.brushSize,
+          editor.drawSettings.brushHardness,
+          editor.drawSettings.brushOpacity,
+          editor.drawSettings.brushFlow);
+      }
+      return;
+    }
+
+    // ── Spot Remove ──
+    if (editor.activeTool === 'spotRemove') {
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return;
+      spotRemoveDab(ctx, realPos.x, realPos.y, editor.drawSettings.brushSize);
+      pushHistory('Spot Remove');
+      return;
+    }
   }, [
     activeLayerId,
+    clearSelection,
+    drawSourceCrosshairOnOverlay,
     editor,
     ensureLayerMaskCanvas,
     getCanvasPos,
@@ -1114,6 +1438,8 @@ export function ImageEditor({ imageUrl, rootId, relativePath, fileName }: ImageE
     getObjectLayerAtPoint,
     maskMode,
     paintBrushSegment,
+    pushHistory,
+    setSelectionFromMask,
     toast,
   ]);
 
@@ -1232,12 +1558,122 @@ export function ImageEditor({ imageUrl, rootId, relativePath, fileName }: ImageE
     if (editor.activeTool === 'shapes' && isDrawingRef.current) {
       lastPosRef.current = realPos;
       drawShapePreview(realPos);
+      return;
+    }
+
+    // ── Marquee move ──
+    if (editor.activeTool === 'marquee' && isDrawingRef.current && marqueeStartRef.current) {
+      const overlay = overlayCanvasRef.current;
+      if (overlay) {
+        const ctx = overlay.getContext('2d');
+        if (ctx) {
+          ctx.clearRect(0, 0, overlay.width, overlay.height);
+          const x = Math.min(marqueeStartRef.current.x, realPos.x);
+          const y = Math.min(marqueeStartRef.current.y, realPos.y);
+          const w = Math.abs(realPos.x - marqueeStartRef.current.x);
+          const h = Math.abs(realPos.y - marqueeStartRef.current.y);
+          ctx.setLineDash([5, 5]);
+          ctx.strokeStyle = '#ffffff';
+          ctx.lineWidth = 1;
+          ctx.strokeRect(x, y, w, h);
+          ctx.strokeStyle = '#000000';
+          ctx.lineDashOffset = 5;
+          ctx.strokeRect(x, y, w, h);
+          ctx.setLineDash([]);
+        }
+      }
+      return;
+    }
+
+    // ── Lasso move ──
+    if (editor.activeTool === 'lasso' && isDrawingRef.current) {
+      lassoPointsRef.current.push(realPos);
+      const overlay = overlayCanvasRef.current;
+      if (overlay) {
+        const ctx = overlay.getContext('2d');
+        if (ctx) {
+          ctx.clearRect(0, 0, overlay.width, overlay.height);
+          const pts = lassoPointsRef.current;
+          if (pts.length > 1) {
+            ctx.setLineDash([5, 5]);
+            ctx.strokeStyle = '#ffffff';
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.moveTo(pts[0].x, pts[0].y);
+            for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i].x, pts[i].y);
+            ctx.closePath();
+            ctx.stroke();
+            ctx.setLineDash([]);
+          }
+        }
+      }
+      return;
+    }
+
+    // ── Healing move ──
+    if (editor.activeTool === 'healing' && isDrawingRef.current) {
+      const ctx = canvas.getContext('2d');
+      if (ctx) {
+        healBrushDab(ctx, realPos.x, realPos.y,
+          realPos.x + sourceOffsetRef.current.x,
+          realPos.y + sourceOffsetRef.current.y,
+          editor.drawSettings.brushSize,
+          editor.drawSettings.brushHardness,
+          editor.drawSettings.brushOpacity);
+      }
+      // Update source crosshair on overlay
+      const overlay = overlayCanvasRef.current;
+      if (overlay) {
+        const octx = overlay.getContext('2d');
+        if (octx) {
+          octx.clearRect(0, 0, overlay.width, overlay.height);
+          // Show current source position
+          const sp = {
+            x: realPos.x + sourceOffsetRef.current.x,
+            y: realPos.y + sourceOffsetRef.current.y,
+          };
+          sourcePointRef.current = sp;
+          drawSourceCrosshairOnOverlay(octx);
+        }
+      }
+      lastPosRef.current = realPos;
+      return;
+    }
+
+    // ── Clone stamp move ──
+    if (editor.activeTool === 'cloneStamp' && isDrawingRef.current) {
+      const ctx = canvas.getContext('2d');
+      if (ctx) {
+        cloneStampDab(ctx, realPos.x, realPos.y,
+          realPos.x + sourceOffsetRef.current.x,
+          realPos.y + sourceOffsetRef.current.y,
+          editor.drawSettings.brushSize,
+          editor.drawSettings.brushHardness,
+          editor.drawSettings.brushOpacity,
+          editor.drawSettings.brushFlow);
+      }
+      const overlay = overlayCanvasRef.current;
+      if (overlay) {
+        const octx = overlay.getContext('2d');
+        if (octx) {
+          octx.clearRect(0, 0, overlay.width, overlay.height);
+          const sp = {
+            x: realPos.x + sourceOffsetRef.current.x,
+            y: realPos.y + sourceOffsetRef.current.y,
+          };
+          sourcePointRef.current = sp;
+          drawSourceCrosshairOnOverlay(octx);
+        }
+      }
+      lastPosRef.current = realPos;
+      return;
     }
   }, [
     activeLayerId,
     applySnap,
     clamp,
     drawShapePreview,
+    drawSourceCrosshairOnOverlay,
     editor,
     ensureLayerMaskCanvas,
     getCanvasPos,
@@ -1340,15 +1776,96 @@ export function ImageEditor({ imageUrl, rootId, relativePath, fileName }: ImageE
       setActiveLayerId(shapeLayer.id);
       pushHistory('Shape hinzugefügt');
     }
+
+    // ── Marquee up ──
+    if (editor.activeTool === 'marquee' && isDrawingRef.current && marqueeStartRef.current) {
+      isDrawingRef.current = false;
+      clearOverlay();
+      const x = Math.min(marqueeStartRef.current.x, realPos.x);
+      const y = Math.min(marqueeStartRef.current.y, realPos.y);
+      const w = Math.abs(realPos.x - marqueeStartRef.current.x);
+      const h = Math.abs(realPos.y - marqueeStartRef.current.y);
+      marqueeStartRef.current = null;
+      if (w < 2 || h < 2) { clearSelection(); return; }
+
+      const mask = createSelectionMask(canvas.width, canvas.height);
+      const d = mask.data;
+      const rx = Math.round(x);
+      const ry = Math.round(y);
+      const rw = Math.round(w);
+      const rh = Math.round(h);
+      for (let py = ry; py < ry + rh && py < canvas.height; py++) {
+        for (let px = rx; px < rx + rw && px < canvas.width; px++) {
+          if (px >= 0 && py >= 0) {
+            const idx = (py * canvas.width + px) * 4;
+            d[idx] = 255; d[idx + 1] = 255; d[idx + 2] = 255; d[idx + 3] = 255;
+          }
+        }
+      }
+      setSelectionFromMask(mask);
+      return;
+    }
+
+    // ── Lasso up ──
+    if (editor.activeTool === 'lasso' && isDrawingRef.current) {
+      isDrawingRef.current = false;
+      clearOverlay();
+      const pts = lassoPointsRef.current;
+      if (pts.length < 3) { lassoPointsRef.current = []; clearSelection(); return; }
+
+      // Draw filled polygon on temp canvas to create mask
+      const temp = document.createElement('canvas');
+      temp.width = canvas.width;
+      temp.height = canvas.height;
+      const tctx = temp.getContext('2d');
+      if (tctx) {
+        tctx.fillStyle = '#ffffff';
+        tctx.beginPath();
+        tctx.moveTo(pts[0].x, pts[0].y);
+        for (let i = 1; i < pts.length; i++) tctx.lineTo(pts[i].x, pts[i].y);
+        tctx.closePath();
+        tctx.fill();
+        const maskData = tctx.getImageData(0, 0, canvas.width, canvas.height);
+        // Convert: any non-zero alpha pixel = selected
+        const mask = createSelectionMask(canvas.width, canvas.height);
+        const md = mask.data;
+        for (let i = 0; i < maskData.data.length; i += 4) {
+          if (maskData.data[i + 3] > 0) {
+            md[i] = 255; md[i + 1] = 255; md[i + 2] = 255; md[i + 3] = 255;
+          }
+        }
+        setSelectionFromMask(mask);
+      }
+      lassoPointsRef.current = [];
+      return;
+    }
+
+    // ── Healing up ──
+    if (editor.activeTool === 'healing' && isDrawingRef.current) {
+      isDrawingRef.current = false;
+      clearOverlay();
+      pushHistory('Healing Brush');
+      return;
+    }
+
+    // ── Clone stamp up ──
+    if (editor.activeTool === 'cloneStamp' && isDrawingRef.current) {
+      isDrawingRef.current = false;
+      clearOverlay();
+      pushHistory('Clone Stamp');
+      return;
+    }
   }, [
     activeLayerId,
     clearOverlay,
+    clearSelection,
     cropRect,
     editor,
     getCanvasRealPos,
     getLayerNamePrefix,
     maskMode,
     pushHistory,
+    setSelectionFromMask,
     shapeLayers.length,
     zoom,
   ]);
@@ -1574,13 +2091,7 @@ export function ImageEditor({ imageUrl, rootId, relativePath, fileName }: ImageE
       setShowResize(true);
     }
     if (tool === 'aiDescribe') handleAiDescribe();
-    if (tool === 'marquee' || tool === 'lasso' || tool === 'magicWand') {
-      toast({ title: 'Auswahl-Tool aktiv', description: 'Wird als Layer-Auswahl/Transform-Basis verwendet.' });
-    }
-    if (tool === 'healing' || tool === 'cloneStamp' || tool === 'spotRemove') {
-      toast({ title: 'Retusche-Tool', description: 'Basismodus aktiv (Brush-Engine + History + Layer-Mask).' });
-    }
-  }, [editor, handleAiDescribe, toast]);
+  }, [editor, handleAiDescribe]);
 
   const handleResetAll = useCallback(() => {
     editor.resetToOriginal();
@@ -1595,10 +2106,22 @@ export function ImageEditor({ imageUrl, rootId, relativePath, fileName }: ImageE
     pushHistory('Reset');
   }, [editor, pushHistory]);
 
+  const isSelectionTool = editor.activeTool === 'marquee' || editor.activeTool === 'lasso' || editor.activeTool === 'magicWand';
+
+  const getCursorStyle = (): string => {
+    if (isSpaceDownRef.current) return 'grab';
+    if (isSelectionTool) return 'crosshair';
+    if (editor.activeTool === 'spotRemove') return 'crosshair';
+    if ((editor.activeTool === 'healing' || editor.activeTool === 'cloneStamp') && !hasSourceRef.current) return 'copy';
+    if (editor.activeTool === 'healing' || editor.activeTool === 'cloneStamp') return 'crosshair';
+    return 'default';
+  };
+
   const canvasStyle: React.CSSProperties = {
     width: Math.max(1, dimensions.w * zoom),
     height: Math.max(1, dimensions.h * zoom),
     imageRendering: zoom > 2 ? 'pixelated' : 'auto',
+    cursor: getCursorStyle(),
   };
 
   const canUndo = historyIndex > 0;
@@ -1887,6 +2410,8 @@ export function ImageEditor({ imageUrl, rootId, relativePath, fileName }: ImageE
         comfyAvailable={comfyAvailable}
         rotation={editor.rotation}
         onRotationChange={(deg) => editor.setRotation(deg)}
+        hasSelection={hasSelection}
+        onClearSelection={clearSelection}
       />
 
       {/* Canvas area */}
@@ -1927,6 +2452,7 @@ export function ImageEditor({ imageUrl, rootId, relativePath, fileName }: ImageE
               transformLayerIdRef.current = null;
               transformInitialBoundsRef.current = null;
               transformInitialLayerRef.current = null;
+              marqueeStartRef.current = null;
             }}
           />
 

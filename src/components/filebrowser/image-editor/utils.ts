@@ -360,3 +360,316 @@ export function applyAdjustmentLayerToCanvas(
   ctx.clearRect(0, 0, canvas.width, canvas.height);
   ctx.drawImage(temp, 0, 0);
 }
+
+// ---------------------------------------------------------------------------
+// Selection Utilities
+// ---------------------------------------------------------------------------
+
+export function createSelectionMask(w: number, h: number): ImageData {
+  return new ImageData(w, h);
+}
+
+export function renderMarchingAnts(
+  ctx: CanvasRenderingContext2D,
+  mask: ImageData,
+  animOffset: number,
+  zoom: number,
+) {
+  const { width, height, data } = mask;
+
+  // Find boundary pixels: selected pixels adjacent to non-selected pixels
+  const boundary: Array<{ x: number; y: number }> = [];
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      const idx = (y * width + x) * 4;
+      if (data[idx] < 128) continue;
+      // Check if any neighbor is not selected
+      const isBoundary =
+        x === 0 || x === width - 1 || y === 0 || y === height - 1 ||
+        data[((y - 1) * width + x) * 4] < 128 ||
+        data[((y + 1) * width + x) * 4] < 128 ||
+        data[(y * width + x - 1) * 4] < 128 ||
+        data[(y * width + x + 1) * 4] < 128;
+      if (isBoundary) boundary.push({ x, y });
+    }
+  }
+
+  if (boundary.length === 0) return;
+
+  ctx.save();
+  ctx.setLineDash([4, 4]);
+  ctx.lineDashOffset = -animOffset;
+  ctx.lineWidth = 1 / zoom;
+  ctx.strokeStyle = '#000000';
+
+  // Draw boundary pixels as small rects
+  ctx.beginPath();
+  for (const p of boundary) {
+    ctx.rect(p.x, p.y, 1, 1);
+  }
+  ctx.stroke();
+
+  ctx.strokeStyle = '#ffffff';
+  ctx.lineDashOffset = -(animOffset + 4);
+  ctx.beginPath();
+  for (const p of boundary) {
+    ctx.rect(p.x, p.y, 1, 1);
+  }
+  ctx.stroke();
+  ctx.restore();
+}
+
+export function floodFillSelection(
+  imageData: ImageData,
+  startX: number,
+  startY: number,
+  tolerance: number,
+  contiguous: boolean,
+): ImageData {
+  const { width, height, data } = imageData;
+  const mask = createSelectionMask(width, height);
+  const maskData = mask.data;
+
+  const sx = Math.max(0, Math.min(width - 1, Math.round(startX)));
+  const sy = Math.max(0, Math.min(height - 1, Math.round(startY)));
+  const startIdx = (sy * width + sx) * 4;
+  const tr = data[startIdx];
+  const tg = data[startIdx + 1];
+  const tb = data[startIdx + 2];
+
+  const matchesColor = (idx: number) => {
+    return (
+      Math.abs(data[idx] - tr) +
+      Math.abs(data[idx + 1] - tg) +
+      Math.abs(data[idx + 2] - tb)
+    ) <= tolerance * 3;
+  };
+
+  if (contiguous) {
+    // BFS flood fill
+    const visited = new Uint8Array(width * height);
+    const queue: number[] = [sy * width + sx];
+    visited[sy * width + sx] = 1;
+
+    while (queue.length > 0) {
+      const pos = queue.shift()!;
+      const px = pos % width;
+      const py = (pos - px) / width;
+      const idx = pos * 4;
+
+      if (matchesColor(idx)) {
+        maskData[idx] = 255;
+        maskData[idx + 1] = 255;
+        maskData[idx + 2] = 255;
+        maskData[idx + 3] = 255;
+
+        const neighbors = [
+          py > 0 ? pos - width : -1,
+          py < height - 1 ? pos + width : -1,
+          px > 0 ? pos - 1 : -1,
+          px < width - 1 ? pos + 1 : -1,
+        ];
+        for (const n of neighbors) {
+          if (n >= 0 && !visited[n]) {
+            visited[n] = 1;
+            queue.push(n);
+          }
+        }
+      }
+    }
+  } else {
+    // Select all matching pixels globally
+    for (let i = 0; i < width * height; i++) {
+      const idx = i * 4;
+      if (matchesColor(idx)) {
+        maskData[idx] = 255;
+        maskData[idx + 1] = 255;
+        maskData[idx + 2] = 255;
+        maskData[idx + 3] = 255;
+      }
+    }
+  }
+
+  return mask;
+}
+
+// ---------------------------------------------------------------------------
+// Retouch Utilities
+// ---------------------------------------------------------------------------
+
+export function healBrushDab(
+  ctx: CanvasRenderingContext2D,
+  targetX: number,
+  targetY: number,
+  sourceX: number,
+  sourceY: number,
+  brushSize: number,
+  hardness: number,
+  opacity: number,
+) {
+  const canvas = ctx.canvas;
+  const radius = Math.max(1, Math.round(brushSize / 2));
+  const x0 = Math.round(targetX - radius);
+  const y0 = Math.round(targetY - radius);
+  const size = radius * 2;
+
+  // Clamp to canvas bounds
+  const tx = Math.max(0, x0);
+  const ty = Math.max(0, y0);
+  const tw = Math.min(canvas.width - tx, size - (tx - x0));
+  const th = Math.min(canvas.height - ty, size - (ty - y0));
+  if (tw <= 0 || th <= 0) return;
+
+  const srcX = Math.round(sourceX - radius) + (tx - x0);
+  const srcY = Math.round(sourceY - radius) + (ty - y0);
+  const clampedSrcX = Math.max(0, Math.min(canvas.width - tw, srcX));
+  const clampedSrcY = Math.max(0, Math.min(canvas.height - th, srcY));
+
+  const targetData = ctx.getImageData(tx, ty, tw, th);
+  const sourceData = ctx.getImageData(clampedSrcX, clampedSrcY, tw, th);
+  const out = targetData.data;
+  const src = sourceData.data;
+
+  const hardnessNorm = Math.max(0.1, hardness / 100);
+  const alpha = Math.max(0.01, opacity / 100);
+
+  for (let py = 0; py < th; py++) {
+    for (let px = 0; px < tw; px++) {
+      const dx = (px + (tx - x0)) - radius;
+      const dy = (py + (ty - y0)) - radius;
+      const dist = Math.sqrt(dx * dx + dy * dy) / radius;
+      if (dist > 1) continue;
+
+      // Gaussian falloff
+      const falloff = Math.exp(-((dist / hardnessNorm) ** 2) * 2);
+      const blend = falloff * alpha;
+
+      const idx = (py * tw + px) * 4;
+      out[idx] = out[idx] + (src[idx] - out[idx]) * blend;
+      out[idx + 1] = out[idx + 1] + (src[idx + 1] - out[idx + 1]) * blend;
+      out[idx + 2] = out[idx + 2] + (src[idx + 2] - out[idx + 2]) * blend;
+    }
+  }
+
+  ctx.putImageData(targetData, tx, ty);
+}
+
+export function cloneStampDab(
+  ctx: CanvasRenderingContext2D,
+  targetX: number,
+  targetY: number,
+  sourceX: number,
+  sourceY: number,
+  brushSize: number,
+  hardness: number,
+  opacity: number,
+  flow: number,
+) {
+  const canvas = ctx.canvas;
+  const radius = Math.max(1, Math.round(brushSize / 2));
+  const x0 = Math.round(targetX - radius);
+  const y0 = Math.round(targetY - radius);
+  const size = radius * 2;
+
+  const tx = Math.max(0, x0);
+  const ty = Math.max(0, y0);
+  const tw = Math.min(canvas.width - tx, size - (tx - x0));
+  const th = Math.min(canvas.height - ty, size - (ty - y0));
+  if (tw <= 0 || th <= 0) return;
+
+  const srcX = Math.round(sourceX - radius) + (tx - x0);
+  const srcY = Math.round(sourceY - radius) + (ty - y0);
+  const clampedSrcX = Math.max(0, Math.min(canvas.width - tw, srcX));
+  const clampedSrcY = Math.max(0, Math.min(canvas.height - th, srcY));
+
+  const targetData = ctx.getImageData(tx, ty, tw, th);
+  const sourceData = ctx.getImageData(clampedSrcX, clampedSrcY, tw, th);
+  const out = targetData.data;
+  const src = sourceData.data;
+
+  const hardnessNorm = Math.max(0.1, hardness / 100);
+  const alpha = Math.max(0.01, (opacity / 100) * (flow / 100));
+
+  for (let py = 0; py < th; py++) {
+    for (let px = 0; px < tw; px++) {
+      const dx = (px + (tx - x0)) - radius;
+      const dy = (py + (ty - y0)) - radius;
+      const dist = Math.sqrt(dx * dx + dy * dy) / radius;
+      if (dist > 1) continue;
+
+      const falloff = Math.exp(-((dist / hardnessNorm) ** 2) * 2);
+      const blend = falloff * alpha;
+
+      const idx = (py * tw + px) * 4;
+      out[idx] = out[idx] + (src[idx] - out[idx]) * blend;
+      out[idx + 1] = out[idx + 1] + (src[idx + 1] - out[idx + 1]) * blend;
+      out[idx + 2] = out[idx + 2] + (src[idx + 2] - out[idx + 2]) * blend;
+      out[idx + 3] = out[idx + 3] + (src[idx + 3] - out[idx + 3]) * blend;
+    }
+  }
+
+  ctx.putImageData(targetData, tx, ty);
+}
+
+export function spotRemoveDab(
+  ctx: CanvasRenderingContext2D,
+  centerX: number,
+  centerY: number,
+  brushSize: number,
+) {
+  const canvas = ctx.canvas;
+  const innerRadius = Math.max(1, Math.round(brushSize / 2));
+  const outerRadius = Math.max(innerRadius + 2, brushSize);
+
+  // Sample ring around spot
+  const x0 = Math.max(0, Math.round(centerX - outerRadius));
+  const y0 = Math.max(0, Math.round(centerY - outerRadius));
+  const x1 = Math.min(canvas.width, Math.round(centerX + outerRadius));
+  const y1 = Math.min(canvas.height, Math.round(centerY + outerRadius));
+  const w = x1 - x0;
+  const h = y1 - y0;
+  if (w <= 0 || h <= 0) return;
+
+  const imgData = ctx.getImageData(x0, y0, w, h);
+  const data = imgData.data;
+
+  // Calculate average of ring pixels
+  let rSum = 0, gSum = 0, bSum = 0, count = 0;
+  for (let py = 0; py < h; py++) {
+    for (let px = 0; px < w; px++) {
+      const dx = (px + x0) - centerX;
+      const dy = (py + y0) - centerY;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+      if (dist >= innerRadius && dist <= outerRadius) {
+        const idx = (py * w + px) * 4;
+        rSum += data[idx];
+        gSum += data[idx + 1];
+        bSum += data[idx + 2];
+        count++;
+      }
+    }
+  }
+
+  if (count === 0) return;
+  const avgR = rSum / count;
+  const avgG = gSum / count;
+  const avgB = bSum / count;
+
+  // Replace inner pixels with ring average, feathered
+  for (let py = 0; py < h; py++) {
+    for (let px = 0; px < w; px++) {
+      const dx = (px + x0) - centerX;
+      const dy = (py + y0) - centerY;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+      if (dist > innerRadius) continue;
+
+      const blend = 1 - (dist / innerRadius) * 0.3; // Stronger in center
+      const idx = (py * w + px) * 4;
+      data[idx] = data[idx] + (avgR - data[idx]) * blend;
+      data[idx + 1] = data[idx + 1] + (avgG - data[idx + 1]) * blend;
+      data[idx + 2] = data[idx + 2] + (avgB - data[idx + 2]) * blend;
+    }
+  }
+
+  ctx.putImageData(imgData, x0, y0);
+}

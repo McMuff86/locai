@@ -101,4 +101,10 @@ export interface TransformBounds {
   height: number;
 }
 
+export interface SelectionState {
+  mask: ImageData | null;
+  bounds: { x: number; y: number; w: number; h: number } | null;
+  active: boolean;
+}
+
 export const TEXT_LINE_HEIGHT = 1.2;
