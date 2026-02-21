@@ -52,6 +52,8 @@ export interface DrawSettings {
   shapeType: ShapeType;
   shapeFilled: boolean;
   strokeWidth: number;
+  magicWandTolerance: number;
+  magicWandContiguous: boolean;
 }
 
 export interface AdjustSettings {
@@ -89,6 +91,8 @@ const DEFAULT_DRAW: DrawSettings = {
   shapeType: 'rect',
   shapeFilled: false,
   strokeWidth: 2,
+  magicWandTolerance: 32,
+  magicWandContiguous: true,
 };
 
 const DEFAULT_ADJUST: AdjustSettings = {

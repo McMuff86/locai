@@ -72,6 +72,8 @@ interface ImageToolbarProps {
   comfyAvailable: boolean;
   rotation: number;
   onRotationChange: (deg: number) => void;
+  hasSelection: boolean;
+  onClearSelection: () => void;
 }
 
 // ── ToolButton ────────────────────────────────────────────────────────────────
@@ -142,9 +144,12 @@ export function ImageToolbar({
   comfyAvailable,
   rotation,
   onRotationChange,
+  hasSelection,
+  onClearSelection,
 }: ImageToolbarProps) {
   const isAdjustTool = ['brightness', 'contrast', 'saturation', 'blur', 'sharpen', 'grayscale', 'sepia', 'invert'].includes(activeTool);
-  const isDrawTool = ['draw', 'eraser', 'text', 'shapes', 'colorPicker', 'blurRegion'].includes(activeTool);
+  const isDrawTool = ['draw', 'eraser', 'text', 'shapes', 'colorPicker', 'blurRegion', 'healing', 'cloneStamp', 'spotRemove'].includes(activeTool);
+  const isSelectionTool = ['marquee', 'lasso', 'magicWand'].includes(activeTool);
 
   const shapeIcons: Record<ShapeType, React.ComponentType<{ className?: string }>> = {
     rect: Square,
@@ -333,7 +338,7 @@ export function ImageToolbar({
             </div>
 
             {/* Brush size */}
-            {(activeTool === 'draw' || activeTool === 'eraser') && (
+            {(activeTool === 'draw' || activeTool === 'eraser' || activeTool === 'healing' || activeTool === 'cloneStamp' || activeTool === 'spotRemove') && (
               <div className="flex items-center gap-1.5">
                 <span className="text-xs text-muted-foreground font-medium">Grösse</span>
                 <Slider
@@ -348,7 +353,7 @@ export function ImageToolbar({
               </div>
             )}
 
-            {(activeTool === 'draw' || activeTool === 'eraser') && (
+            {(activeTool === 'draw' || activeTool === 'eraser' || activeTool === 'healing' || activeTool === 'cloneStamp' || activeTool === 'spotRemove') && (
               <div className="flex items-center gap-1.5">
                 <span className="text-xs text-muted-foreground font-medium">Preset</span>
                 <select
@@ -364,7 +369,7 @@ export function ImageToolbar({
             )}
 
             {/* Brush opacity / strength */}
-            {(activeTool === 'draw' || activeTool === 'eraser') && (
+            {(activeTool === 'draw' || activeTool === 'eraser' || activeTool === 'healing' || activeTool === 'cloneStamp' || activeTool === 'spotRemove') && (
               <div className="flex items-center gap-1.5">
                 <span className="text-xs text-muted-foreground font-medium">Stärke</span>
                 <Slider
@@ -380,7 +385,7 @@ export function ImageToolbar({
             )}
 
             {/* Brush flow */}
-            {(activeTool === 'draw' || activeTool === 'eraser') && (
+            {(activeTool === 'draw' || activeTool === 'eraser' || activeTool === 'healing' || activeTool === 'cloneStamp' || activeTool === 'spotRemove') && (
               <div className="flex items-center gap-1.5">
                 <span className="text-xs text-muted-foreground font-medium">Fluss</span>
                 <Slider
@@ -395,7 +400,7 @@ export function ImageToolbar({
               </div>
             )}
 
-            {(activeTool === 'draw' || activeTool === 'eraser') && (
+            {(activeTool === 'draw' || activeTool === 'eraser' || activeTool === 'healing' || activeTool === 'cloneStamp' || activeTool === 'spotRemove') && (
               <div className="flex items-center gap-1.5">
                 <span className="text-xs text-muted-foreground font-medium">Spacing</span>
                 <Slider
@@ -410,7 +415,7 @@ export function ImageToolbar({
               </div>
             )}
 
-            {(activeTool === 'draw' || activeTool === 'eraser') && (
+            {(activeTool === 'draw' || activeTool === 'eraser' || activeTool === 'healing' || activeTool === 'cloneStamp' || activeTool === 'spotRemove') && (
               <div className="flex items-center gap-1.5">
                 <span className="text-xs text-muted-foreground font-medium">Jitter</span>
                 <Slider
@@ -425,7 +430,7 @@ export function ImageToolbar({
               </div>
             )}
 
-            {(activeTool === 'draw' || activeTool === 'eraser') && (
+            {(activeTool === 'draw' || activeTool === 'eraser' || activeTool === 'healing' || activeTool === 'cloneStamp' || activeTool === 'spotRemove') && (
               <div className="flex items-center gap-1.5">
                 <span className="text-xs text-muted-foreground font-medium">Smooth</span>
                 <Slider
@@ -495,6 +500,41 @@ export function ImageToolbar({
                   <span className="text-xs font-mono w-4">{drawSettings.strokeWidth}</span>
                 </div>
               </>
+            )}
+          </div>
+        )}
+
+        {/* Selection toolbar */}
+        {isSelectionTool && (
+          <div className="flex items-center gap-2.5 px-2 py-0.5 rounded-md bg-muted/30 border border-border/20 flex-wrap">
+            {activeTool === 'magicWand' && (
+              <>
+                <div className="flex items-center gap-1.5">
+                  <span className="text-xs text-muted-foreground font-medium">Toleranz</span>
+                  <Slider
+                    value={[drawSettings.magicWandTolerance]}
+                    onValueChange={([v]) => onDrawSettingChange('magicWandTolerance', v)}
+                    min={0}
+                    max={255}
+                    step={1}
+                    className="w-24"
+                  />
+                  <span className="text-xs font-mono w-6 text-right">{drawSettings.magicWandTolerance}</span>
+                </div>
+                <Button
+                  size="sm"
+                  variant={drawSettings.magicWandContiguous ? 'default' : 'outline'}
+                  className="h-7 text-xs px-2.5"
+                  onClick={() => onDrawSettingChange('magicWandContiguous', !drawSettings.magicWandContiguous)}
+                >
+                  {drawSettings.magicWandContiguous ? 'Zusammenhängend' : 'Global'}
+                </Button>
+              </>
+            )}
+            {hasSelection && (
+              <Button size="sm" variant="ghost" className="h-7 text-xs px-3 ml-auto" onClick={onClearSelection}>
+                Auswahl aufheben
+              </Button>
             )}
           </div>
         )}
