@@ -1,10 +1,19 @@
 "use client";
 
-import { useState, useCallback, useRef, useEffect } from 'react';
+import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
+import { ChevronDown, ChevronUp, Globe, Sparkles } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { getModelInfo } from '@/lib/ollama';
 import WebSearchButton from '@/components/chat/WebSearchButton';
+import type { ModelInfo, ProviderType } from '@/lib/providers/types';
+
+const PROVIDER_LABELS: Record<ProviderType, string> = {
+  ollama: 'Ollama',
+  anthropic: 'Anthropic',
+  openai: 'OpenAI',
+  openrouter: 'OpenRouter',
+};
 
 interface NoteAIActionsProps {
   basePath?: string;
@@ -13,8 +22,10 @@ interface NoteAIActionsProps {
   content: string;
   selectedNoteId: string | null;
   model: string;
+  provider: ProviderType;
   installedModels: string[];
-  onModelChange: (model: string) => void;
+  allModels: ModelInfo[];
+  onModelChange: (model: string, provider: ProviderType) => void;
   onApplyResult: (mode: 'append' | 'replace', result: string) => void;
 }
 
@@ -25,7 +36,9 @@ export function NoteAIActions({
   content,
   selectedNoteId,
   model,
+  provider,
   installedModels,
+  allModels,
   onModelChange,
   onApplyResult,
 }: NoteAIActionsProps) {
@@ -37,17 +50,37 @@ export function NoteAIActions({
   const [contextMax, setContextMax] = useState<number | null>(null);
   const [numCtx, setNumCtx] = useState<number | null>(null);
   const [loadingCtx, setLoadingCtx] = useState(false);
-  const [useWebSearch, setUseWebSearch] = useState(false);
-  const [searchQuery, setSearchQuery] = useState('');
   const [externalWebContext, setExternalWebContext] = useState<string | null>(null);
   const [externalQuery, setExternalQuery] = useState<string | null>(null);
+  const [isExpanded, setIsExpanded] = useState(false);
+  const [isAdvancedOpen, setIsAdvancedOpen] = useState(false);
   const aiAbortControllerRef = useRef<AbortController | null>(null);
 
-  // Load context window info for selected model
+  const isOllama = provider === 'ollama';
+
+  // Group models by provider for the dropdown
+  const groupedModels = useMemo(() => {
+    const groups: Record<string, ModelInfo[]> = {};
+    for (const m of allModels) {
+      if (!groups[m.provider]) groups[m.provider] = [];
+      groups[m.provider].push(m);
+    }
+    // If allModels is empty, fall back to installedModels as Ollama
+    if (Object.keys(groups).length === 0 && installedModels.length > 0) {
+      groups['ollama'] = installedModels.map((name) => ({
+        id: name,
+        name,
+        provider: 'ollama' as ProviderType,
+      }));
+    }
+    return groups;
+  }, [allModels, installedModels]);
+
+  // Load context window info for Ollama models only
   useEffect(() => {
     let cancelled = false;
     const loadCtx = async () => {
-      if (!model) {
+      if (!model || !isOllama) {
         setContextMax(null);
         setNumCtx(null);
         return;
@@ -58,7 +91,6 @@ export function NoteAIActions({
         if (cancelled) return;
         if (info?.contextLength) {
           setContextMax(info.contextLength);
-          // Clamp default to avoid huge OOM for very large context windows
           const safeDefault = Math.min(info.contextLength, 32768);
           setNumCtx(safeDefault);
         } else {
@@ -79,7 +111,7 @@ export function NoteAIActions({
     return () => {
       cancelled = true;
     };
-  }, [model, host]);
+  }, [model, host, isOllama]);
 
   const stopAi = useCallback(() => {
     if (aiAbortControllerRef.current) {
@@ -89,7 +121,7 @@ export function NoteAIActions({
     setAiLoading(false);
   }, []);
 
-  const runAi = async (action: 'complete' | 'summarize', withWebSearch = false) => {
+  const runAi = async (action: 'complete' | 'summarize') => {
     if (!basePath) {
       setError('Bitte zuerst den Notizen-Pfad setzen.');
       return;
@@ -102,21 +134,19 @@ export function NoteAIActions({
       setError('Für KI-Aktionen wird Inhalt benötigt.');
       return;
     }
-    
-    // Cancel any existing request
+
     if (aiAbortControllerRef.current) {
       aiAbortControllerRef.current.abort();
     }
-    
-    // Create new abort controller
+
     const abortController = new AbortController();
     aiAbortControllerRef.current = abortController;
-    
+
     setAiLoading(true);
     setAiAction(action);
     setAiResult('');
     setError(null);
-    
+
     try {
       const res = await fetch('/api/notes/ai', {
         method: 'POST',
@@ -127,24 +157,22 @@ export function NoteAIActions({
           content,
           action,
           model,
+          provider,
           host,
-        prompt: instruction || undefined,
-        numCtx: numCtx || undefined,
-        useWebSearch: withWebSearch || useWebSearch,
-        searchQuery: searchQuery || instruction || undefined,
-        searxngUrl,
-        // External web context from the dedicated picker (merged/selected)
-        externalContext: externalWebContext || undefined,
+          prompt: instruction || undefined,
+          numCtx: isOllama ? (numCtx || undefined) : undefined,
+          useWebSearch: false,
+          searxngUrl,
+          externalContext: externalWebContext || undefined,
         }),
         signal: abortController.signal,
       });
-      
+
       if (!res.ok) {
         const text = await res.text();
         throw new Error(text || 'Fehler bei der KI-Aktion');
       }
 
-      // Handle streaming response
       const reader = res.body?.getReader();
       if (!reader) {
         throw new Error('Stream nicht verfügbar');
@@ -158,7 +186,7 @@ export function NoteAIActions({
           reader.cancel();
           break;
         }
-        
+
         const { done, value } = await reader.read();
         if (done) break;
 
@@ -169,7 +197,7 @@ export function NoteAIActions({
           try {
             const jsonStr = line.replace('data: ', '');
             const data = JSON.parse(jsonStr);
-            
+
             if (data.token) {
               accumulated += data.token;
               setAiResult(accumulated);
@@ -198,31 +226,77 @@ export function NoteAIActions({
     }
   };
 
+  // Build a composite value for the <select> so we can encode provider + model
+  const selectValue = model ? `${provider}::${model}` : '';
+
+  const handleSelectChange = (value: string) => {
+    if (!value) {
+      onModelChange('', 'ollama');
+      return;
+    }
+    const [prov, ...rest] = value.split('::');
+    const modelId = rest.join('::');
+    onModelChange(modelId, prov as ProviderType);
+  };
+
+  const hasWebContext = !!externalWebContext;
+  const providerKeys = Object.keys(groupedModels) as ProviderType[];
+  const hasMultipleProviders = providerKeys.length > 1;
+
   return (
-    <div className="space-y-3">
-      {/* Model Selection and AI Buttons */}
-      <div className="flex flex-wrap items-center gap-2">
-        <label className="text-xs text-muted-foreground">Modell</label>
-        <select
-          value={model}
-          onChange={(e) => onModelChange(e.target.value)}
-          className="h-9 rounded-md border border-input bg-background px-2 text-sm min-w-[180px]"
-        >
-          <option value="">Modell wählen</option>
-          {installedModels.length > 0 ? (
-            installedModels.map((m) => (
-              <option key={m} value={m}>{m}</option>
-            ))
+    <div className="space-y-0">
+      {/* Header Row — always visible */}
+      <div
+        className="flex items-center justify-between gap-2 px-3 py-2 rounded-t-md bg-muted/40 border border-border/60 cursor-pointer select-none"
+        onClick={() => setIsExpanded((v) => !v)}
+      >
+        <div className="flex items-center gap-2 text-sm font-medium">
+          <Sparkles className="h-4 w-4 text-primary" />
+          <span>KI-Assistent</span>
+        </div>
+        <div className="flex items-center gap-2">
+          {/* Model Dropdown — grouped by provider */}
+          <select
+            value={selectValue}
+            onChange={(e) => handleSelectChange(e.target.value)}
+            onClick={(e) => e.stopPropagation()}
+            className="h-7 rounded-md border border-input bg-background px-2 text-xs min-w-[140px] max-w-[220px]"
+          >
+            <option value="">Modell wählen</option>
+            {hasMultipleProviders ? (
+              providerKeys.map((prov) => (
+                <optgroup key={prov} label={PROVIDER_LABELS[prov] || prov}>
+                  {groupedModels[prov].map((m) => (
+                    <option key={`${prov}::${m.id}`} value={`${prov}::${m.id}`}>
+                      {m.name}
+                    </option>
+                  ))}
+                </optgroup>
+              ))
+            ) : (
+              providerKeys.flatMap((prov) =>
+                groupedModels[prov].map((m) => (
+                  <option key={`${prov}::${m.id}`} value={`${prov}::${m.id}`}>
+                    {m.name}
+                  </option>
+                ))
+              )
+            )}
+          </select>
+          {isExpanded ? (
+            <ChevronUp className="h-4 w-4 text-muted-foreground" />
           ) : (
-            <>
-              <option value="llama3">llama3</option>
-              <option value="qwen2.5-coder">qwen2.5-coder</option>
-            </>
+            <ChevronDown className="h-4 w-4 text-muted-foreground" />
           )}
-        </select>
+        </div>
+      </div>
+
+      {/* Quick Actions Row — always visible */}
+      <div className={`flex items-center gap-2 px-3 py-2 border-x border-b border-border/60 ${isExpanded ? '' : 'rounded-b-md'}`}>
         <Button
           variant="outline"
           size="sm"
+          className="h-7 text-xs"
           onClick={() => runAi('complete')}
           disabled={aiLoading}
         >
@@ -231,118 +305,14 @@ export function NoteAIActions({
         <Button
           variant="outline"
           size="sm"
+          className="h-7 text-xs"
           onClick={() => runAi('summarize')}
           disabled={aiLoading}
         >
-          {aiLoading && aiAction === 'summarize' ? 'KI fasst...' : 'KI fasst zusammen'}
+          {aiLoading && aiAction === 'summarize' ? 'Zusammenfassen...' : 'Zusammenfassen'}
         </Button>
-        <Button
-          variant="default"
-          size="sm"
-          onClick={() => runAi('complete', true)}
-          disabled={aiLoading}
-        >
-          {aiLoading && aiAction === 'complete' && useWebSearch ? 'KI + Websuche...' : 'KI ergänzt + Websuche'}
-        </Button>
-      </div>
-
-      {/* Context window control */}
-      <div className="space-y-2">
-        <div className="flex items-center justify-between gap-2">
-          <span className="text-xs text-muted-foreground">
-            Kontext-Fenster (Tokens)
-          </span>
-          <span className="text-xs text-muted-foreground">
-            {loadingCtx
-              ? 'Lade...'
-              : contextMax
-              ? `${numCtx ?? contextMax} / ${contextMax}`
-              : 'Nicht verfügbar'}
-          </span>
-        </div>
-        {contextMax ? (
-          <div className="flex items-center gap-3">
-            <input
-              type="range"
-              min={1024}
-              max={contextMax}
-              step={512}
-              value={numCtx ?? contextMax}
-              onChange={(e) => setNumCtx(parseInt(e.target.value, 10))}
-              className="flex-1"
-              disabled={aiLoading}
-            />
-            <input
-              type="number"
-              min={512}
-              max={contextMax}
-              step={256}
-              value={numCtx ?? contextMax}
-              onChange={(e) => {
-                const val = parseInt(e.target.value, 10);
-                if (Number.isNaN(val)) return;
-                setNumCtx(Math.min(Math.max(val, 512), contextMax));
-              }}
-              className="w-24 h-9 rounded-md border border-input bg-background px-2 text-sm"
-              disabled={aiLoading}
-            />
-          </div>
-        ) : (
-          <p className="text-xs text-muted-foreground">
-            Kontext-Länge für dieses Modell konnte nicht geladen werden.
-          </p>
-        )}
-      </div>
-
-      {/* Optional user instruction */}
-      <div className="space-y-1">
-        <label className="text-xs text-muted-foreground">
-          Optionaler Prompt (spezifiziere, was ergänzt oder wie zusammengefasst werden soll)
-        </label>
-        <Textarea
-          value={instruction}
-          onChange={(e) => setInstruction(e.target.value)}
-          placeholder="Beispiel: Schreibe eine stichpunktartige Fortsetzung mit Fokus auf Schritte zur GPU-Optimierung."
-          className="min-h-[80px]"
-        />
-      </div>
-
-      {/* Websearch controls */}
-      <div className="space-y-2">
-        <div className="flex items-center gap-2">
-          <input
-            type="checkbox"
-            id="use-websearch"
-            checked={useWebSearch}
-            onChange={(e) => setUseWebSearch(e.target.checked)}
-            disabled={aiLoading}
-          />
-          <label htmlFor="use-websearch" className="text-sm">
-            Websuche einbeziehen
-          </label>
-        </div>
-        {useWebSearch && (
-          <div className="space-y-1">
-            <label className="text-xs text-muted-foreground">
-              Suchanfrage (leer lassen = nutzt deinen Prompt oder den Notiz-Titel)
-            </label>
-            <Textarea
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Beispiel: Aktuelle Best Practices für GPU Speicheroptimierung"
-              className="min-h-[60px]"
-              disabled={aiLoading}
-            />
-          </div>
-        )}
-      </div>
-
-      {/* Websearch Picker (mit Mehrfachauswahl & Kontextoptimierung aus Chat-Komponente) */}
-      <div className="space-y-2">
-        <div className="flex items-center justify-between">
-          <span className="text-xs text-muted-foreground">Websuche (Kontext auswählen & optimieren)</span>
-        </div>
-        <div className="flex items-center gap-2">
+        <div className="flex-1" />
+        <div className="flex items-center gap-1">
           <WebSearchButton
             enabled
             searxngUrl={searxngUrl}
@@ -353,28 +323,140 @@ export function NoteAIActions({
               setExternalQuery(query);
             }}
           />
-          {externalWebContext && (
-            <span className="text-xs text-muted-foreground">
-              Kontext aus Websuche gespeichert ({externalQuery || 'ohne Query'})
+          {hasWebContext && (
+            <span
+              className="inline-flex items-center gap-1 text-[10px] bg-primary/10 text-primary rounded-full px-2 py-0.5 cursor-pointer hover:bg-destructive/10 hover:text-destructive transition-colors"
+              title={`Web-Kontext: ${externalQuery || 'ohne Query'} — Klicken zum Entfernen`}
+              onClick={() => {
+                setExternalWebContext(null);
+                setExternalQuery(null);
+              }}
+            >
+              <Globe className="h-3 w-3" />
+              ×
             </span>
           )}
         </div>
-        {externalWebContext && (
-          <div className="border rounded-md p-2 bg-background/50 text-xs text-muted-foreground max-h-32 overflow-y-auto whitespace-pre-wrap">
-            {externalWebContext.slice(0, 600)}
-            {externalWebContext.length > 600 && ' ...'}
-          </div>
-        )}
       </div>
-      
+
+      {/* Expanded Section */}
+      {isExpanded && (
+        <div className="border-x border-b border-border/60 rounded-b-md px-3 py-3 space-y-3">
+          {/* Optional Prompt */}
+          <div className="space-y-1">
+            <label className="text-xs text-muted-foreground">
+              Optionaler Prompt
+            </label>
+            <Textarea
+              value={instruction}
+              onChange={(e) => setInstruction(e.target.value)}
+              placeholder="z.B. Schreibe eine stichpunktartige Fortsetzung..."
+              className="min-h-[60px] text-sm"
+            />
+          </div>
+
+          {/* Web Context Preview */}
+          {externalWebContext && (
+            <div className="space-y-1">
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-muted-foreground">
+                  Web-Kontext ({externalQuery || 'ohne Query'})
+                </span>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-5 px-1 text-[10px] text-muted-foreground hover:text-destructive"
+                  onClick={() => {
+                    setExternalWebContext(null);
+                    setExternalQuery(null);
+                  }}
+                >
+                  Entfernen
+                </Button>
+              </div>
+              <div className="border rounded-md p-2 bg-background/50 text-xs text-muted-foreground max-h-24 overflow-y-auto whitespace-pre-wrap">
+                {externalWebContext.slice(0, 400)}
+                {externalWebContext.length > 400 && ' ...'}
+              </div>
+            </div>
+          )}
+
+          {/* Advanced Section — only for Ollama (context window) */}
+          {isOllama && (
+            <div>
+              <button
+                type="button"
+                className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
+                onClick={() => setIsAdvancedOpen((v) => !v)}
+              >
+                {isAdvancedOpen ? (
+                  <ChevronDown className="h-3 w-3" />
+                ) : (
+                  <ChevronUp className="h-3 w-3 rotate-90" />
+                )}
+                Erweitert
+              </button>
+              {isAdvancedOpen && (
+                <div className="mt-2 space-y-2">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-xs text-muted-foreground">
+                      Kontext-Fenster (Tokens)
+                    </span>
+                    <span className="text-xs text-muted-foreground">
+                      {loadingCtx
+                        ? 'Lade...'
+                        : contextMax
+                        ? `${numCtx ?? contextMax} / ${contextMax}`
+                        : 'Nicht verfügbar'}
+                    </span>
+                  </div>
+                  {contextMax ? (
+                    <div className="flex items-center gap-3">
+                      <input
+                        type="range"
+                        min={1024}
+                        max={contextMax}
+                        step={512}
+                        value={numCtx ?? contextMax}
+                        onChange={(e) => setNumCtx(parseInt(e.target.value, 10))}
+                        className="flex-1"
+                        disabled={aiLoading}
+                      />
+                      <input
+                        type="number"
+                        min={512}
+                        max={contextMax}
+                        step={256}
+                        value={numCtx ?? contextMax}
+                        onChange={(e) => {
+                          const val = parseInt(e.target.value, 10);
+                          if (Number.isNaN(val)) return;
+                          setNumCtx(Math.min(Math.max(val, 512), contextMax));
+                        }}
+                        className="w-24 h-7 rounded-md border border-input bg-background px-2 text-xs"
+                        disabled={aiLoading}
+                      />
+                    </div>
+                  ) : (
+                    <p className="text-xs text-muted-foreground">
+                      Kontext-Länge für dieses Modell konnte nicht geladen werden.
+                    </p>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Error Display */}
-      {error && <p className="text-xs text-destructive">{error}</p>}
-      
+      {error && <p className="text-xs text-destructive mt-2">{error}</p>}
+
       {/* AI Streaming / Result Area */}
       {(aiLoading || aiResult) && (
-        <div className={`rounded-md border p-3 space-y-2 transition-colors ${
-          aiLoading 
-            ? 'border-primary/40 bg-primary/5' 
+        <div className={`rounded-md border p-3 space-y-2 transition-colors mt-2 ${
+          aiLoading
+            ? 'border-primary/40 bg-primary/5'
             : 'border-green-500/40 bg-green-500/5'
         }`}>
           {/* Header */}
@@ -394,8 +476,8 @@ export function NoteAIActions({
             </div>
             <div className="flex items-center gap-1">
               {aiLoading && (
-                <Button 
-                  size="sm" 
+                <Button
+                  size="sm"
                   variant="outline"
                   className="h-6 px-2 text-xs text-destructive border-destructive/50 hover:bg-destructive/10"
                   onClick={stopAi}
@@ -404,9 +486,9 @@ export function NoteAIActions({
                 </Button>
               )}
               {!aiLoading && (
-                <Button 
-                  size="sm" 
-                  variant="ghost" 
+                <Button
+                  size="sm"
+                  variant="ghost"
                   className="h-6 w-6 p-0 text-muted-foreground hover:text-foreground"
                   onClick={() => setAiResult(null)}
                 >
@@ -415,7 +497,7 @@ export function NoteAIActions({
               )}
             </div>
           </div>
-          
+
           {/* Streaming text with blinking cursor */}
           {aiLoading ? (
             <div className="text-sm whitespace-pre-wrap border-l-2 pl-3 py-1 border-primary/30">
@@ -435,7 +517,7 @@ export function NoteAIActions({
               />
             )
           )}
-          
+
           {/* Action buttons (only when done) */}
           {!aiLoading && aiResult && (
             <div className="flex items-center gap-2 pt-1">
@@ -455,4 +537,3 @@ export function NoteAIActions({
     </div>
   );
 }
-

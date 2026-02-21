@@ -24,6 +24,7 @@ import {
   useNoteSearch,
 } from '@/components/notes';
 import { useNotesContext } from './layout';
+import type { ProviderType } from '@/lib/providers/types';
 
 export default function NotesPage() {
   const { toast } = useToast();
@@ -38,6 +39,7 @@ export default function NotesPage() {
     fetchNotes: contextFetchNotes,
     selectedModel,
     installedModels,
+    allModels,
     host,
     searxngUrl,
   } = useNotesContext();
@@ -76,9 +78,30 @@ export default function NotesPage() {
   } = useNoteSearch({ basePath });
   
   // UI state
+  const NOTES_AI_MODEL_KEY = 'locai-notes-ai-model';
   const [isNoteMinimized, setIsNoteMinimized] = useState(false);
   const [highlightTerm, setHighlightTerm] = useState<string | null>(null);
-  const [model, setModel] = useState(selectedModel || '');
+  const [model, setModel] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const stored = window.localStorage.getItem(NOTES_AI_MODEL_KEY);
+      if (stored) {
+        // stored format: "provider::model" or legacy plain model name
+        const modelPart = stored.includes('::') ? stored.split('::').slice(1).join('::') : stored;
+        return modelPart;
+      }
+      return selectedModel || '';
+    }
+    return selectedModel || '';
+  });
+  const [provider, setProvider] = useState<ProviderType>(() => {
+    if (typeof window !== 'undefined') {
+      const stored = window.localStorage.getItem(NOTES_AI_MODEL_KEY);
+      if (stored && stored.includes('::')) {
+        return stored.split('::')[0] as ProviderType;
+      }
+    }
+    return 'ollama';
+  });
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   
   // Unsaved changes dialog state
@@ -97,12 +120,25 @@ export default function NotesPage() {
     }
   }, [basePath, fetchNotes]);
 
-  // Update model when selectedModel changes
+  // Persist provider::model to localStorage
   useEffect(() => {
-    if (selectedModel) {
+    if (model) {
+      localStorage.setItem(NOTES_AI_MODEL_KEY, `${provider}::${model}`);
+    }
+  }, [model, provider]);
+
+  // Sync from context only when no localStorage value exists
+  useEffect(() => {
+    if (selectedModel && !localStorage.getItem(NOTES_AI_MODEL_KEY)) {
       setModel(selectedModel);
+      setProvider('ollama');
     }
   }, [selectedModel]);
+
+  const handleModelChange = useCallback((newModel: string, newProvider: ProviderType) => {
+    setModel(newModel);
+    setProvider(newProvider);
+  }, []);
 
   // Handle note ID from URL (from graph navigation) - only once per URL change
   useEffect(() => {
@@ -361,8 +397,10 @@ export default function NotesPage() {
             content={form.content}
             selectedNoteId={selectedId}
             model={model}
+            provider={provider}
             installedModels={installedModels}
-            onModelChange={setModel}
+            allModels={allModels}
+            onModelChange={handleModelChange}
             onApplyResult={handleApplyAiResult}
           />
           
