@@ -26,7 +26,9 @@ export interface CanvasTransform {
 
 const DEFAULT_WINDOW_SIZE = { w: 500, h: 400 };
 const IMAGE_WINDOW_SIZE = { w: 700, h: 500 };
+const PDF_WINDOW_SIZE = { w: 800, h: 600 };
 const IMAGE_EXTENSIONS = ['.png', '.jpg', '.jpeg', '.gif', '.webp', '.svg', '.avif'];
+const PDF_EXTENSIONS = ['.pdf'];
 export const MIN_WINDOW_SIZE = { w: 300, h: 200 };
 const INITIAL_ZOOM = 1;
 const CASCADE_OFFSET = 30;
@@ -95,7 +97,9 @@ export function useFileCanvas(): UseFileCanvasReturn {
           file,
           rootId,
           position,
-          size: IMAGE_EXTENSIONS.includes(file.extension?.toLowerCase() ?? '') ? { ...IMAGE_WINDOW_SIZE } : { ...DEFAULT_WINDOW_SIZE },
+          size: IMAGE_EXTENSIONS.includes(file.extension?.toLowerCase() ?? '') ? { ...IMAGE_WINDOW_SIZE }
+              : PDF_EXTENSIONS.includes(file.extension?.toLowerCase() ?? '') ? { ...PDF_WINDOW_SIZE }
+              : { ...DEFAULT_WINDOW_SIZE },
           zIndex: newZ,
           isMinimized: false,
         };

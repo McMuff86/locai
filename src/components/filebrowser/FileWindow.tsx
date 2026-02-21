@@ -32,8 +32,21 @@ import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { oneDark } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import type { CanvasWindow } from '@/hooks/useFileCanvas';
 import { MIN_WINDOW_SIZE } from '@/hooks/useFileCanvas';
+import dynamic from 'next/dynamic';
 import type { FilePreviewType } from '@/lib/filebrowser/types';
 import { ImageEditor } from './ImageEditor';
+
+const PDFViewer = dynamic(
+  () => import('./PDFViewer').then(mod => ({ default: mod.PDFViewer })),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="flex items-center justify-center h-full">
+        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+      </div>
+    ),
+  },
+);
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -57,6 +70,7 @@ function getFileIcon(extension: string) {
   if (['.md', '.txt', '.csv', '.log'].includes(extension)) {
     return <FileText className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />;
   }
+  if (extension === '.pdf') return <FileText className="h-3.5 w-3.5 text-red-500 flex-shrink-0" />;
   return <File className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />;
 }
 
@@ -824,6 +838,18 @@ function WindowContent({
         <div className="flex-1 min-h-0 overflow-hidden">
           <ImageEditor
             imageUrl={`/api/filebrowser/image?${new URLSearchParams({ rootId, path: relativePath })}`}
+            rootId={rootId}
+            relativePath={relativePath}
+            fileName={fileName}
+          />
+        </div>
+      )}
+
+      {/* ── PDF viewer ────────────────────────────────────────── */}
+      {type === 'pdf' && (
+        <div className="flex-1 min-h-0 overflow-hidden">
+          <PDFViewer
+            pdfUrl={`/api/filebrowser/pdf?${new URLSearchParams({ rootId, path: relativePath })}`}
             rootId={rootId}
             relativePath={relativePath}
             fileName={fileName}

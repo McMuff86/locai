@@ -15,6 +15,7 @@ import saveMemoryTool from './saveMemory';
 import recallMemoryTool from './recallMemory';
 import runCommandTool from './runCommand';
 import generateImageTool from './generateImage';
+import readPdfTool from './readPdf';
 import runCodeTool from './runCode';
 
 /** All built-in tools in registration order */
@@ -30,6 +31,7 @@ export const builtinTools = [
   runCommandTool,
   runCodeTool,
   generateImageTool,
+  readPdfTool,
 ] as const;
 
 /**
@@ -45,4 +47,4 @@ export function registerBuiltinTools(registry: ToolRegistry = defaultRegistry): 
 }
 
 // Re-export individual tools for selective registration
-export { searchDocumentsTool, webSearchTool, readFileTool, writeFileTool, editFileTool, createNoteTool, saveMemoryTool, recallMemoryTool, runCommandTool, runCodeTool, generateImageTool };
+export { searchDocumentsTool, webSearchTool, readFileTool, writeFileTool, editFileTool, createNoteTool, saveMemoryTool, recallMemoryTool, runCommandTool, runCodeTool, generateImageTool, readPdfTool };
