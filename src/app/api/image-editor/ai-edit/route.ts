@@ -2,6 +2,11 @@ import { NextRequest } from 'next/server';
 import fs from 'fs';
 import path from 'path';
 import { apiError, apiSuccess } from '../../_utils/responses';
+import {
+  loadTemplate,
+  ensureDefaultTemplate,
+  replacePlaceholders,
+} from '@/lib/comfyui/workflowTemplateStore';
 
 export const runtime = 'nodejs';
 
@@ -18,8 +23,13 @@ function getSettings(): Record<string, unknown> {
 export async function POST(req: NextRequest) {
 
   try {
-    const body = await req.json() as { image?: string; prompt?: string; denoise?: number };
-    const { image, prompt, denoise = 0.6 } = body;
+    const body = await req.json() as {
+      image?: string;
+      prompt?: string;
+      denoise?: number;
+      workflowId?: string;
+    };
+    const { image, prompt, denoise = 0.6, workflowId } = body;
 
     if (!image || !prompt) {
       return apiError('Bild und Prompt erforderlich', 400);
@@ -59,25 +69,30 @@ export async function POST(req: NextRequest) {
     const uploadData = await uploadRes.json() as { name?: string };
     const inputImageName = uploadData.name || 'input_image.png';
 
-    // Simple img2img workflow
-    const workflow = {
-      '1': { class_type: 'LoadImage', inputs: { image: inputImageName } },
-      '2': { class_type: 'CLIPTextEncode', inputs: { text: prompt, clip: ['4', 1] } },
-      '3': { class_type: 'CLIPTextEncode', inputs: { text: 'low quality, blurry, distorted', clip: ['4', 1] } },
-      '4': { class_type: 'CheckpointLoaderSimple', inputs: { ckpt_name: 'sd_xl_base_1.0.safetensors' } },
-      '5': { class_type: 'VAEEncode', inputs: { pixels: ['1', 0], vae: ['4', 2] } },
-      '6': {
-        class_type: 'KSampler',
-        inputs: {
-          model: ['4', 0], positive: ['2', 0], negative: ['3', 0], latent_image: ['5', 0],
-          seed: Math.floor(Math.random() * 1000000000),
-          steps: 20, cfg: 7.0, sampler_name: 'euler', scheduler: 'normal',
-          denoise: Math.max(0.3, Math.min(0.9, denoise)),
-        },
-      },
-      '7': { class_type: 'VAEDecode', inputs: { samples: ['6', 0], vae: ['4', 2] } },
-      '8': { class_type: 'SaveImage', inputs: { images: ['7', 0], filename_prefix: 'locai_edit' } },
-    };
+    // Build workflow from template or use default
+    await ensureDefaultTemplate();
+    const templateId = workflowId || 'default-img2img';
+    const template = await loadTemplate(templateId);
+
+    if (!template) {
+      return apiError(`Workflow-Template "${templateId}" nicht gefunden`, 404);
+    }
+
+    const workflow = replacePlaceholders(template.workflow, {
+      image: inputImageName,
+      prompt,
+      denoise: Math.max(0.3, Math.min(0.9, denoise)),
+    });
+
+    // Find SaveImage node dynamically
+    const saveNodeEntry = Object.entries(workflow).find(
+      ([, n]) => n.class_type === 'SaveImage',
+    );
+    const saveNodeId = saveNodeEntry?.[0];
+
+    if (!saveNodeId) {
+      return apiError('Workflow enthält keinen SaveImage-Node', 400);
+    }
 
     const queueRes = await fetch(`http://${comfyHost}:${comfyPort}/prompt`, {
       method: 'POST',
@@ -106,9 +121,9 @@ export async function POST(req: NextRequest) {
 
       const history = await historyRes.json() as Record<string, { outputs?: Record<string, { images?: Array<{ filename: string; subfolder?: string; type?: string }> }> }>;
       const entry = history[promptId];
-      if (!entry?.outputs?.['8']?.images?.length) continue;
+      if (!entry?.outputs?.[saveNodeId]?.images?.length) continue;
 
-      const outputImage = entry.outputs['8'].images[0];
+      const outputImage = entry.outputs[saveNodeId].images[0];
       const imgRes = await fetch(
         `http://${comfyHost}:${comfyPort}/view?filename=${outputImage.filename}&subfolder=${outputImage.subfolder || ''}&type=${outputImage.type || 'output'}`,
       );
