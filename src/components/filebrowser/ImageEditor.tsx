@@ -76,6 +76,7 @@ export function ImageEditor({ imageUrl, rootId, relativePath, fileName }: ImageE
 
   const containerRef = useRef<HTMLDivElement>(null);
   const overlayCanvasRef = useRef<HTMLCanvasElement>(null);
+  const offscreenOverlayRef = useRef<HTMLCanvasElement | null>(null);
   const [imageLoaded, setImageLoaded] = useState(false);
   const [imageLoadError, setImageLoadError] = useState<string | null>(null);
   const [dimensions, setDimensions] = useState({ w: 0, h: 0 });
@@ -794,6 +795,9 @@ export function ImageEditor({ imageUrl, rootId, relativePath, fileName }: ImageE
   }, [editor.drawSettings]);
 
   const clearOverlay = useCallback(() => {
+    // If marching ants are active, let the RAF loop handle the overlay
+    // to avoid a 1-frame blank between clearRect and the next draw.
+    if (marchingAntsAnimRef.current !== null) return;
     const overlay = overlayCanvasRef.current;
     if (!overlay) return;
     const ctx = overlay.getContext('2d');
@@ -840,12 +844,27 @@ export function ImageEditor({ imageUrl, rootId, relativePath, fileName }: ImageE
       const overlay = overlayCanvasRef.current;
       const edges = selectionEdgesRef.current;
       if (overlay && edges.length > 0) {
-        const ctx = overlay.getContext('2d');
-        if (ctx) {
-          ctx.clearRect(0, 0, overlay.width, overlay.height);
-          renderCachedMarchingAnts(ctx, edges, marchingAntsOffsetRef.current, zoomRef.current);
+        // Ensure offscreen canvas exists and matches overlay size
+        let offscreen = offscreenOverlayRef.current;
+        if (!offscreen || offscreen.width !== overlay.width || offscreen.height !== overlay.height) {
+          offscreen = document.createElement('canvas');
+          offscreen.width = overlay.width;
+          offscreen.height = overlay.height;
+          offscreenOverlayRef.current = offscreen;
+        }
+        const offCtx = offscreen.getContext('2d');
+        if (offCtx) {
+          // Draw to offscreen buffer first
+          offCtx.clearRect(0, 0, offscreen.width, offscreen.height);
+          renderCachedMarchingAnts(offCtx, edges, marchingAntsOffsetRef.current, zoomRef.current);
           if (hasSourceRef.current && sourcePointRef.current) {
-            drawSourceCrosshairOnOverlay(ctx);
+            drawSourceCrosshairOnOverlay(offCtx);
+          }
+          // Single blit to visible overlay — eliminates flicker
+          const ctx = overlay.getContext('2d');
+          if (ctx) {
+            ctx.clearRect(0, 0, overlay.width, overlay.height);
+            ctx.drawImage(offscreen, 0, 0);
           }
         }
       }
@@ -936,6 +955,10 @@ export function ImageEditor({ imageUrl, rootId, relativePath, fileName }: ImageE
         selectAll();
       }
       if ((e.ctrlKey || e.metaKey) && e.key === 'd' && !typing) {
+        e.preventDefault();
+        clearSelection();
+      }
+      if (e.key === 'Escape' && hasSelection && !typing) {
         e.preventDefault();
         clearSelection();
       }
@@ -2987,16 +3010,19 @@ export function ImageEditor({ imageUrl, rootId, relativePath, fileName }: ImageE
             <p className="text-xs text-muted-foreground">ComfyUI ist nicht gestartet.</p>
           ) : (
             <div className="flex flex-col gap-2">
-              {aiEditWorkflows.length > 1 && (
-                <select
-                  value={selectedWorkflowId}
-                  onChange={(e) => setSelectedWorkflowId(e.target.value)}
-                  className="bg-background border border-border rounded px-2 py-1 text-xs outline-none"
-                >
-                  {aiEditWorkflows.map((wf) => (
-                    <option key={wf.id} value={wf.id}>{wf.name}</option>
-                  ))}
-                </select>
+              {aiEditWorkflows.length > 0 && (
+                <div className="flex flex-col gap-1">
+                  <span className="text-xs text-muted-foreground">Workflow</span>
+                  <select
+                    value={selectedWorkflowId}
+                    onChange={(e) => setSelectedWorkflowId(e.target.value)}
+                    className="bg-background border border-border rounded px-2 py-1 text-xs outline-none"
+                  >
+                    {aiEditWorkflows.map((wf) => (
+                      <option key={wf.id} value={wf.id}>{wf.name}</option>
+                    ))}
+                  </select>
+                </div>
               )}
               <input
                 type="text"

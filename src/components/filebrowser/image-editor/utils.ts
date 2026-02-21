@@ -376,24 +376,86 @@ export function createSelectionMask(w: number, h: number): ImageData {
   return new ImageData(w, h);
 }
 
-/** Extract edge segments from a selection mask (run once per selection change). */
+/** Extract edge segments from a selection mask (run once per selection change).
+ *  Merges collinear segments to reduce draw calls significantly. */
 export function extractSelectionEdges(mask: ImageData): EdgeSegment[] {
   const { width, height, data } = mask;
-  const edges: EdgeSegment[] = [];
 
   const isSelected = (x: number, y: number): boolean => {
     if (x < 0 || x >= width || y < 0 || y >= height) return false;
     return data[(y * width + x) * 4] >= 128;
   };
 
+  // Collect raw horizontal and vertical edges separately for merging
+  // Horizontal edges: keyed by y, sorted by x
+  const hEdges = new Map<number, number[]>(); // y -> [x1, x2, x1, x2, ...]
+  // Vertical edges: keyed by x, sorted by y
+  const vEdges = new Map<number, number[]>(); // x -> [y1, y2, y1, y2, ...]
+
   for (let y = 0; y < height; y++) {
     for (let x = 0; x < width; x++) {
       if (!isSelected(x, y)) continue;
-      if (!isSelected(x, y - 1)) edges.push({ x1: x, y1: y, x2: x + 1, y2: y });
-      if (!isSelected(x, y + 1)) edges.push({ x1: x, y1: y + 1, x2: x + 1, y2: y + 1 });
-      if (!isSelected(x - 1, y)) edges.push({ x1: x, y1: y, x2: x, y2: y + 1 });
-      if (!isSelected(x + 1, y)) edges.push({ x1: x + 1, y1: y, x2: x + 1, y2: y + 1 });
+      // Top edge
+      if (!isSelected(x, y - 1)) {
+        let arr = hEdges.get(y);
+        if (!arr) { arr = []; hEdges.set(y, arr); }
+        arr.push(x);
+      }
+      // Bottom edge
+      if (!isSelected(x, y + 1)) {
+        let arr = hEdges.get(y + 1);
+        if (!arr) { arr = []; hEdges.set(y + 1, arr); }
+        arr.push(x);
+      }
+      // Left edge
+      if (!isSelected(x - 1, y)) {
+        let arr = vEdges.get(x);
+        if (!arr) { arr = []; vEdges.set(x, arr); }
+        arr.push(y);
+      }
+      // Right edge
+      if (!isSelected(x + 1, y)) {
+        let arr = vEdges.get(x + 1);
+        if (!arr) { arr = []; vEdges.set(x + 1, arr); }
+        arr.push(y);
+      }
     }
+  }
+
+  const edges: EdgeSegment[] = [];
+
+  // Merge horizontal edges: same y, consecutive x values
+  for (const [y, xs] of hEdges) {
+    xs.sort((a, b) => a - b);
+    let start = xs[0];
+    let end = xs[0] + 1;
+    for (let i = 1; i < xs.length; i++) {
+      if (xs[i] === end) {
+        end = xs[i] + 1;
+      } else {
+        edges.push({ x1: start, y1: y, x2: end, y2: y });
+        start = xs[i];
+        end = xs[i] + 1;
+      }
+    }
+    edges.push({ x1: start, y1: y, x2: end, y2: y });
+  }
+
+  // Merge vertical edges: same x, consecutive y values
+  for (const [x, ys] of vEdges) {
+    ys.sort((a, b) => a - b);
+    let start = ys[0];
+    let end = ys[0] + 1;
+    for (let i = 1; i < ys.length; i++) {
+      if (ys[i] === end) {
+        end = ys[i] + 1;
+      } else {
+        edges.push({ x1: x, y1: start, x2: x, y2: end });
+        start = ys[i];
+        end = ys[i] + 1;
+      }
+    }
+    edges.push({ x1: x, y1: start, x2: x, y2: end });
   }
 
   return edges;
