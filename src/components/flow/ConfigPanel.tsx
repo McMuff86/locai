@@ -5,8 +5,7 @@ import { Download, GripVertical, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-import { getOllamaModels } from '@/lib/ollama';
-import { loadProviderSettings, createProvider, type ProviderType } from '@/lib/providers';
+import type { ProviderType, ModelInfo } from '@/lib/providers/types';
 import type { AgentNodeData, InputNodeData, OutputNodeData, TemplateNodeData } from '@/lib/flow/types';
 import { saveFlowOutput } from '@/lib/flow/saveOutput';
 import { cn } from '@/lib/utils';
@@ -35,29 +34,6 @@ const FALLBACK_AGENT_MODELS = [
   'gemma3',
 ];
 
-const ANTHROPIC_MODELS = [
-  'claude-sonnet-4-20250514',
-  'claude-opus-4-20250514',
-  'claude-3-5-haiku-20241022',
-];
-
-const OPENAI_MODELS = [
-  'gpt-4o',
-  'gpt-4o-mini',
-  'gpt-4-turbo',
-  'o3-mini',
-];
-
-const OPENROUTER_MODELS = [
-  'anthropic/claude-sonnet-4-20250514',
-  'anthropic/claude-3-5-haiku-20241022',
-  'openai/gpt-4o',
-  'openai/gpt-4o-mini',
-  'google/gemini-2.0-flash-exp',
-  'meta-llama/llama-3.3-70b-instruct',
-  'deepseek/deepseek-r1',
-];
-
 function SectionTitle({ children }: { children: React.ReactNode }) {
   return <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{children}</h3>;
 }
@@ -69,7 +45,7 @@ export function ConfigPanel() {
   const updateNodeLabel = useFlowStore((state) => state.updateNodeLabel);
   const updateNodeConfig = useFlowStore((state) => state.updateNodeConfig);
   const removeNode = useFlowStore((state) => state.removeNode);
-  const [availableModels, setAvailableModels] = useState<string[]>([]);
+  const [modelsByProvider, setModelsByProvider] = useState<Record<string, ModelInfo[]>>({});
   const [activeProviders, setActiveProviders] = useState<ProviderType[]>(['ollama']);
   const [isSaving, setIsSaving] = useState(false);
   const [panelWidth, setPanelWidth] = useState(360);
@@ -85,29 +61,21 @@ export function ConfigPanel() {
     let cancelled = false;
 
     const loadModels = async () => {
-      // Load Ollama models
-      const models = await getOllamaModels();
-      if (cancelled) return;
+      try {
+        const res = await fetch('/api/models');
+        if (!res.ok) throw new Error('Failed to fetch models');
+        const data = await res.json();
+        if (cancelled) return;
 
-      const uniqueModels = Array.from(
-        new Set(
-          models
-            .map((model) => model.name?.trim())
-            .filter((modelName): modelName is string => Boolean(modelName)),
-        ),
-      ).sort((left, right) => left.localeCompare(right));
-
-      setAvailableModels(uniqueModels);
-
-      // Detect active providers
-      const settings = loadProviderSettings();
-      const active: ProviderType[] = ['ollama'];
-      for (const [type, config] of Object.entries(settings.providers)) {
-        if (config.enabled && config.apiKey && type !== 'ollama') {
-          active.push(type as ProviderType);
+        const providers: ProviderType[] = data.providers ?? ['ollama'];
+        setActiveProviders(providers);
+        setModelsByProvider(data.byProvider ?? {});
+      } catch {
+        if (!cancelled) {
+          setActiveProviders(['ollama']);
+          setModelsByProvider({});
         }
       }
-      if (!cancelled) setActiveProviders(active);
     };
 
     void loadModels();
@@ -118,37 +86,35 @@ export function ConfigPanel() {
   }, []);
 
   const agentModelOptions = useMemo(() => {
-    const options = new Set<string>();
+    const seen = new Set<string>();
+    const options: { id: string; name: string }[] = [];
     const currentModel = agentData?.config.model?.trim();
     const provider = agentData?.config.provider ?? 'ollama';
 
+    const add = (id: string, name: string) => {
+      if (!seen.has(id)) {
+        seen.add(id);
+        options.push({ id, name });
+      }
+    };
+
     if (currentModel) {
-      options.add(currentModel);
+      add(currentModel, currentModel);
     }
 
-    if (provider === 'ollama') {
-      for (const modelName of availableModels) {
-        options.add(modelName);
+    const serverModels = modelsByProvider[provider];
+    if (serverModels && serverModels.length > 0) {
+      for (const m of serverModels) {
+        add(m.id, m.name);
       }
+    } else if (provider === 'ollama') {
       for (const modelName of FALLBACK_AGENT_MODELS) {
-        options.add(modelName);
-      }
-    } else if (provider === 'anthropic') {
-      for (const modelName of ANTHROPIC_MODELS) {
-        options.add(modelName);
-      }
-    } else if (provider === 'openai') {
-      for (const modelName of OPENAI_MODELS) {
-        options.add(modelName);
-      }
-    } else if (provider === 'openrouter') {
-      for (const modelName of OPENROUTER_MODELS) {
-        options.add(modelName);
+        add(modelName, modelName);
       }
     }
 
-    return Array.from(options);
-  }, [agentData?.config.model, agentData?.config.provider, availableModels]);
+    return options;
+  }, [agentData?.config.model, agentData?.config.provider, modelsByProvider]);
 
   const handleResizeStart = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
     e.preventDefault();
@@ -290,9 +256,9 @@ export function ConfigPanel() {
                 onChange={(event) => updateNodeConfig(selectedNode.id, { model: event.target.value })}
                 className="h-9 w-full rounded-md border border-input bg-background px-2 text-xs outline-none transition-[color,box-shadow] focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
               >
-                {agentModelOptions.map((modelName) => (
-                  <option key={modelName} value={modelName}>
-                    {modelName}
+                {agentModelOptions.map((m) => (
+                  <option key={m.id} value={m.id}>
+                    {m.name}
                   </option>
                 ))}
               </select>

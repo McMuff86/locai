@@ -97,6 +97,18 @@ export default function SettingsPage() {
     });
   }, []);
 
+  // ── Server-configured providers ─────────────────────────────────────
+  const [serverProviders, setServerProviders] = useState<string[]>([]);
+
+  useEffect(() => {
+    fetch('/api/models')
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (data?.providers) setServerProviders(data.providers as string[]);
+      })
+      .catch(() => {});
+  }, []);
+
   // ── System Stats ───────────────────────────────────────────────────────
   const [systemStats, setSystemStats] = useState<SystemStats | null>(null);
   const [isLoadingStats, setIsLoadingStats] = useState(false);
@@ -580,9 +592,18 @@ export default function SettingsPage() {
           <p className="text-sm text-muted-foreground">
             Konfiguriere zusätzliche AI-Provider für den Flow Builder. API Keys werden nur lokal gespeichert.
           </p>
+          {serverProviders.filter((p) => p !== 'ollama').length > 0 && (
+            <div className="flex items-start gap-2 text-sm bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 rounded-lg p-3">
+              <CheckCircle2 className="h-4 w-4 mt-0.5 shrink-0" />
+              <span>
+                Provider die in <code className="bg-background/50 px-1 rounded text-xs">.env.local</code> konfiguriert sind, werden automatisch erkannt und sind im Flow Builder verfügbar.
+              </span>
+            </div>
+          )}
           <div className="space-y-3">
             {(['anthropic', 'openai', 'openrouter'] as ProviderType[]).map((type) => {
               const config = providerSettings.providers[type];
+              const isServerConfigured = serverProviders.includes(type);
               const labels: Record<string, { name: string; placeholder: string; hint: string }> = {
                 anthropic: {
                   name: '🧠 Anthropic (Claude)',
@@ -604,7 +625,15 @@ export default function SettingsPage() {
               return (
                 <div key={type} className="bg-card border border-border rounded-lg p-4 space-y-3">
                   <div className="flex items-center justify-between">
-                    <span className="font-medium">{label.name}</span>
+                    <div className="flex items-center gap-2">
+                      <span className="font-medium">{label.name}</span>
+                      {isServerConfigured && (
+                        <span className="flex items-center gap-1 text-xs text-emerald-500">
+                          <CheckCircle2 className="h-3.5 w-3.5" />
+                          Server
+                        </span>
+                      )}
+                    </div>
                     <label className="flex items-center gap-2 text-sm">
                       <input
                         type="checkbox"

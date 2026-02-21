@@ -201,8 +201,21 @@ export class AnthropicProvider implements ChatProvider {
   }
 
   async listModels(): Promise<ModelInfo[]> {
-    // Anthropic doesn't have a list models endpoint in the same way
-    // Return known models
+    try {
+      const client = await getAnthropicClient(this.apiKey, this.baseUrl);
+      const response = await client.models.list({ limit: 100 });
+      const models: ModelInfo[] = [];
+      for await (const model of response) {
+        models.push({
+          id: model.id,
+          name: model.display_name ?? model.id,
+          provider: 'anthropic',
+        });
+      }
+      if (models.length > 0) return models;
+    } catch {
+      // API may not support listing — fall back to known models
+    }
     return CLAUDE_MODELS;
   }
 
