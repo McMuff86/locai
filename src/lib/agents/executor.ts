@@ -290,6 +290,7 @@ export async function* executeAgentLoop(
           content: result.success
             ? result.content
             : `Error: ${result.error ?? 'Unknown error'}`,
+          tool_call_id: result.callId,
         });
       }
 
@@ -329,6 +330,7 @@ export async function* executeAgentLoop(
         content: result.success
           ? result.content
           : `Error: ${result.error ?? 'Unknown error'}`,
+        tool_call_id: result.callId,
       });
     }
 

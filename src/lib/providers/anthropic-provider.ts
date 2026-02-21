@@ -44,9 +44,29 @@ function toAnthropicMessages(messages: ChatMessage[]): {
   for (const msg of messages) {
     if (msg.role === 'system') {
       system = msg.content;
-    } else if (msg.role === 'user' || msg.role === 'assistant') {
+    } else if (msg.role === 'assistant') {
+      // Build content blocks: text + tool_use blocks
+      const contentBlocks: Array<{ type: string; text?: string; [key: string]: unknown }> = [];
+      if (msg.content) {
+        contentBlocks.push({ type: 'text', text: msg.content });
+      }
+      if (msg.tool_calls && msg.tool_calls.length > 0) {
+        for (const tc of msg.tool_calls) {
+          contentBlocks.push({
+            type: 'tool_use',
+            id: tc.id,
+            name: tc.function.name,
+            input: tc.function.arguments,
+          });
+        }
+      }
       converted.push({
-        role: msg.role,
+        role: 'assistant',
+        content: contentBlocks.length > 0 ? contentBlocks : msg.content,
+      });
+    } else if (msg.role === 'user') {
+      converted.push({
+        role: 'user',
         content: msg.content,
       });
     } else if (msg.role === 'tool') {
