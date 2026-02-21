@@ -1,6 +1,6 @@
 "use client";
 
-import React, { createContext, useContext, useEffect } from 'react';
+import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
 import { usePathname } from 'next/navigation';
 import Link from 'next/link';
 import { FileText, Network, Loader2 } from 'lucide-react';
@@ -8,6 +8,7 @@ import { useSettings } from '@/hooks/useSettings';
 import { useModels } from '@/hooks/useModels';
 import { useNotes, useGraph } from '@/components/notes';
 import { NoteSummary } from '@/components/notes/types';
+import type { ModelInfo } from '@/lib/providers/types';
 
 // Context for sharing notes data between pages
 interface NotesContextValue {
@@ -18,6 +19,7 @@ interface NotesContextValue {
   fetchNotes: () => Promise<void>;
   selectedModel: string;
   installedModels: string[];
+  allModels: ModelInfo[];
   host?: string;
   searxngUrl?: string;
   // Graph data
@@ -63,7 +65,23 @@ export default function NotesLayout({
   const pathname = usePathname();
   const { settings, isLoaded } = useSettings();
   const { models, selectedModel } = useModels(settings?.ollamaHost);
-  
+  const [allModels, setAllModels] = useState<ModelInfo[]>([]);
+
+  const fetchAllModels = useCallback(async () => {
+    try {
+      const res = await fetch('/api/models');
+      if (!res.ok) return;
+      const data = await res.json();
+      if (data.models) setAllModels(data.models);
+    } catch {
+      // Fall back to Ollama-only models
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchAllModels();
+  }, [fetchAllModels]);
+
   const basePath = settings?.notesPath;
   
   const {
@@ -128,6 +146,7 @@ export default function NotesLayout({
     fetchNotes,
     selectedModel,
     installedModels: models.map(m => m.name),
+    allModels,
     host: settings?.ollamaHost,
     searxngUrl: settings?.searxngUrl,
     semanticLinks,

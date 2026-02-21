@@ -1,11 +1,19 @@
 "use client";
 
-import { useState, useCallback, useRef, useEffect } from 'react';
+import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import { ChevronDown, ChevronUp, Globe, Sparkles } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { getModelInfo } from '@/lib/ollama';
 import WebSearchButton from '@/components/chat/WebSearchButton';
+import type { ModelInfo, ProviderType } from '@/lib/providers/types';
+
+const PROVIDER_LABELS: Record<ProviderType, string> = {
+  ollama: 'Ollama',
+  anthropic: 'Anthropic',
+  openai: 'OpenAI',
+  openrouter: 'OpenRouter',
+};
 
 interface NoteAIActionsProps {
   basePath?: string;
@@ -14,8 +22,10 @@ interface NoteAIActionsProps {
   content: string;
   selectedNoteId: string | null;
   model: string;
+  provider: ProviderType;
   installedModels: string[];
-  onModelChange: (model: string) => void;
+  allModels: ModelInfo[];
+  onModelChange: (model: string, provider: ProviderType) => void;
   onApplyResult: (mode: 'append' | 'replace', result: string) => void;
 }
 
@@ -26,7 +36,9 @@ export function NoteAIActions({
   content,
   selectedNoteId,
   model,
+  provider,
   installedModels,
+  allModels,
   onModelChange,
   onApplyResult,
 }: NoteAIActionsProps) {
@@ -44,11 +56,31 @@ export function NoteAIActions({
   const [isAdvancedOpen, setIsAdvancedOpen] = useState(false);
   const aiAbortControllerRef = useRef<AbortController | null>(null);
 
-  // Load context window info for selected model
+  const isOllama = provider === 'ollama';
+
+  // Group models by provider for the dropdown
+  const groupedModels = useMemo(() => {
+    const groups: Record<string, ModelInfo[]> = {};
+    for (const m of allModels) {
+      if (!groups[m.provider]) groups[m.provider] = [];
+      groups[m.provider].push(m);
+    }
+    // If allModels is empty, fall back to installedModels as Ollama
+    if (Object.keys(groups).length === 0 && installedModels.length > 0) {
+      groups['ollama'] = installedModels.map((name) => ({
+        id: name,
+        name,
+        provider: 'ollama' as ProviderType,
+      }));
+    }
+    return groups;
+  }, [allModels, installedModels]);
+
+  // Load context window info for Ollama models only
   useEffect(() => {
     let cancelled = false;
     const loadCtx = async () => {
-      if (!model) {
+      if (!model || !isOllama) {
         setContextMax(null);
         setNumCtx(null);
         return;
@@ -79,7 +111,7 @@ export function NoteAIActions({
     return () => {
       cancelled = true;
     };
-  }, [model, host]);
+  }, [model, host, isOllama]);
 
   const stopAi = useCallback(() => {
     if (aiAbortControllerRef.current) {
@@ -125,9 +157,10 @@ export function NoteAIActions({
           content,
           action,
           model,
+          provider,
           host,
           prompt: instruction || undefined,
-          numCtx: numCtx || undefined,
+          numCtx: isOllama ? (numCtx || undefined) : undefined,
           useWebSearch: false,
           searxngUrl,
           externalContext: externalWebContext || undefined,
@@ -193,7 +226,22 @@ export function NoteAIActions({
     }
   };
 
+  // Build a composite value for the <select> so we can encode provider + model
+  const selectValue = model ? `${provider}::${model}` : '';
+
+  const handleSelectChange = (value: string) => {
+    if (!value) {
+      onModelChange('', 'ollama');
+      return;
+    }
+    const [prov, ...rest] = value.split('::');
+    const modelId = rest.join('::');
+    onModelChange(modelId, prov as ProviderType);
+  };
+
   const hasWebContext = !!externalWebContext;
+  const providerKeys = Object.keys(groupedModels) as ProviderType[];
+  const hasMultipleProviders = providerKeys.length > 1;
 
   return (
     <div className="space-y-0">
@@ -207,23 +255,32 @@ export function NoteAIActions({
           <span>KI-Assistent</span>
         </div>
         <div className="flex items-center gap-2">
-          {/* Model Dropdown — stop propagation so click doesn't toggle expand */}
+          {/* Model Dropdown — grouped by provider */}
           <select
-            value={model}
-            onChange={(e) => onModelChange(e.target.value)}
+            value={selectValue}
+            onChange={(e) => handleSelectChange(e.target.value)}
             onClick={(e) => e.stopPropagation()}
-            className="h-7 rounded-md border border-input bg-background px-2 text-xs min-w-[140px]"
+            className="h-7 rounded-md border border-input bg-background px-2 text-xs min-w-[140px] max-w-[220px]"
           >
             <option value="">Modell wählen</option>
-            {installedModels.length > 0 ? (
-              installedModels.map((m) => (
-                <option key={m} value={m}>{m}</option>
+            {hasMultipleProviders ? (
+              providerKeys.map((prov) => (
+                <optgroup key={prov} label={PROVIDER_LABELS[prov] || prov}>
+                  {groupedModels[prov].map((m) => (
+                    <option key={`${prov}::${m.id}`} value={`${prov}::${m.id}`}>
+                      {m.name}
+                    </option>
+                  ))}
+                </optgroup>
               ))
             ) : (
-              <>
-                <option value="llama3">llama3</option>
-                <option value="qwen2.5-coder">qwen2.5-coder</option>
-              </>
+              providerKeys.flatMap((prov) =>
+                groupedModels[prov].map((m) => (
+                  <option key={`${prov}::${m.id}`} value={`${prov}::${m.id}`}>
+                    {m.name}
+                  </option>
+                ))
+              )
             )}
           </select>
           {isExpanded ? (
@@ -324,69 +381,71 @@ export function NoteAIActions({
             </div>
           )}
 
-          {/* Advanced Section */}
-          <div>
-            <button
-              type="button"
-              className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
-              onClick={() => setIsAdvancedOpen((v) => !v)}
-            >
-              {isAdvancedOpen ? (
-                <ChevronDown className="h-3 w-3" />
-              ) : (
-                <ChevronUp className="h-3 w-3 rotate-90" />
-              )}
-              Erweitert
-            </button>
-            {isAdvancedOpen && (
-              <div className="mt-2 space-y-2">
-                <div className="flex items-center justify-between gap-2">
-                  <span className="text-xs text-muted-foreground">
-                    Kontext-Fenster (Tokens)
-                  </span>
-                  <span className="text-xs text-muted-foreground">
-                    {loadingCtx
-                      ? 'Lade...'
-                      : contextMax
-                      ? `${numCtx ?? contextMax} / ${contextMax}`
-                      : 'Nicht verfügbar'}
-                  </span>
-                </div>
-                {contextMax ? (
-                  <div className="flex items-center gap-3">
-                    <input
-                      type="range"
-                      min={1024}
-                      max={contextMax}
-                      step={512}
-                      value={numCtx ?? contextMax}
-                      onChange={(e) => setNumCtx(parseInt(e.target.value, 10))}
-                      className="flex-1"
-                      disabled={aiLoading}
-                    />
-                    <input
-                      type="number"
-                      min={512}
-                      max={contextMax}
-                      step={256}
-                      value={numCtx ?? contextMax}
-                      onChange={(e) => {
-                        const val = parseInt(e.target.value, 10);
-                        if (Number.isNaN(val)) return;
-                        setNumCtx(Math.min(Math.max(val, 512), contextMax));
-                      }}
-                      className="w-24 h-7 rounded-md border border-input bg-background px-2 text-xs"
-                      disabled={aiLoading}
-                    />
-                  </div>
+          {/* Advanced Section — only for Ollama (context window) */}
+          {isOllama && (
+            <div>
+              <button
+                type="button"
+                className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
+                onClick={() => setIsAdvancedOpen((v) => !v)}
+              >
+                {isAdvancedOpen ? (
+                  <ChevronDown className="h-3 w-3" />
                 ) : (
-                  <p className="text-xs text-muted-foreground">
-                    Kontext-Länge für dieses Modell konnte nicht geladen werden.
-                  </p>
+                  <ChevronUp className="h-3 w-3 rotate-90" />
                 )}
-              </div>
-            )}
-          </div>
+                Erweitert
+              </button>
+              {isAdvancedOpen && (
+                <div className="mt-2 space-y-2">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-xs text-muted-foreground">
+                      Kontext-Fenster (Tokens)
+                    </span>
+                    <span className="text-xs text-muted-foreground">
+                      {loadingCtx
+                        ? 'Lade...'
+                        : contextMax
+                        ? `${numCtx ?? contextMax} / ${contextMax}`
+                        : 'Nicht verfügbar'}
+                    </span>
+                  </div>
+                  {contextMax ? (
+                    <div className="flex items-center gap-3">
+                      <input
+                        type="range"
+                        min={1024}
+                        max={contextMax}
+                        step={512}
+                        value={numCtx ?? contextMax}
+                        onChange={(e) => setNumCtx(parseInt(e.target.value, 10))}
+                        className="flex-1"
+                        disabled={aiLoading}
+                      />
+                      <input
+                        type="number"
+                        min={512}
+                        max={contextMax}
+                        step={256}
+                        value={numCtx ?? contextMax}
+                        onChange={(e) => {
+                          const val = parseInt(e.target.value, 10);
+                          if (Number.isNaN(val)) return;
+                          setNumCtx(Math.min(Math.max(val, 512), contextMax));
+                        }}
+                        className="w-24 h-7 rounded-md border border-input bg-background px-2 text-xs"
+                        disabled={aiLoading}
+                      />
+                    </div>
+                  ) : (
+                    <p className="text-xs text-muted-foreground">
+                      Kontext-Länge für dieses Modell konnte nicht geladen werden.
+                    </p>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
         </div>
       )}
 
