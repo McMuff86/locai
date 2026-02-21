@@ -41,4 +41,23 @@ app.prepare().then(() => {
   server.listen(port, () => {
     console.log(`> Ready on http://${hostname}:${port}`);
   });
+
+  // Graceful shutdown — free the port when the process is stopped
+  const shutdown = () => {
+    console.log('\n> Shutting down…');
+    // Close all WebSocket connections so terminal PTYs get cleaned up
+    for (const client of wss.clients) {
+      client.close();
+    }
+    wss.close();
+    server.close(() => {
+      process.exit(0);
+    });
+    // Force exit after 3 seconds if something hangs
+    setTimeout(() => process.exit(0), 3000).unref();
+  };
+
+  process.on('SIGINT', shutdown);
+  process.on('SIGTERM', shutdown);
+  process.on('SIGHUP', shutdown);
 });
