@@ -22,7 +22,7 @@ import { useModels } from "@/hooks/useModels";
 import { useConversations } from "@/hooks/useConversations";
 import { useChat } from "@/hooks/useChat";
 import { useAgentChat } from "@/hooks/useAgentChat";
-import { useWorkflowChat } from "@/hooks/useWorkflowChat";
+import { useWorkflowChat, checkActiveWorkflow } from "@/hooks/useWorkflowChat";
 import { useDocuments } from "@/hooks/useDocuments";
 import { useKeyboardShortcuts, KeyboardShortcut } from "@/hooks/useKeyboardShortcuts";
 import { useSettings } from "@/hooks/useSettings";
@@ -172,9 +172,49 @@ function ChatPageContent() {
     sendWorkflowMessage,
     cancelWorkflow,
     resetWorkflow,
+    restoreWorkflowState,
   } = useWorkflowChat();
   const [workflowMode, setWorkflowMode] = useState(false);
   const toggleWorkflowMode = useCallback(() => setWorkflowMode((p) => !p), []);
+
+  // Workflow resume dialog state
+  const [pendingResumeState, setPendingResumeState] = useState<import('@/lib/agents/workflowTypes').WorkflowState | null>(null);
+  const resumeCheckedRef = useRef(false);
+
+  // ── Check for active workflow to resume on mount ──────────────
+  useEffect(() => {
+    if (resumeCheckedRef.current || !conversation.id) return;
+    resumeCheckedRef.current = true;
+
+    checkActiveWorkflow(conversation.id).then((state) => {
+      if (state) {
+        setPendingResumeState(state);
+      }
+    }).catch(() => {
+      // Ignore IndexedDB errors
+    });
+  }, [conversation.id]);
+
+  // Reset resume check when conversation changes
+  useEffect(() => {
+    resumeCheckedRef.current = false;
+    setPendingResumeState(null);
+  }, [conversation.id]);
+
+  const handleResumeWorkflow = useCallback(() => {
+    if (!pendingResumeState) return;
+    setWorkflowMode(true);
+    restoreWorkflowState(pendingResumeState);
+    setPendingResumeState(null);
+  }, [pendingResumeState, restoreWorkflowState]);
+
+  const handleDiscardWorkflow = useCallback(async () => {
+    if (pendingResumeState?.conversationId) {
+      const { clearActiveWorkflow: clearIdb } = await import('@/lib/agents/workflowPersistence');
+      await clearIdb(pendingResumeState.conversationId).catch(() => {});
+    }
+    setPendingResumeState(null);
+  }, [pendingResumeState]);
 
   // ── Local UI state ────────────────────────────────────────────
   const [showSidebar, setShowSidebar] = useState(true);
@@ -776,6 +816,25 @@ function ChatPageContent() {
           ) : (
             <>
               <ChatContainer conversation={conversation} isLoading={isChatLoading && !isAgentMode} />
+
+              {/* Workflow Resume Dialog */}
+              {pendingResumeState && (
+                <div className="mx-3 lg:mx-5 mb-3 p-4 rounded-lg border border-amber-500/50 bg-amber-500/10">
+                  <p className="text-sm font-medium mb-1">Unterbrochener Workflow gefunden</p>
+                  <p className="text-xs text-muted-foreground mb-3">
+                    Ein Workflow mit {pendingResumeState.steps.length} Schritt(en) wurde unterbrochen.
+                    Ziel: {pendingResumeState.plan?.goal ?? pendingResumeState.userMessage}
+                  </p>
+                  <div className="flex gap-2">
+                    <Button size="sm" variant="default" onClick={handleResumeWorkflow}>
+                      Workflow fortsetzen
+                    </Button>
+                    <Button size="sm" variant="outline" onClick={handleDiscardWorkflow}>
+                      Verwerfen
+                    </Button>
+                  </div>
+                </div>
+              )}
 
               {/* Agent message (classic mode: tool calls + streaming) */}
               {isAgentMode && !workflowMode && (isAgentLoading || agentTurns.length > 0) && (

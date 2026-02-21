@@ -385,6 +385,12 @@ export class WorkflowEngine {
           durationMs: step.durationMs,
         });
 
+        // Emit state snapshot after each step for persistence
+        yield this.emit({
+          type: 'state_snapshot',
+          state: this.getState(),
+        });
+
         // -----------------------------------------------------------------------
         // Phase 3: Reflection
         // -----------------------------------------------------------------------
@@ -615,6 +621,14 @@ export class WorkflowEngine {
   ): AsyncGenerator<WorkflowStreamEvent> {
     step.status = 'running';
 
+    // Per-step AbortController with timeout, cascading from parent
+    const stepAbort = new AbortController();
+    const stepTimeout = setTimeout(() => stepAbort.abort(), this.config.stepTimeoutMs);
+
+    // If the parent aborts, also abort the step
+    const onParentAbort = () => stepAbort.abort();
+    this.abortController.signal.addEventListener('abort', onParentAbort);
+
     // Build a focused message for this specific step
     const stepContext = this.buildStepContext(planStep);
     const stepMessages: ChatMessage[] = [
@@ -630,7 +644,7 @@ export class WorkflowEngine {
       options: {
         maxIterations: 1, // One step at a time
         enabledTools: this.config.enabledTools,
-        signal: this.abortController.signal,
+        signal: stepAbort.signal,
         chatOptions: { temperature: 0.3 },
       },
       provider: this.provider,
@@ -640,7 +654,7 @@ export class WorkflowEngine {
 
     try {
       for await (const turn of executeAgentLoop(loopParams)) {
-        if (this.isAborted()) break;
+        if (this.isAborted() || stepAbort.signal.aborted) break;
 
         // Convert executor ToolCalls → WorkflowToolCalls
         for (const call of turn.toolCalls) {
@@ -701,6 +715,9 @@ export class WorkflowEngine {
           stepId: planStep.id,
         });
       }
+    } finally {
+      clearTimeout(stepTimeout);
+      this.abortController.signal.removeEventListener('abort', onParentAbort);
     }
   }
 
@@ -843,6 +860,12 @@ export class WorkflowEngine {
         completedSteps: this.state.steps.filter((s) => s.status === 'success').length,
       });
     }
+
+    // Final state snapshot for persistence before workflow_end
+    yield this.emit({
+      type: 'state_snapshot',
+      state: this.getState(),
+    });
 
     yield this.emit({
       type: 'workflow_end',

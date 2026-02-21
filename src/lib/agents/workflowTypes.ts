@@ -236,6 +236,33 @@ export interface WorkflowState {
 }
 
 // ---------------------------------------------------------------------------
+// Workflow Summary (für Filesystem-Index)
+// ---------------------------------------------------------------------------
+
+/**
+ * Leichtgewichtige Zusammenfassung eines Workflows für den Index.
+ * Analog zu ConversationSummary (src/lib/conversations/types.ts).
+ */
+export interface WorkflowSummary {
+  /** Eindeutige Workflow-ID */
+  id: string;
+  /** Das Ziel des Workflows */
+  goal: string;
+  /** Zugehörige Conversation-ID */
+  conversationId?: string;
+  /** Endstatus des Workflows */
+  status: WorkflowStatus;
+  /** Anzahl der ausgeführten Schritte */
+  stepCount: number;
+  /** Erstellungszeitpunkt (ISO-8601) */
+  createdAt: string;
+  /** Abschlusszeitpunkt (ISO-8601) */
+  completedAt?: string;
+  /** Gesamtdauer in ms */
+  durationMs?: number;
+}
+
+// ---------------------------------------------------------------------------
 // Streaming Event Types
 // ---------------------------------------------------------------------------
 

@@ -1,10 +1,32 @@
 # ADR-001: Multi-Step Agent Workflow Engine
 
-**Status:** Proposed  
-**Datum:** 2026-02-18  
-**Autor:** 🏗️ Architect Agent (Sprint 5)  
-**Sprint:** Sprint 5 – Agent Evolution & Premium Polish  
+**Status:** Accepted
+**Datum:** 2026-02-18
+**Autor:** 🏗️ Architect Agent (Sprint 5)
+**Sprint:** Sprint 5 – Agent Evolution & Premium Polish
 **Branch:** `sprint5/arch-workflow-engine`
+
+---
+
+## Implementation Status
+
+**Core Engine (Done):**
+- `workflowTypes.ts` — Full type hierarchy, state machine types, streaming events, type guards
+- `workflow.ts` — WorkflowEngine class with planning, execution, reflection, final answer
+- `useWorkflowChat.ts` — Frontend hook with NDJSON parsing, state management, cancel
+- `POST /api/chat/agent/workflow` — Streaming NDJSON endpoint
+- `WorkflowProgress` UI component — Step visualization
+- Chat page integration — Workflow mode toggle, agent/workflow switching
+
+**Persistence & Resume (Added):**
+- `workflowPersistence.ts` — IndexedDB client-side persistence (active workflow snapshots)
+- `workflowStore.ts` — Filesystem server-side persistence (~/.locai/workflows/)
+- `GET/POST /api/workflows` + `GET/DELETE /api/workflows/[id]` — Workflow CRUD
+- `DELETE /api/chat/agent/workflow/[workflowId]` — REST cancel endpoint
+- Per-step timeout (30s) with cascading AbortController
+- State snapshot emission after each step
+- Auto-save to IndexedDB on step_end/plan/state_snapshot events
+- Resume dialog on chat page mount
 
 ---
 
