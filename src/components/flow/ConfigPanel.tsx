@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import type { ProviderType, ModelInfo } from '@/lib/providers/types';
-import type { AgentNodeData, InputNodeData, OutputNodeData, TemplateNodeData } from '@/lib/flow/types';
+import type { AgentNodeData, ConditionNodeData, InputNodeData, LoopNodeData, OutputNodeData, TemplateNodeData } from '@/lib/flow/types';
 import { saveFlowOutput } from '@/lib/flow/saveOutput';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/components/ui/use-toast';
@@ -56,6 +56,10 @@ export function ConfigPanel() {
   const templateData =
     selectedNode?.data.kind === 'template' ? (selectedNode.data as TemplateNodeData) : null;
   const outputData = selectedNode?.data.kind === 'output' ? (selectedNode.data as OutputNodeData) : null;
+  const conditionData =
+    selectedNode?.data.kind === 'condition' ? (selectedNode.data as ConditionNodeData) : null;
+  const loopData =
+    selectedNode?.data.kind === 'loop' ? (selectedNode.data as LoopNodeData) : null;
 
   useEffect(() => {
     let cancelled = false;
@@ -85,36 +89,51 @@ export function ConfigPanel() {
     };
   }, []);
 
-  const agentModelOptions = useMemo(() => {
-    const seen = new Set<string>();
-    const options: { id: string; name: string }[] = [];
-    const currentModel = agentData?.config.model?.trim();
-    const provider = agentData?.config.provider ?? 'ollama';
+  const buildModelOptions = useCallback(
+    (currentModel: string | undefined, provider: string) => {
+      const seen = new Set<string>();
+      const options: { id: string; name: string }[] = [];
+      const add = (id: string, name: string) => {
+        if (!seen.has(id)) {
+          seen.add(id);
+          options.push({ id, name });
+        }
+      };
 
-    const add = (id: string, name: string) => {
-      if (!seen.has(id)) {
-        seen.add(id);
-        options.push({ id, name });
+      if (currentModel?.trim()) {
+        add(currentModel.trim(), currentModel.trim());
       }
-    };
 
-    if (currentModel) {
-      add(currentModel, currentModel);
-    }
-
-    const serverModels = modelsByProvider[provider];
-    if (serverModels && serverModels.length > 0) {
-      for (const m of serverModels) {
-        add(m.id, m.name);
+      const serverModels = modelsByProvider[provider];
+      if (serverModels && serverModels.length > 0) {
+        for (const m of serverModels) {
+          add(m.id, m.name);
+        }
+      } else if (provider === 'ollama') {
+        for (const modelName of FALLBACK_AGENT_MODELS) {
+          add(modelName, modelName);
+        }
       }
-    } else if (provider === 'ollama') {
-      for (const modelName of FALLBACK_AGENT_MODELS) {
-        add(modelName, modelName);
-      }
-    }
 
-    return options;
-  }, [agentData?.config.model, agentData?.config.provider, modelsByProvider]);
+      return options;
+    },
+    [modelsByProvider],
+  );
+
+  const agentModelOptions = useMemo(
+    () => buildModelOptions(agentData?.config.model, agentData?.config.provider ?? 'ollama'),
+    [agentData?.config.model, agentData?.config.provider, buildModelOptions],
+  );
+
+  const conditionModelOptions = useMemo(
+    () => buildModelOptions(conditionData?.config.model, conditionData?.config.provider ?? 'ollama'),
+    [conditionData?.config.model, conditionData?.config.provider, buildModelOptions],
+  );
+
+  const loopModelOptions = useMemo(
+    () => buildModelOptions(loopData?.config.model, loopData?.config.provider ?? 'ollama'),
+    [loopData?.config.model, loopData?.config.provider, buildModelOptions],
+  );
 
   // Auto-select first model when current model is empty or not in the list
   useEffect(() => {
@@ -353,6 +372,219 @@ export function ConfigPanel() {
               <SectionTitle>Success Criteria</SectionTitle>
               <Input
                 value={templateData.config.successCriteria ?? ''}
+                onChange={(event) =>
+                  updateNodeConfig(selectedNode.id, { successCriteria: event.target.value })
+                }
+                className="h-9 text-xs"
+              />
+            </div>
+          </>
+        )}
+
+        {conditionData && (
+          <>
+            <div className="space-y-2">
+              <SectionTitle>Modus</SectionTitle>
+              <select
+                value={conditionData.config.mode}
+                onChange={(event) =>
+                  updateNodeConfig(selectedNode.id, { mode: event.target.value as 'llm' | 'expression' })
+                }
+                className="h-9 w-full rounded-md border border-input bg-background px-2 text-xs outline-none transition-[color,box-shadow] focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
+              >
+                <option value="expression">Expression</option>
+                <option value="llm">LLM</option>
+              </select>
+            </div>
+
+            {conditionData.config.mode === 'llm' && (
+              <>
+                {activeProviders.length > 1 && (
+                  <div className="space-y-2">
+                    <SectionTitle>Provider</SectionTitle>
+                    <select
+                      value={conditionData.config.provider ?? 'ollama'}
+                      onChange={(event) =>
+                        updateNodeConfig(selectedNode.id, {
+                          provider: event.target.value as ProviderType,
+                          model: '',
+                        })
+                      }
+                      className="h-9 w-full rounded-md border border-input bg-background px-2 text-xs outline-none transition-[color,box-shadow] focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
+                    >
+                      {activeProviders.map((p) => (
+                        <option key={p} value={p}>
+                          {p === 'ollama' ? 'Ollama (Local)' : p === 'anthropic' ? 'Anthropic (Claude)' : p === 'openai' ? 'OpenAI' : 'OpenRouter'}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+
+                <div className="space-y-2">
+                  <SectionTitle>Model</SectionTitle>
+                  <select
+                    value={conditionData.config.model}
+                    onChange={(event) => updateNodeConfig(selectedNode.id, { model: event.target.value })}
+                    className="h-9 w-full rounded-md border border-input bg-background px-2 text-xs outline-none transition-[color,box-shadow] focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
+                  >
+                    {conditionModelOptions.map((m) => (
+                      <option key={m.id} value={m.id}>{m.name}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="space-y-2">
+                  <SectionTitle>Prompt</SectionTitle>
+                  <Textarea
+                    value={conditionData.config.prompt}
+                    onChange={(event) => updateNodeConfig(selectedNode.id, { prompt: event.target.value })}
+                    className="min-h-[120px] text-xs"
+                    placeholder="Frage an das LLM (Antwort: true/false)"
+                  />
+                </div>
+              </>
+            )}
+
+            {conditionData.config.mode === 'expression' && (
+              <div className="space-y-2">
+                <SectionTitle>Expression</SectionTitle>
+                <Input
+                  value={conditionData.config.expression}
+                  onChange={(event) => updateNodeConfig(selectedNode.id, { expression: event.target.value })}
+                  className="h-9 text-xs font-mono"
+                  placeholder="z.B. result.length > 0"
+                />
+              </div>
+            )}
+
+            <div className="space-y-2">
+              <SectionTitle>Success Criteria</SectionTitle>
+              <Input
+                value={conditionData.config.successCriteria ?? ''}
+                onChange={(event) =>
+                  updateNodeConfig(selectedNode.id, { successCriteria: event.target.value })
+                }
+                className="h-9 text-xs"
+              />
+            </div>
+          </>
+        )}
+
+        {loopData && (
+          <>
+            <div className="space-y-2">
+              <SectionTitle>Modus</SectionTitle>
+              <select
+                value={loopData.config.mode}
+                onChange={(event) =>
+                  updateNodeConfig(selectedNode.id, { mode: event.target.value as 'count' | 'condition' | 'llm' })
+                }
+                className="h-9 w-full rounded-md border border-input bg-background px-2 text-xs outline-none transition-[color,box-shadow] focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
+              >
+                <option value="count">Count</option>
+                <option value="condition">Condition</option>
+                <option value="llm">LLM</option>
+              </select>
+            </div>
+
+            {loopData.config.mode === 'count' && (
+              <div className="space-y-2">
+                <SectionTitle>Anzahl</SectionTitle>
+                <Input
+                  type="number"
+                  min={1}
+                  max={100}
+                  value={loopData.config.count}
+                  onChange={(event) =>
+                    updateNodeConfig(selectedNode.id, { count: parseInt(event.target.value) || 1 })
+                  }
+                  className="h-9 text-xs"
+                />
+              </div>
+            )}
+
+            {loopData.config.mode === 'condition' && (
+              <div className="space-y-2">
+                <SectionTitle>Condition Expression</SectionTitle>
+                <Input
+                  value={loopData.config.conditionExpression}
+                  onChange={(event) =>
+                    updateNodeConfig(selectedNode.id, { conditionExpression: event.target.value })
+                  }
+                  className="h-9 text-xs font-mono"
+                  placeholder="z.B. result.length > 0"
+                />
+              </div>
+            )}
+
+            {loopData.config.mode === 'llm' && (
+              <>
+                {activeProviders.length > 1 && (
+                  <div className="space-y-2">
+                    <SectionTitle>Provider</SectionTitle>
+                    <select
+                      value={loopData.config.provider ?? 'ollama'}
+                      onChange={(event) =>
+                        updateNodeConfig(selectedNode.id, {
+                          provider: event.target.value as ProviderType,
+                          model: '',
+                        })
+                      }
+                      className="h-9 w-full rounded-md border border-input bg-background px-2 text-xs outline-none transition-[color,box-shadow] focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
+                    >
+                      {activeProviders.map((p) => (
+                        <option key={p} value={p}>
+                          {p === 'ollama' ? 'Ollama (Local)' : p === 'anthropic' ? 'Anthropic (Claude)' : p === 'openai' ? 'OpenAI' : 'OpenRouter'}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+
+                <div className="space-y-2">
+                  <SectionTitle>Model</SectionTitle>
+                  <select
+                    value={loopData.config.model}
+                    onChange={(event) => updateNodeConfig(selectedNode.id, { model: event.target.value })}
+                    className="h-9 w-full rounded-md border border-input bg-background px-2 text-xs outline-none transition-[color,box-shadow] focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
+                  >
+                    {loopModelOptions.map((m) => (
+                      <option key={m.id} value={m.id}>{m.name}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="space-y-2">
+                  <SectionTitle>Prompt</SectionTitle>
+                  <Textarea
+                    value={loopData.config.prompt}
+                    onChange={(event) => updateNodeConfig(selectedNode.id, { prompt: event.target.value })}
+                    className="min-h-[120px] text-xs"
+                    placeholder="Frage an das LLM (Antwort: true = weiterlaufen)"
+                  />
+                </div>
+              </>
+            )}
+
+            <div className="space-y-2">
+              <SectionTitle>Max Iterations</SectionTitle>
+              <Input
+                type="number"
+                min={1}
+                max={100}
+                value={loopData.config.maxIterations}
+                onChange={(event) =>
+                  updateNodeConfig(selectedNode.id, { maxIterations: parseInt(event.target.value) || 1 })
+                }
+                className="h-9 text-xs"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <SectionTitle>Success Criteria</SectionTitle>
+              <Input
+                value={loopData.config.successCriteria ?? ''}
                 onChange={(event) =>
                   updateNodeConfig(selectedNode.id, { successCriteria: event.target.value })
                 }

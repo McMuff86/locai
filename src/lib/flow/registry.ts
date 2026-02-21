@@ -12,6 +12,8 @@ import type {
   FlowPortType,
   StoredWorkflow,
   VisualWorkflow,
+  ConditionNodeConfig,
+  LoopNodeConfig,
 } from '@/lib/flow/types';
 
 export interface FlowNodeDefinition {
@@ -53,6 +55,20 @@ export const FLOW_NODE_DEFINITIONS: FlowNodeDefinition[] = [
     description: 'Zeigt das finale Ergebnis',
     accentClass: 'text-amber-300',
   },
+  {
+    kind: 'condition',
+    type: 'conditionNode',
+    label: 'Condition',
+    description: 'Verzweigung basierend auf Bedingung',
+    accentClass: 'text-violet-300',
+  },
+  {
+    kind: 'loop',
+    type: 'loopNode',
+    label: 'Loop',
+    description: 'Wiederholte Ausfuehrung',
+    accentClass: 'text-orange-300',
+  },
 ];
 
 export const FLOW_NODE_PORTS: Record<FlowNodeKind, FlowNodePortSchema> = {
@@ -91,6 +107,29 @@ export const FLOW_NODE_PORTS: Record<FlowNodeKind, FlowNodePortSchema> = {
     outputs: {},
     defaultInput: 'result',
   },
+  condition: {
+    inputs: {
+      input: 'any',
+    },
+    outputs: {
+      true: 'any',
+      false: 'any',
+    },
+    defaultInput: 'input',
+    defaultOutput: 'true',
+  },
+  loop: {
+    inputs: {
+      input: 'any',
+      'loop-back': 'any',
+    },
+    outputs: {
+      body: 'any',
+      done: 'any',
+    },
+    defaultInput: 'input',
+    defaultOutput: 'body',
+  },
 };
 
 export const FLOW_WIRE_COLORS: Record<FlowPortType, string> = {
@@ -114,6 +153,10 @@ function nodeTypeFromKind(kind: FlowNodeKind): FlowNodeType {
       return 'templateNode';
     case 'output':
       return 'outputNode';
+    case 'condition':
+      return 'conditionNode';
+    case 'loop':
+      return 'loopNode';
   }
 }
 
@@ -358,6 +401,40 @@ export function createFlowNode(kind: FlowNodeKind, position: XYPosition): FlowNo
             saveToFile: false,
             filePath: '',
           },
+        },
+      };
+    case 'condition':
+      return {
+        ...common,
+        data: {
+          kind: 'condition',
+          label: 'Condition',
+          runtime: { status: 'idle' },
+          config: {
+            mode: 'expression',
+            prompt: 'Ist das Ergebnis zufriedenstellend?',
+            expression: 'result.length > 0',
+            model: 'llama3',
+            successCriteria: 'Bedingung wurde ausgewertet',
+          } satisfies ConditionNodeConfig,
+        },
+      };
+    case 'loop':
+      return {
+        ...common,
+        data: {
+          kind: 'loop',
+          label: 'Loop',
+          runtime: { status: 'idle' },
+          config: {
+            mode: 'count',
+            maxIterations: 5,
+            count: 3,
+            conditionExpression: 'result.length > 0',
+            prompt: 'Soll die Schleife weiterlaufen?',
+            model: 'llama3',
+            successCriteria: 'Schleife wurde ausgefuehrt',
+          } satisfies LoopNodeConfig,
         },
       };
   }

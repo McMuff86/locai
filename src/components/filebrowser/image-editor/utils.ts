@@ -365,24 +365,49 @@ export function applyAdjustmentLayerToCanvas(
 // Selection Utilities
 // ---------------------------------------------------------------------------
 
+export interface EdgeSegment {
+  x1: number;
+  y1: number;
+  x2: number;
+  y2: number;
+}
+
 export function createSelectionMask(w: number, h: number): ImageData {
   return new ImageData(w, h);
 }
 
-export function renderMarchingAnts(
-  ctx: CanvasRenderingContext2D,
-  mask: ImageData,
-  animOffset: number,
-  zoom: number,
-) {
+/** Extract edge segments from a selection mask (run once per selection change). */
+export function extractSelectionEdges(mask: ImageData): EdgeSegment[] {
   const { width, height, data } = mask;
+  const edges: EdgeSegment[] = [];
 
   const isSelected = (x: number, y: number): boolean => {
     if (x < 0 || x >= width || y < 0 || y >= height) return false;
     return data[(y * width + x) * 4] >= 128;
   };
 
-  // Trace edge segments between selected and non-selected pixels
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      if (!isSelected(x, y)) continue;
+      if (!isSelected(x, y - 1)) edges.push({ x1: x, y1: y, x2: x + 1, y2: y });
+      if (!isSelected(x, y + 1)) edges.push({ x1: x, y1: y + 1, x2: x + 1, y2: y + 1 });
+      if (!isSelected(x - 1, y)) edges.push({ x1: x, y1: y, x2: x, y2: y + 1 });
+      if (!isSelected(x + 1, y)) edges.push({ x1: x + 1, y1: y, x2: x + 1, y2: y + 1 });
+    }
+  }
+
+  return edges;
+}
+
+/** Render pre-cached edge segments with marching-ants animation. */
+export function renderCachedMarchingAnts(
+  ctx: CanvasRenderingContext2D,
+  edges: EdgeSegment[],
+  animOffset: number,
+  zoom: number,
+) {
+  if (edges.length === 0) return;
+
   ctx.save();
   ctx.setLineDash([4, 4]);
   ctx.lineDashOffset = -animOffset;
@@ -390,18 +415,10 @@ export function renderMarchingAnts(
   ctx.strokeStyle = '#000000';
 
   ctx.beginPath();
-  for (let y = 0; y < height; y++) {
-    for (let x = 0; x < width; x++) {
-      if (!isSelected(x, y)) continue;
-      // Top edge: pixel above is not selected
-      if (!isSelected(x, y - 1)) { ctx.moveTo(x, y); ctx.lineTo(x + 1, y); }
-      // Bottom edge: pixel below is not selected
-      if (!isSelected(x, y + 1)) { ctx.moveTo(x, y + 1); ctx.lineTo(x + 1, y + 1); }
-      // Left edge: pixel to the left is not selected
-      if (!isSelected(x - 1, y)) { ctx.moveTo(x, y); ctx.lineTo(x, y + 1); }
-      // Right edge: pixel to the right is not selected
-      if (!isSelected(x + 1, y)) { ctx.moveTo(x + 1, y); ctx.lineTo(x + 1, y + 1); }
-    }
+  for (let i = 0; i < edges.length; i++) {
+    const e = edges[i];
+    ctx.moveTo(e.x1, e.y1);
+    ctx.lineTo(e.x2, e.y2);
   }
   ctx.stroke();
 
@@ -410,6 +427,17 @@ export function renderMarchingAnts(
   ctx.lineDashOffset = -(animOffset + 4);
   ctx.stroke();
   ctx.restore();
+}
+
+/** @deprecated Use extractSelectionEdges + renderCachedMarchingAnts instead */
+export function renderMarchingAnts(
+  ctx: CanvasRenderingContext2D,
+  mask: ImageData,
+  animOffset: number,
+  zoom: number,
+) {
+  const edges = extractSelectionEdges(mask);
+  renderCachedMarchingAnts(ctx, edges, animOffset, zoom);
 }
 
 export function floodFillSelection(

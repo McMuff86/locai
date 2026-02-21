@@ -45,6 +45,28 @@ export interface WorkflowPlanStep {
   dependsOn: string[];
   /** Kriterium für Erfolg dieses Schritts */
   successCriteria: string;
+  /** Step-Typ für Control-Flow */
+  stepType?: 'execute' | 'condition' | 'loop';
+  /** Wenn dieser Step in einem Condition-Branch liegt */
+  branchCondition?: {
+    conditionStepId: string;
+    branch: 'true' | 'false';
+  };
+  /** Condition-Step Konfiguration */
+  conditionConfig?: {
+    mode: 'llm' | 'expression';
+    prompt?: string;
+    expression?: string;
+  };
+  /** Loop-Step Konfiguration */
+  loopConfig?: {
+    mode: 'count' | 'condition' | 'llm';
+    maxIterations: number;
+    count?: number;
+    expression?: string;
+    prompt?: string;
+    bodyStepIds: string[];
+  };
 }
 
 /**
@@ -198,6 +220,8 @@ export interface WorkflowConfig {
   enableReflection: boolean;
   /** Planning aktiviert? */
   enablePlanning: boolean;
+  /** DAG-basierte parallele Ausführung aktiviert? */
+  enableParallelExecution?: boolean;
 }
 
 /**
@@ -364,6 +388,30 @@ export interface WorkflowStateSnapshotEvent {
   state: WorkflowState;
 }
 
+/** Condition wurde ausgewertet */
+export interface WorkflowConditionEvalEvent {
+  type: 'condition_eval';
+  stepId: string;
+  result: boolean;
+  mode: 'llm' | 'expression';
+}
+
+/** Step wurde übersprungen (z.B. Condition-Branch) */
+export interface WorkflowStepSkippedEvent {
+  type: 'step_skipped';
+  stepId: string;
+  reason: string;
+}
+
+/** Loop-Iteration */
+export interface WorkflowLoopIterationEvent {
+  type: 'loop_iteration';
+  loopStepId: string;
+  iteration: number;
+  maxIterations: number;
+  continuing: boolean;
+}
+
 /** Union Type aller Workflow-Events */
 export type WorkflowStreamEvent =
   | WorkflowStartEvent
@@ -377,7 +425,10 @@ export type WorkflowStreamEvent =
   | WorkflowEndEvent
   | WorkflowErrorEvent
   | WorkflowCancelledEvent
-  | WorkflowStateSnapshotEvent;
+  | WorkflowStateSnapshotEvent
+  | WorkflowConditionEvalEvent
+  | WorkflowStepSkippedEvent
+  | WorkflowLoopIterationEvent;
 
 // ---------------------------------------------------------------------------
 // API Request Type

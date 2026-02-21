@@ -1,5 +1,13 @@
 import type { WorkflowPlan, WorkflowPlanStep } from '@/lib/agents/workflowTypes';
-import type { FlowCompileResult, FlowEdge, FlowNode, FlowNodeKind, VisualWorkflow } from '@/lib/flow/types';
+import type {
+  ConditionNodeData,
+  FlowCompileResult,
+  FlowEdge,
+  FlowNode,
+  FlowNodeKind,
+  LoopNodeData,
+  VisualWorkflow,
+} from '@/lib/flow/types';
 
 export class FlowCompileError extends Error {
   constructor(message: string) {
@@ -10,6 +18,18 @@ export class FlowCompileError extends Error {
 
 function incomingEdges(edges: FlowEdge[], nodeId: string): FlowEdge[] {
   return edges.filter((edge) => edge.target === nodeId);
+}
+
+/** Identify back-edges: edges targeting a loop node's 'loop-back' handle */
+function findBackEdges(edges: FlowEdge[], nodes: FlowNode[]): Set<string> {
+  const loopNodeIds = new Set(nodes.filter((n) => n.data.kind === 'loop').map((n) => n.id));
+  const backEdgeIds = new Set<string>();
+  for (const edge of edges) {
+    if (loopNodeIds.has(edge.target) && edge.targetHandle === 'loop-back') {
+      backEdgeIds.add(edge.id);
+    }
+  }
+  return backEdgeIds;
 }
 
 function topologicalSort(nodes: FlowNode[], edges: FlowEdge[]): FlowNode[] {
@@ -82,6 +102,18 @@ function stepDescriptionForNode(node: FlowNode): string {
     }
     case 'output':
       return 'Ergebnis bereitstellen';
+    case 'condition': {
+      const cfg = (node.data as ConditionNodeData).config;
+      return cfg.mode === 'llm'
+        ? `Bedingung prüfen (LLM): ${cfg.prompt.trim().slice(0, 80) || 'Prompt'}`
+        : `Bedingung prüfen: ${cfg.expression.trim() || 'Ausdruck'}`;
+    }
+    case 'loop': {
+      const cfg = (node.data as LoopNodeData).config;
+      if (cfg.mode === 'count') return `Schleife (${cfg.count}x)`;
+      if (cfg.mode === 'condition') return `Schleife (Bedingung): ${cfg.conditionExpression.trim().slice(0, 60)}`;
+      return `Schleife (LLM): ${cfg.prompt.trim().slice(0, 60) || 'Prompt'}`;
+    }
   }
 }
 
@@ -95,6 +127,10 @@ function successCriteriaForNode(node: FlowNode): string {
       return node.data.config.successCriteria?.trim() || 'Template wurde korrekt angewendet';
     case 'output':
       return 'Finales Ergebnis ist vorhanden';
+    case 'condition':
+      return (node.data as ConditionNodeData).config.successCriteria?.trim() || 'Bedingung wurde ausgewertet';
+    case 'loop':
+      return (node.data as LoopNodeData).config.successCriteria?.trim() || 'Schleife wurde ausgefuehrt';
   }
 }
 
@@ -107,7 +143,7 @@ function expectedToolsForNode(node: FlowNode): string[] {
 }
 
 function isRunnableNode(kind: FlowNodeKind): boolean {
-  return kind === 'agent' || kind === 'template';
+  return kind === 'agent' || kind === 'template' || kind === 'condition' || kind === 'loop';
 }
 
 function findFirstNodeByKind(nodes: FlowNode[], kind: FlowNodeKind): FlowNode | undefined {
@@ -119,7 +155,11 @@ export function compileVisualWorkflowToPlan(workflow: VisualWorkflow): FlowCompi
     throw new FlowCompileError('Der Flow ist leer. Bitte füge mindestens einen Input- und Agent-Node hinzu.');
   }
 
-  const sortedNodes = topologicalSort(workflow.nodes, workflow.edges);
+  // Remove back-edges before topological sort to avoid false cycle detection
+  const backEdgeIds = findBackEdges(workflow.edges, workflow.nodes);
+  const forwardEdges = workflow.edges.filter((e) => !backEdgeIds.has(e.id));
+
+  const sortedNodes = topologicalSort(workflow.nodes, forwardEdges);
   const nodeIds = new Set(sortedNodes.map((node) => node.id));
   const runnableNodeIds = new Set(
     sortedNodes.filter((node) => isRunnableNode(node.data.kind)).map((node) => node.id),
@@ -134,7 +174,7 @@ export function compileVisualWorkflowToPlan(workflow: VisualWorkflow): FlowCompi
     warnings.push('Kein Input-Node gefunden. Es wird eine generische Startnachricht verwendet.');
   }
 
-  if (!firstAgentNode) {
+  if (!firstAgentNode && !sortedNodes.some((n) => n.data.kind === 'condition' || n.data.kind === 'loop')) {
     throw new FlowCompileError('Kein Agent-Node gefunden. Mindestens ein Agent-Node ist für die Ausführung nötig.');
   }
 
@@ -142,20 +182,120 @@ export function compileVisualWorkflowToPlan(workflow: VisualWorkflow): FlowCompi
     warnings.push('Kein Output-Node gefunden. Das Ergebnis wird nur im Run-Status angezeigt.');
   }
 
+  // Build branch tagging: map node IDs to their branch condition
+  const branchMap = new Map<string, { conditionStepId: string; branch: 'true' | 'false' }>();
+  const conditionNodes = sortedNodes.filter((n) => n.data.kind === 'condition');
+
+  for (const condNode of conditionNodes) {
+    // Find edges from this condition node
+    const trueEdges = forwardEdges.filter((e) => e.source === condNode.id && e.sourceHandle === 'true');
+    const falseEdges = forwardEdges.filter((e) => e.source === condNode.id && e.sourceHandle === 'false');
+
+    // BFS to tag downstream nodes for each branch
+    const tagDownstream = (startEdges: FlowEdge[], branch: 'true' | 'false') => {
+      const queue = startEdges.map((e) => e.target);
+      const visited = new Set<string>();
+      while (queue.length > 0) {
+        const nodeId = queue.shift()!;
+        if (visited.has(nodeId)) continue;
+        visited.add(nodeId);
+        // Don't overwrite if already tagged (closest condition wins)
+        if (!branchMap.has(nodeId)) {
+          branchMap.set(nodeId, { conditionStepId: condNode.id, branch });
+        }
+        // Continue downstream
+        for (const edge of forwardEdges) {
+          if (edge.source === nodeId && !visited.has(edge.target)) {
+            queue.push(edge.target);
+          }
+        }
+      }
+    };
+
+    tagDownstream(trueEdges, 'true');
+    tagDownstream(falseEdges, 'false');
+  }
+
+  // Build loop body mapping: for each loop node, find body step IDs
+  const loopBodyMap = new Map<string, string[]>();
+  const loopNodes = sortedNodes.filter((n) => n.data.kind === 'loop');
+
+  for (const loopNode of loopNodes) {
+    // Body nodes: reachable from loop's "body" output handle
+    // Back to the loop-back handle (via back-edges)
+    const bodyEdges = forwardEdges.filter((e) => e.source === loopNode.id && e.sourceHandle === 'body');
+    const bodyNodeIds: string[] = [];
+    const queue = bodyEdges.map((e) => e.target);
+    const visited = new Set<string>();
+
+    while (queue.length > 0) {
+      const nodeId = queue.shift()!;
+      if (visited.has(nodeId) || nodeId === loopNode.id) continue;
+      visited.add(nodeId);
+      if (runnableNodeIds.has(nodeId)) {
+        bodyNodeIds.push(nodeId);
+      }
+      // Check if any back-edge from this node goes to the loop
+      const hasBackEdge = workflow.edges.some(
+        (e) => backEdgeIds.has(e.id) && e.source === nodeId && e.target === loopNode.id,
+      );
+      if (!hasBackEdge) {
+        // Continue downstream only if not looping back
+        for (const edge of forwardEdges) {
+          if (edge.source === nodeId && !visited.has(edge.target)) {
+            queue.push(edge.target);
+          }
+        }
+      }
+    }
+
+    loopBodyMap.set(loopNode.id, bodyNodeIds);
+  }
+
   const steps: WorkflowPlanStep[] = sortedNodes
     .filter((node) => isRunnableNode(node.data.kind))
     .map((node) => {
-      const dependsOn = incomingEdges(workflow.edges, node.id)
+      const dependsOn = incomingEdges(forwardEdges, node.id)
         .map((edge) => edge.source)
         .filter((sourceId) => nodeIds.has(sourceId) && runnableNodeIds.has(sourceId));
 
-      return {
+      const step: WorkflowPlanStep = {
         id: node.id,
         description: stepDescriptionForNode(node),
         expectedTools: expectedToolsForNode(node),
         dependsOn: [...new Set(dependsOn)],
         successCriteria: successCriteriaForNode(node),
       };
+
+      // Add step type
+      if (node.data.kind === 'condition') {
+        step.stepType = 'condition';
+        const cfg = (node.data as ConditionNodeData).config;
+        step.conditionConfig = {
+          mode: cfg.mode,
+          prompt: cfg.mode === 'llm' ? cfg.prompt : undefined,
+          expression: cfg.mode === 'expression' ? cfg.expression : undefined,
+        };
+      } else if (node.data.kind === 'loop') {
+        step.stepType = 'loop';
+        const cfg = (node.data as LoopNodeData).config;
+        step.loopConfig = {
+          mode: cfg.mode,
+          maxIterations: cfg.maxIterations,
+          count: cfg.mode === 'count' ? cfg.count : undefined,
+          expression: cfg.mode === 'condition' ? cfg.conditionExpression : undefined,
+          prompt: cfg.mode === 'llm' ? cfg.prompt : undefined,
+          bodyStepIds: loopBodyMap.get(node.id) ?? [],
+        };
+      }
+
+      // Add branch condition if this node is in a condition branch
+      const branch = branchMap.get(node.id);
+      if (branch) {
+        step.branchCondition = branch;
+      }
+
+      return step;
     });
 
   if (steps.length === 0) {

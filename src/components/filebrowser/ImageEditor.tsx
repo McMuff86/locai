@@ -59,12 +59,14 @@ import {
   applySharpen,
   boxBlur,
   createSelectionMask,
-  renderMarchingAnts,
+  extractSelectionEdges,
+  renderCachedMarchingAnts,
   floodFillSelection,
   healBrushDab,
   cloneStampDab,
   spotRemoveDab,
 } from './image-editor/utils';
+import type { EdgeSegment } from './image-editor/utils';
 
 // ── Component ─────────────────────────────────────────────────────────────────
 
@@ -78,6 +80,7 @@ export function ImageEditor({ imageUrl, rootId, relativePath, fileName }: ImageE
   const [imageLoadError, setImageLoadError] = useState<string | null>(null);
   const [dimensions, setDimensions] = useState({ w: 0, h: 0 });
   const [zoom, setZoom] = useState(1);
+  const zoomRef = useRef(1);
   const [comfyAvailable, setComfyAvailable] = useState(false);
 
   // Drawing state
@@ -106,6 +109,8 @@ export function ImageEditor({ imageUrl, rootId, relativePath, fileName }: ImageE
   const [aiEditPrompt, setAiEditPrompt] = useState('');
   const [aiEditDenoise, setAiEditDenoise] = useState(0.6);
   const [aiEditLoading, setAiEditLoading] = useState(false);
+  const [aiEditWorkflows, setAiEditWorkflows] = useState<Array<{ id: string; name: string }>>([]);
+  const [selectedWorkflowId, setSelectedWorkflowId] = useState('');
 
   // Text overlay state
   const [textInput, setTextInput] = useState('');
@@ -160,6 +165,7 @@ export function ImageEditor({ imageUrl, rootId, relativePath, fileName }: ImageE
   const [hasSelection, setHasSelection] = useState(false);
   const marchingAntsOffsetRef = useRef(0);
   const marchingAntsAnimRef = useRef<number | null>(null);
+  const selectionEdgesRef = useRef<EdgeSegment[]>([]);
   const lassoPointsRef = useRef<Point[]>([]);
   const marqueeStartRef = useRef<Point | null>(null);
   const clipboardCanvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -798,6 +804,7 @@ export function ImageEditor({ imageUrl, rootId, relativePath, fileName }: ImageE
   const clearSelection = useCallback(() => {
     selectionMaskRef.current = null;
     selectionBoundsRef.current = null;
+    selectionEdgesRef.current = [];
     setHasSelection(false);
     if (marchingAntsAnimRef.current) {
       cancelAnimationFrame(marchingAntsAnimRef.current);
@@ -831,12 +838,12 @@ export function ImageEditor({ imageUrl, rootId, relativePath, fileName }: ImageE
     const animate = () => {
       marchingAntsOffsetRef.current = (marchingAntsOffsetRef.current + 0.5) % 16;
       const overlay = overlayCanvasRef.current;
-      const mask = selectionMaskRef.current;
-      if (overlay && mask) {
+      const edges = selectionEdgesRef.current;
+      if (overlay && edges.length > 0) {
         const ctx = overlay.getContext('2d');
         if (ctx) {
           ctx.clearRect(0, 0, overlay.width, overlay.height);
-          renderMarchingAnts(ctx, mask, marchingAntsOffsetRef.current, zoom);
+          renderCachedMarchingAnts(ctx, edges, marchingAntsOffsetRef.current, zoomRef.current);
           if (hasSourceRef.current && sourcePointRef.current) {
             drawSourceCrosshairOnOverlay(ctx);
           }
@@ -845,7 +852,7 @@ export function ImageEditor({ imageUrl, rootId, relativePath, fileName }: ImageE
       marchingAntsAnimRef.current = requestAnimationFrame(animate);
     };
     marchingAntsAnimRef.current = requestAnimationFrame(animate);
-  }, [drawSourceCrosshairOnOverlay, zoom]);
+  }, [drawSourceCrosshairOnOverlay]);
 
   const setSelectionFromMask = useCallback((mask: ImageData) => {
     selectionMaskRef.current = mask;
@@ -865,6 +872,7 @@ export function ImageEditor({ imageUrl, rootId, relativePath, fileName }: ImageE
     }
     if (found) {
       selectionBoundsRef.current = { x: minX, y: minY, w: maxX - minX + 1, h: maxY - minY + 1 };
+      selectionEdgesRef.current = extractSelectionEdges(mask);
       setHasSelection(true);
       startMarchingAnts();
     } else {
@@ -882,6 +890,9 @@ export function ImageEditor({ imageUrl, rootId, relativePath, fileName }: ImageE
     }
     setSelectionFromMask(mask);
   }, [editor.canvasRef, setSelectionFromMask]);
+
+  // Keep zoomRef in sync with zoom state
+  useEffect(() => { zoomRef.current = zoom; }, [zoom]);
 
   // Cleanup marching ants on unmount
   useEffect(() => {
@@ -2048,7 +2059,12 @@ export function ImageEditor({ imageUrl, rootId, relativePath, fileName }: ImageE
       const res = await fetch('/api/image-editor/ai-edit', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ image: base64, prompt: aiEditPrompt, denoise: aiEditDenoise }),
+        body: JSON.stringify({
+          image: base64,
+          prompt: aiEditPrompt,
+          denoise: aiEditDenoise,
+          ...(selectedWorkflowId ? { workflowId: selectedWorkflowId } : {}),
+        }),
       });
       const data = await res.json();
       if (!data.success) throw new Error(data.error);
@@ -2071,7 +2087,7 @@ export function ImageEditor({ imageUrl, rootId, relativePath, fileName }: ImageE
     } finally {
       setAiEditLoading(false);
     }
-  }, [editor, aiEditPrompt, aiEditDenoise, toast, createCompositeCanvas, pushHistory]);
+  }, [editor, aiEditPrompt, aiEditDenoise, selectedWorkflowId, toast, createCompositeCanvas, pushHistory]);
 
   // ── Tool change ─────────────────────────────────────────────────
   const handleToolChange = useCallback((tool: ImageTool) => {
@@ -2091,7 +2107,20 @@ export function ImageEditor({ imageUrl, rootId, relativePath, fileName }: ImageE
       setShowResize(true);
     }
     if (tool === 'aiDescribe') handleAiDescribe();
-  }, [editor, handleAiDescribe]);
+    if (tool === 'aiEdit') {
+      fetch('/api/comfyui/templates')
+        .then((r) => r.json())
+        .then((data: { success?: boolean; templates?: Array<{ id: string; name: string }> }) => {
+          if (data.success && data.templates) {
+            setAiEditWorkflows(data.templates);
+            if (!selectedWorkflowId && data.templates.length > 0) {
+              setSelectedWorkflowId(data.templates[0].id);
+            }
+          }
+        })
+        .catch(() => { /* ignore */ });
+    }
+  }, [editor, handleAiDescribe, selectedWorkflowId]);
 
   const handleResetAll = useCallback(() => {
     editor.resetToOriginal();
@@ -2958,6 +2987,17 @@ export function ImageEditor({ imageUrl, rootId, relativePath, fileName }: ImageE
             <p className="text-xs text-muted-foreground">ComfyUI ist nicht gestartet.</p>
           ) : (
             <div className="flex flex-col gap-2">
+              {aiEditWorkflows.length > 1 && (
+                <select
+                  value={selectedWorkflowId}
+                  onChange={(e) => setSelectedWorkflowId(e.target.value)}
+                  className="bg-background border border-border rounded px-2 py-1 text-xs outline-none"
+                >
+                  {aiEditWorkflows.map((wf) => (
+                    <option key={wf.id} value={wf.id}>{wf.name}</option>
+                  ))}
+                </select>
+              )}
               <input
                 type="text"
                 value={aiEditPrompt}

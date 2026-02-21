@@ -1,8 +1,8 @@
 import type { Connection, Edge, Node, Viewport } from '@xyflow/react';
 import type { WorkflowPlan, WorkflowStatus } from '@/lib/agents/workflowTypes';
 
-export type FlowNodeKind = 'input' | 'agent' | 'template' | 'output';
-export type FlowNodeType = 'inputNode' | 'agentNode' | 'templateNode' | 'outputNode';
+export type FlowNodeKind = 'input' | 'agent' | 'template' | 'output' | 'condition' | 'loop';
+export type FlowNodeType = 'inputNode' | 'agentNode' | 'templateNode' | 'outputNode' | 'conditionNode' | 'loopNode';
 export type FlowPortType = 'string' | 'json' | 'any' | 'stream';
 export type FlowPortDirection = 'input' | 'output';
 
@@ -46,16 +46,40 @@ export interface OutputNodeConfig {
   filePath?: string;
 }
 
+export interface ConditionNodeConfig {
+  mode: 'llm' | 'expression';
+  prompt: string;
+  expression: string;
+  provider?: 'ollama' | 'anthropic' | 'openai' | 'openrouter';
+  model: string;
+  successCriteria?: string;
+}
+
+export interface LoopNodeConfig {
+  mode: 'count' | 'condition' | 'llm';
+  maxIterations: number;
+  count: number;
+  conditionExpression: string;
+  prompt: string;
+  provider?: 'ollama' | 'anthropic' | 'openai' | 'openrouter';
+  model: string;
+  successCriteria?: string;
+}
+
 export type InputNodeData = BaseNodeData<'input', InputNodeConfig>;
 export type AgentNodeData = BaseNodeData<'agent', AgentNodeConfig>;
 export type TemplateNodeData = BaseNodeData<'template', TemplateNodeConfig>;
 export type OutputNodeData = BaseNodeData<'output', OutputNodeConfig>;
+export type ConditionNodeData = BaseNodeData<'condition', ConditionNodeConfig>;
+export type LoopNodeData = BaseNodeData<'loop', LoopNodeConfig>;
 
 export type FlowNodeData =
   | InputNodeData
   | AgentNodeData
   | TemplateNodeData
-  | OutputNodeData;
+  | OutputNodeData
+  | ConditionNodeData
+  | LoopNodeData;
 
 export type FlowNode = Node<FlowNodeData, FlowNodeType>;
 
@@ -102,6 +126,15 @@ export interface WorkflowRunSummary {
   totalSteps?: number;
   error?: string;
   nodeStatuses?: Partial<Record<string, NodeRunStatus>>;
+  stepTimings?: Array<{
+    stepId: string;
+    label: string;
+    startedAt: string;
+    completedAt?: string;
+    durationMs: number;
+    status: string;
+    lane: number;
+  }>;
 }
 
 export interface StoredWorkflow {

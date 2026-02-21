@@ -4,8 +4,24 @@ import '@syncfusion/ej2-base/styles/material.css';
 import '@syncfusion/ej2-pdfviewer/styles/material.css';
 
 import { useEffect, useRef, useState } from 'react';
-import { Loader2, AlertTriangle } from 'lucide-react';
+import { Loader2 } from 'lucide-react';
+import dynamic from 'next/dynamic';
 import type { PDFEngine } from '@mcmuff86/pdf-core';
+
+const PDFViewerFallback = dynamic(
+  () =>
+    import('./PDFViewerFallback').then((mod) => ({
+      default: mod.PDFViewerFallback,
+    })),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="flex items-center justify-center h-full">
+        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+      </div>
+    ),
+  },
+);
 
 interface PDFViewerProps {
   pdfUrl: string;
@@ -14,11 +30,14 @@ interface PDFViewerProps {
   fileName: string;
 }
 
+type ViewerMode = 'loading' | 'syncfusion' | 'fallback';
+
 export function PDFViewer({ pdfUrl, fileName }: PDFViewerProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const engineRef = useRef<PDFEngine | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [mode, setMode] = useState<ViewerMode>('loading');
 
   useEffect(() => {
     let destroyed = false;
@@ -27,19 +46,24 @@ export function PDFViewer({ pdfUrl, fileName }: PDFViewerProps) {
       try {
         // 1. Fetch license key from server
         const licenseRes = await fetch('/api/pdf/license');
-        const licenseData = await licenseRes.json() as {
+        const licenseData = (await licenseRes.json()) as {
           success: boolean;
           licenseKey?: string;
           error?: string;
         };
 
+        // No license key → use pdfjs fallback
         if (!licenseRes.ok || !licenseData.success) {
-          setError(licenseData.error ?? 'License Key nicht verfügbar');
-          setIsLoading(false);
+          if (!destroyed) {
+            setMode('fallback');
+            setIsLoading(false);
+          }
           return;
         }
 
         if (destroyed || !containerRef.current) return;
+
+        setMode('syncfusion');
 
         // 2. Dynamic import pdf-core (client-only, needs DOM)
         const { createPDFEngine, registerSyncfusionLicense } = await import(
@@ -81,7 +105,9 @@ export function PDFViewer({ pdfUrl, fileName }: PDFViewerProps) {
       } catch (err) {
         if (!destroyed) {
           setError(
-            err instanceof Error ? err.message : 'PDF konnte nicht geladen werden',
+            err instanceof Error
+              ? err.message
+              : 'PDF konnte nicht geladen werden',
           );
           setIsLoading(false);
         }
@@ -103,14 +129,16 @@ export function PDFViewer({ pdfUrl, fileName }: PDFViewerProps) {
     };
   }, [pdfUrl]);
 
+  // Fallback mode — render pdfjs-based viewer
+  if (mode === 'fallback') {
+    return <PDFViewerFallback pdfUrl={pdfUrl} fileName={fileName} />;
+  }
+
   if (error) {
     return (
       <div className="flex items-center gap-2 p-4 text-sm text-destructive">
-        <AlertTriangle className="h-4 w-4 flex-shrink-0" />
-        <div>
-          <p className="font-medium">PDF-Viewer Fehler</p>
-          <p className="text-muted-foreground">{error}</p>
-        </div>
+        <p className="font-medium">PDF-Viewer Fehler:</p>
+        <p className="text-muted-foreground">{error}</p>
       </div>
     );
   }
