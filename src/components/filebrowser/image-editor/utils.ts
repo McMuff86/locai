@@ -377,44 +377,37 @@ export function renderMarchingAnts(
 ) {
   const { width, height, data } = mask;
 
-  // Find boundary pixels: selected pixels adjacent to non-selected pixels
-  const boundary: Array<{ x: number; y: number }> = [];
-  for (let y = 0; y < height; y++) {
-    for (let x = 0; x < width; x++) {
-      const idx = (y * width + x) * 4;
-      if (data[idx] < 128) continue;
-      // Check if any neighbor is not selected
-      const isBoundary =
-        x === 0 || x === width - 1 || y === 0 || y === height - 1 ||
-        data[((y - 1) * width + x) * 4] < 128 ||
-        data[((y + 1) * width + x) * 4] < 128 ||
-        data[(y * width + x - 1) * 4] < 128 ||
-        data[(y * width + x + 1) * 4] < 128;
-      if (isBoundary) boundary.push({ x, y });
-    }
-  }
+  const isSelected = (x: number, y: number): boolean => {
+    if (x < 0 || x >= width || y < 0 || y >= height) return false;
+    return data[(y * width + x) * 4] >= 128;
+  };
 
-  if (boundary.length === 0) return;
-
+  // Trace edge segments between selected and non-selected pixels
   ctx.save();
   ctx.setLineDash([4, 4]);
   ctx.lineDashOffset = -animOffset;
   ctx.lineWidth = 1 / zoom;
   ctx.strokeStyle = '#000000';
 
-  // Draw boundary pixels as small rects
   ctx.beginPath();
-  for (const p of boundary) {
-    ctx.rect(p.x, p.y, 1, 1);
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      if (!isSelected(x, y)) continue;
+      // Top edge: pixel above is not selected
+      if (!isSelected(x, y - 1)) { ctx.moveTo(x, y); ctx.lineTo(x + 1, y); }
+      // Bottom edge: pixel below is not selected
+      if (!isSelected(x, y + 1)) { ctx.moveTo(x, y + 1); ctx.lineTo(x + 1, y + 1); }
+      // Left edge: pixel to the left is not selected
+      if (!isSelected(x - 1, y)) { ctx.moveTo(x, y); ctx.lineTo(x, y + 1); }
+      // Right edge: pixel to the right is not selected
+      if (!isSelected(x + 1, y)) { ctx.moveTo(x + 1, y); ctx.lineTo(x + 1, y + 1); }
+    }
   }
   ctx.stroke();
 
+  // White overlay offset by half a dash for contrast
   ctx.strokeStyle = '#ffffff';
   ctx.lineDashOffset = -(animOffset + 4);
-  ctx.beginPath();
-  for (const p of boundary) {
-    ctx.rect(p.x, p.y, 1, 1);
-  }
   ctx.stroke();
   ctx.restore();
 }
