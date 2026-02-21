@@ -6,6 +6,7 @@ import { FolderOpen, FileText, Settings, Network, AlertTriangle } from 'lucide-r
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
+import { useToast } from '@/components/ui/use-toast';
 import {
   Dialog,
   DialogContent,
@@ -25,6 +26,7 @@ import {
 import { useNotesContext } from './layout';
 
 export default function NotesPage() {
+  const { toast } = useToast();
   const router = useRouter();
   const searchParams = useSearchParams();
   const noteIdFromUrl = searchParams.get('note');
@@ -153,6 +155,42 @@ export default function NotesPage() {
       setHighlightTerm(null);
     }
   }, [loadNote, noteIdFromUrl, router]);
+
+  // Save note to Agent Workspace
+  const handleSaveToWorkspace = useCallback(async (noteId: string) => {
+    if (!basePath) return;
+    try {
+      const res = await fetch(
+        `/api/notes?id=${encodeURIComponent(noteId)}&basePath=${encodeURIComponent(basePath)}`,
+      );
+      if (!res.ok) throw new Error('Notiz konnte nicht geladen werden');
+      const note = await res.json();
+
+      const fileName = `${(note.title || 'Notiz').replace(/[<>:"/\\|?*]/g, '_')}.md`;
+      const writeRes = await fetch('/api/filebrowser/write', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          rootId: 'workspace',
+          path: fileName,
+          content: `# ${note.title}\n\n${note.content}`,
+        }),
+      });
+
+      if (!writeRes.ok) throw new Error('Schreiben fehlgeschlagen');
+
+      toast({
+        title: 'Im Workspace gespeichert',
+        description: `"${note.title}" wurde als ${fileName} im Agent Workspace gespeichert.`,
+      });
+    } catch (err) {
+      toast({
+        title: 'Fehler',
+        description: err instanceof Error ? err.message : 'Speichern fehlgeschlagen',
+        variant: 'destructive',
+      });
+    }
+  }, [basePath, toast]);
 
   // Handle note selection with unsaved changes check
   const handleLoadNote = useCallback(async (noteId: string, searchTerm?: string) => {
@@ -298,6 +336,7 @@ export default function NotesPage() {
           onSelectNote={handleLoadNote}
           onNewNote={handleNewNote}
           onRefresh={fetchNotes}
+          onSaveToWorkspace={handleSaveToWorkspace}
         />
         
         {/* Right Panel: Editor */}

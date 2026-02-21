@@ -44,9 +44,29 @@ function toAnthropicMessages(messages: ChatMessage[]): {
   for (const msg of messages) {
     if (msg.role === 'system') {
       system = msg.content;
-    } else if (msg.role === 'user' || msg.role === 'assistant') {
+    } else if (msg.role === 'assistant') {
+      // Build content blocks: text + tool_use blocks
+      const contentBlocks: Array<{ type: string; text?: string; [key: string]: unknown }> = [];
+      if (msg.content) {
+        contentBlocks.push({ type: 'text', text: msg.content });
+      }
+      if (msg.tool_calls && msg.tool_calls.length > 0) {
+        for (const tc of msg.tool_calls) {
+          contentBlocks.push({
+            type: 'tool_use',
+            id: tc.id,
+            name: tc.function.name,
+            input: tc.function.arguments,
+          });
+        }
+      }
       converted.push({
-        role: msg.role,
+        role: 'assistant',
+        content: contentBlocks.length > 0 ? contentBlocks : msg.content,
+      });
+    } else if (msg.role === 'user') {
+      converted.push({
+        role: 'user',
         content: msg.content,
       });
     } else if (msg.role === 'tool') {
@@ -110,15 +130,17 @@ export class AnthropicProvider implements ChatProvider {
     const { system, messages: anthropicMessages } = toAnthropicMessages(messages);
     const tools = toAnthropicTools(options.tools);
 
-    const response = await client.messages.create({
-      model: options.model,
-      max_tokens: options.maxTokens ?? 4096,
-      ...(system && { system }),
-      messages: anthropicMessages as Parameters<typeof client.messages.create>[0]['messages'],
-      ...(options.temperature !== undefined && { temperature: options.temperature }),
-      ...(tools && { tools: tools as Parameters<typeof client.messages.create>[0]['tools'] }),
-      ...(options.signal && { signal: options.signal }),
-    });
+    const response = await client.messages.create(
+      {
+        model: options.model,
+        max_tokens: options.maxTokens ?? 4096,
+        ...(system && { system }),
+        messages: anthropicMessages as Parameters<typeof client.messages.create>[0]['messages'],
+        ...(options.temperature !== undefined && { temperature: options.temperature }),
+        ...(tools && { tools: tools as Parameters<typeof client.messages.create>[0]['tools'] }),
+      },
+      ...(options.signal ? [{ signal: options.signal }] : []),
+    );
 
     // Extract text and tool calls from response
     let content = '';
@@ -201,8 +223,21 @@ export class AnthropicProvider implements ChatProvider {
   }
 
   async listModels(): Promise<ModelInfo[]> {
-    // Anthropic doesn't have a list models endpoint in the same way
-    // Return known models
+    try {
+      const client = await getAnthropicClient(this.apiKey, this.baseUrl);
+      const response = await client.models.list({ limit: 100 });
+      const models: ModelInfo[] = [];
+      for await (const model of response) {
+        models.push({
+          id: model.id,
+          name: model.display_name ?? model.id,
+          provider: 'anthropic',
+        });
+      }
+      if (models.length > 0) return models;
+    } catch {
+      // API may not support listing — fall back to known models
+    }
     return CLAUDE_MODELS;
   }
 

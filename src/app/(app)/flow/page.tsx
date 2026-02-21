@@ -299,6 +299,7 @@ export default function FlowPage() {
         body: JSON.stringify({
           message: compiled.entryMessage,
           model: compiled.model,
+          provider: compiled.provider,
           systemPrompt: compiled.systemPrompt,
           enabledTools: compiled.enabledTools,
           maxSteps: compiled.plan.steps.length,

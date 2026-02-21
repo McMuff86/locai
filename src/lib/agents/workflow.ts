@@ -690,6 +690,7 @@ export class WorkflowEngine {
     } catch (err) {
       if (!this.isAborted()) {
         const msg = err instanceof Error ? err.message : 'Schritt-Fehler';
+        console.error('[Workflow] Step execution error:', msg, err);
         step.error = msg;
         step.status = 'failed';
 
@@ -749,10 +750,14 @@ export class WorkflowEngine {
       );
 
       if (response.content) {
-        return parseReflection(response.content);
+        const reflection = parseReflection(response.content);
+        if (reflection?.nextAction === 'abort') {
+          console.warn('[Workflow] Reflection chose ABORT:', response.content);
+        }
+        return reflection;
       }
-    } catch {
-      // Reflection failure is non-fatal
+    } catch (err) {
+      console.warn('[Workflow] Reflection phase error:', err instanceof Error ? err.message : err);
     }
 
     return null;

@@ -1,7 +1,7 @@
 "use client";
 
-import React from 'react';
-import { AlertCircle, CheckCircle2, Clock3, Timer } from 'lucide-react';
+import React, { useCallback, useRef, useState } from 'react';
+import { AlertCircle, CheckCircle2, Clock3, Copy, GripHorizontal, Timer } from 'lucide-react';
 import type { WorkflowRunSummary } from '@/lib/flow/types';
 import { cn } from '@/lib/utils';
 
@@ -34,9 +34,55 @@ function formatDate(dateIso: string): string {
 }
 
 export function RunHistoryPanel({ runs, selectedRunId, onSelectRun }: RunHistoryPanelProps) {
+  const [panelHeight, setPanelHeight] = useState(176);
+  const [copiedId, setCopiedId] = useState<string | null>(null);
+  const isResizingRef = useRef(false);
+
+  const handleCopyError = useCallback((e: React.MouseEvent, run: WorkflowRunSummary) => {
+    e.stopPropagation();
+    if (!run.error) return;
+    navigator.clipboard.writeText(run.error);
+    setCopiedId(run.id);
+    setTimeout(() => setCopiedId(null), 1500);
+  }, []);
+
+  const handleResizeStart = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    isResizingRef.current = true;
+    const startY = e.clientY;
+    const startHeight = panelHeight;
+
+    const onPointerMove = (moveEvent: PointerEvent) => {
+      if (!isResizingRef.current) return;
+      const delta = startY - moveEvent.clientY;
+      setPanelHeight(Math.max(100, Math.min(500, startHeight + delta)));
+    };
+
+    const onPointerUp = () => {
+      isResizingRef.current = false;
+      document.removeEventListener('pointermove', onPointerMove);
+      document.removeEventListener('pointerup', onPointerUp);
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+    };
+
+    document.body.style.cursor = 'row-resize';
+    document.body.style.userSelect = 'none';
+    document.addEventListener('pointermove', onPointerMove);
+    document.addEventListener('pointerup', onPointerUp);
+  }, [panelHeight]);
+
   return (
     <section className="border-t border-border/60 bg-zinc-900/40">
-      <div className="flex items-center justify-between border-b border-border/60 px-4 py-2">
+      {/* Resize handle */}
+      <div
+        onPointerDown={handleResizeStart}
+        className="flex h-2 cursor-row-resize items-center justify-center hover:bg-border/30"
+      >
+        <GripHorizontal className="h-3 w-3 text-muted-foreground/40" />
+      </div>
+
+      <div className="flex items-center justify-between border-b border-border/60 px-4 py-1.5">
         <div className="text-xs font-semibold tracking-wide">Run History</div>
         <div className="text-[11px] text-muted-foreground">Letzte {runs.length} Runs</div>
       </div>
@@ -46,7 +92,7 @@ export function RunHistoryPanel({ runs, selectedRunId, onSelectRun }: RunHistory
           Noch keine Runs vorhanden.
         </div>
       ) : (
-        <div className="max-h-44 overflow-y-auto p-2">
+        <div className="overflow-y-auto p-2" style={{ maxHeight: panelHeight }}>
           <div className="space-y-2">
             {runs.map((run) => (
               <button
@@ -89,7 +135,25 @@ export function RunHistoryPanel({ runs, selectedRunId, onSelectRun }: RunHistory
                 </div>
 
                 {run.error && (
-                  <div className="mt-1 truncate text-[11px] text-red-300/90">{run.error}</div>
+                  <div className="mt-1.5 flex items-start gap-1.5">
+                    <div className="min-w-0 flex-1 rounded bg-red-500/5 px-2 py-1 text-[11px] text-red-300/90">
+                      {run.error}
+                    </div>
+                    <div
+                      role="button"
+                      tabIndex={0}
+                      className="shrink-0 cursor-pointer rounded p-1 text-muted-foreground/60 transition-colors hover:bg-muted/50 hover:text-foreground"
+                      title="Error kopieren"
+                      onClick={(e) => handleCopyError(e, run)}
+                      onKeyDown={(e) => { if (e.key === 'Enter') handleCopyError(e as unknown as React.MouseEvent, run); }}
+                    >
+                      {copiedId === run.id ? (
+                        <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400" />
+                      ) : (
+                        <Copy className="h-3.5 w-3.5" />
+                      )}
+                    </div>
+                  </div>
                 )}
               </button>
             ))}
