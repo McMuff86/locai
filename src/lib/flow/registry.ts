@@ -363,6 +363,139 @@ export function createFlowNode(kind: FlowNodeKind, position: XYPosition): FlowNo
   }
 }
 
+export function createPdfProcessingWorkflow(): VisualWorkflow {
+  const inputNode: FlowNode = {
+    id: makeId('input'),
+    position: { x: 80, y: 220 },
+    type: 'inputNode',
+    draggable: true,
+    data: {
+      kind: 'input',
+      label: 'PDF Aufgabe',
+      runtime: { status: 'idle' },
+      config: {
+        text: 'Lies die Datei /workspace/dokument.pdf und erstelle eine strukturierte Zusammenfassung.',
+        successCriteria: 'PDF-Pfad und Aufgabe wurden bereitgestellt',
+      },
+    },
+  };
+
+  const readPdfAgent: FlowNode = {
+    id: makeId('agent'),
+    position: { x: 360, y: 220 },
+    type: 'agentNode',
+    draggable: true,
+    data: {
+      kind: 'agent',
+      label: 'PDF lesen',
+      runtime: { status: 'idle' },
+      config: {
+        model: 'llama3',
+        prompt: 'Lies die angegebene PDF-Datei mit dem read_file Tool und gib den vollstaendigen Inhalt zurueck.',
+        systemPrompt: 'Du bist ein Dokumenten-Assistent. Lies Dateien praezise und gib den Inhalt vollstaendig zurueck.',
+        tools: ['read_file', 'search_documents'],
+        successCriteria: 'PDF-Inhalt wurde erfolgreich extrahiert',
+      },
+    },
+  };
+
+  const formatTemplate: FlowNode = {
+    id: makeId('template'),
+    position: { x: 640, y: 220 },
+    type: 'templateNode',
+    draggable: true,
+    data: {
+      kind: 'template',
+      label: 'Analyse-Prompt',
+      runtime: { status: 'idle' },
+      config: {
+        template:
+          'Analysiere das folgende PDF-Dokument und erstelle eine strukturierte Zusammenfassung:\n\n---\n{{result}}\n---\n\nBitte erstelle:\n1. Eine kurze Zusammenfassung (3-5 Saetze)\n2. Die wichtigsten Kernpunkte als Liste\n3. Relevante Details oder Zahlen',
+        successCriteria: 'Analyse-Prompt wurde korrekt zusammengesetzt',
+      },
+    },
+  };
+
+  const analyzeAgent: FlowNode = {
+    id: makeId('agent'),
+    position: { x: 920, y: 220 },
+    type: 'agentNode',
+    draggable: true,
+    data: {
+      kind: 'agent',
+      label: 'PDF analysieren',
+      runtime: { status: 'idle' },
+      config: {
+        model: 'llama3',
+        prompt: 'Fuehre die Analyse gemaess den Anweisungen durch. Strukturiere die Ausgabe klar und uebersichtlich.',
+        systemPrompt: 'Du bist ein Experte fuer Dokumentenanalyse. Erstelle praezise, gut strukturierte Zusammenfassungen.',
+        tools: [],
+        successCriteria: 'Strukturierte Zusammenfassung wurde erstellt',
+      },
+    },
+  };
+
+  const outputNode: FlowNode = {
+    id: makeId('output'),
+    position: { x: 1220, y: 220 },
+    type: 'outputNode',
+    draggable: true,
+    data: {
+      kind: 'output',
+      label: 'Ergebnis',
+      runtime: { status: 'idle' },
+      config: {
+        result: '',
+        saveToFile: true,
+        filePath: 'pdf_zusammenfassung.md',
+      },
+    },
+  };
+
+  const nodes = [inputNode, readPdfAgent, formatTemplate, analyzeAgent, outputNode];
+
+  const edges: FlowEdge[] = [
+    { id: `${inputNode.id}-${readPdfAgent.id}`, source: inputNode.id, target: readPdfAgent.id, type: 'smoothstep' },
+    { id: `${readPdfAgent.id}-${formatTemplate.id}`, source: readPdfAgent.id, target: formatTemplate.id, type: 'smoothstep' },
+    { id: `${formatTemplate.id}-${analyzeAgent.id}`, source: formatTemplate.id, target: analyzeAgent.id, type: 'smoothstep' },
+    { id: `${analyzeAgent.id}-${outputNode.id}`, source: analyzeAgent.id, target: outputNode.id, type: 'smoothstep' },
+  ].map((edge) => decorateFlowEdge(edge, nodes));
+
+  return {
+    metadata: {
+      name: 'PDF Verarbeitung',
+      description: 'PDF lesen → Inhalt formatieren → Analyse erstellen → Ergebnis speichern',
+    },
+    nodes,
+    edges,
+    viewport: { x: 0, y: 0, zoom: 0.85 },
+  };
+}
+
+export type FlowTemplateId = 'default' | 'pdf-processing';
+
+export interface FlowTemplate {
+  id: FlowTemplateId;
+  name: string;
+  description: string;
+  create: () => VisualWorkflow;
+}
+
+export const FLOW_TEMPLATES: FlowTemplate[] = [
+  {
+    id: 'default',
+    name: 'Neuer Flow',
+    description: 'Input → Agent → Output',
+    create: () => createDefaultVisualWorkflow(),
+  },
+  {
+    id: 'pdf-processing',
+    name: 'PDF Verarbeitung',
+    description: 'PDF lesen → Formatieren → Analysieren → Ergebnis',
+    create: () => createPdfProcessingWorkflow(),
+  },
+];
+
 export function createDefaultVisualWorkflow(): VisualWorkflow {
   const inputNode = createFlowNode('input', { x: 80, y: 220 });
   const agentNode = createFlowNode('agent', { x: 380, y: 220 });
@@ -395,9 +528,10 @@ export function createDefaultVisualWorkflow(): VisualWorkflow {
   };
 }
 
-export function createDefaultStoredWorkflow(): StoredWorkflow {
+export function createStoredWorkflowFromTemplate(templateId: FlowTemplateId): StoredWorkflow {
+  const template = FLOW_TEMPLATES.find((t) => t.id === templateId);
+  const graph = template ? template.create() : createDefaultVisualWorkflow();
   const now = new Date().toISOString();
-  const graph = createDefaultVisualWorkflow();
 
   return {
     id: 'current',
@@ -410,4 +544,8 @@ export function createDefaultStoredWorkflow(): StoredWorkflow {
     tags: [],
     isFavorite: false,
   };
+}
+
+export function createDefaultStoredWorkflow(): StoredWorkflow {
+  return createStoredWorkflowFromTemplate('default');
 }

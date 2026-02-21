@@ -9,13 +9,15 @@ import {
   type XYPosition,
 } from '@xyflow/react';
 import { create } from 'zustand';
-import { createDefaultStoredWorkflow, createFlowEdgeFromConnection, createFlowNode } from '@/lib/flow/registry';
+import { createDefaultStoredWorkflow, createFlowEdgeFromConnection, createFlowNode, createStoredWorkflowFromTemplate, FLOW_TEMPLATES, type FlowTemplateId } from '@/lib/flow/registry';
 import type {
   FlowEdge,
   FlowNode,
   FlowNodeKind,
   NodeRuntimeState,
+  SavedFlowTemplate,
   StoredWorkflow,
+  VisualWorkflow,
   WorkflowRunSummary,
 } from '@/lib/flow/types';
 
@@ -26,8 +28,15 @@ interface FlowStoreState {
   isHydrated: boolean;
   isRunning: boolean;
   runError: string | null;
+  savedTemplates: SavedFlowTemplate[];
+  activeTemplateId: string | null;
+  activeTemplateName: string | null;
   setHydrated: (hydrated: boolean) => void;
   loadWorkflow: (workflow: StoredWorkflow) => void;
+  loadTemplate: (templateId: FlowTemplateId) => void;
+  setSavedTemplates: (templates: SavedFlowTemplate[]) => void;
+  setActiveTemplate: (id: string | null, name: string | null) => void;
+  loadSavedTemplate: (template: SavedFlowTemplate) => void;
   setNodes: (nodes: FlowNode[]) => void;
   setEdges: (edges: FlowEdge[]) => void;
   onNodesChange: (changes: NodeChange<FlowNode>[]) => void;
@@ -63,6 +72,9 @@ export const useFlowStore = create<FlowStoreState>((set) => ({
   isHydrated: false,
   isRunning: false,
   runError: null,
+  savedTemplates: [],
+  activeTemplateId: null,
+  activeTemplateName: null,
 
   setHydrated: (hydrated) => set({ isHydrated: hydrated }),
 
@@ -73,6 +85,44 @@ export const useFlowStore = create<FlowStoreState>((set) => ({
       selectedRunId: null,
       runError: null,
     }),
+
+  loadTemplate: (templateId) => {
+    const template = FLOW_TEMPLATES.find((t) => t.id === templateId);
+    return set({
+      workflow: createStoredWorkflowFromTemplate(templateId),
+      selectedNodeId: null,
+      selectedRunId: null,
+      runError: null,
+      activeTemplateId: null,
+      activeTemplateName: template?.name ?? null,
+    });
+  },
+
+  setSavedTemplates: (templates) => set({ savedTemplates: templates }),
+
+  setActiveTemplate: (id, name) => set({ activeTemplateId: id, activeTemplateName: name }),
+
+  loadSavedTemplate: (template) => {
+    const now = new Date().toISOString();
+    return set({
+      workflow: {
+        id: 'current',
+        name: template.name,
+        description: template.description,
+        graph: template.graph,
+        runs: [],
+        createdAt: now,
+        updatedAt: now,
+        tags: [],
+        isFavorite: false,
+      },
+      selectedNodeId: null,
+      selectedRunId: null,
+      runError: null,
+      activeTemplateId: template.id,
+      activeTemplateName: template.name,
+    });
+  },
 
   setNodes: (nodes) =>
     set((state) => ({

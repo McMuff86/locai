@@ -1,20 +1,31 @@
 "use client";
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Loader2, Play, Save, Square, X } from 'lucide-react';
+import { ChevronDown, FileText, Loader2, Play, Plus, Save, Square, Trash2, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { useToast } from '@/components/ui/use-toast';
 import { ConfigPanel } from '@/components/flow/ConfigPanel';
 import { FlowCanvas } from '@/components/flow/FlowCanvas';
 import { NodeCommandPalette } from '@/components/flow/NodeCommandPalette';
 import { NodePalette } from '@/components/flow/NodePalette';
 import { RunHistoryPanel } from '@/components/flow/RunHistoryPanel';
+import { DeleteTemplateDialog } from '@/components/flow/DeleteTemplateDialog';
+import { SaveFlowDialog } from '@/components/flow/SaveFlowDialog';
 import { FlowCompileError, compileVisualWorkflowToPlan } from '@/lib/flow/engine';
-import { loadCurrentWorkflow, saveCurrentWorkflow } from '@/lib/flow/serialization';
+import { FLOW_TEMPLATES, type FlowTemplateId } from '@/lib/flow/registry';
+import { deleteTemplate as deleteTemplateFromDb, loadAllTemplates, loadCurrentWorkflow, saveCurrentWorkflow } from '@/lib/flow/serialization';
 import { useFlowStore } from '@/stores/flowStore';
 import type { WorkflowStatus, WorkflowStreamEvent } from '@/lib/agents/workflowTypes';
 import { saveFlowOutput } from '@/lib/flow/saveOutput';
-import type { FlowNodeKind, NodeRunStatus, OutputNodeData, WorkflowRunSummary } from '@/lib/flow/types';
+import type { FlowNodeKind, NodeRunStatus, OutputNodeData, SavedFlowTemplate, WorkflowRunSummary } from '@/lib/flow/types';
 
 export default function FlowPage() {
   const { toast } = useToast();
@@ -24,6 +35,7 @@ export default function FlowPage() {
   const isRunning = useFlowStore((state) => state.isRunning);
   const runError = useFlowStore((state) => state.runError);
   const loadWorkflow = useFlowStore((state) => state.loadWorkflow);
+  const loadTemplate = useFlowStore((state) => state.loadTemplate);
   const setHydrated = useFlowStore((state) => state.setHydrated);
   const resetNodeRuntime = useFlowStore((state) => state.resetNodeRuntime);
   const clearRunningNodeRuntime = useFlowStore((state) => state.clearRunningNodeRuntime);
@@ -33,6 +45,12 @@ export default function FlowPage() {
   const setRunError = useFlowStore((state) => state.setRunError);
   const addRunSummary = useFlowStore((state) => state.addRunSummary);
   const applyRunSummary = useFlowStore((state) => state.applyRunSummary);
+  const savedTemplates = useFlowStore((state) => state.savedTemplates);
+  const activeTemplateId = useFlowStore((state) => state.activeTemplateId);
+  const activeTemplateName = useFlowStore((state) => state.activeTemplateName);
+  const setSavedTemplates = useFlowStore((state) => state.setSavedTemplates);
+  const setActiveTemplate = useFlowStore((state) => state.setActiveTemplate);
+  const loadSavedTemplate = useFlowStore((state) => state.loadSavedTemplate);
 
   const [compileWarnings, setCompileWarnings] = useState<string[]>([]);
   const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
@@ -40,6 +58,8 @@ export default function FlowPage() {
   const streamBufferRef = useRef('');
   const runAbortControllerRef = useRef<AbortController | null>(null);
   const [showLastRunInfo, setShowLastRunInfo] = useState(true);
+  const [isSaveDialogOpen, setIsSaveDialogOpen] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<SavedFlowTemplate | null>(null);
 
   const lastRun = useMemo(() => workflow.runs[0] ?? null, [workflow.runs]);
   const runningNodeLabels = useMemo(
@@ -61,9 +81,15 @@ export default function FlowPage() {
 
     const hydrate = async () => {
       try {
-        const stored = await loadCurrentWorkflow();
-        if (!cancelled && stored) {
-          loadWorkflow(stored);
+        const [stored, templates] = await Promise.all([
+          loadCurrentWorkflow(),
+          loadAllTemplates(),
+        ]);
+        if (!cancelled) {
+          if (stored) {
+            loadWorkflow(stored);
+          }
+          setSavedTemplates(templates);
         }
       } catch {
         if (!cancelled) {
@@ -85,7 +111,7 @@ export default function FlowPage() {
     return () => {
       cancelled = true;
     };
-  }, [loadWorkflow, setHydrated, toast]);
+  }, [loadWorkflow, setHydrated, setSavedTemplates, toast]);
 
   useEffect(() => {
     if (!isHydrated) {
@@ -130,6 +156,17 @@ export default function FlowPage() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isRunning]);
 
+  const handleLoadTemplate = useCallback(
+    (templateId: FlowTemplateId) => {
+      loadTemplate(templateId);
+      toast({
+        title: 'Template geladen',
+        description: FLOW_TEMPLATES.find((t) => t.id === templateId)?.name ?? templateId,
+      });
+    },
+    [loadTemplate, toast],
+  );
+
   const handleInsertNodeFromCommand = useCallback((kind: FlowNodeKind) => {
     setPendingInsertNodeKind(kind);
   }, []);
@@ -145,21 +182,43 @@ export default function FlowPage() {
     [applyRunSummary],
   );
 
-  const handleSaveNow = useCallback(async () => {
-    try {
-      await saveCurrentWorkflow(workflow);
-      toast({ title: 'Flow gespeichert', description: 'Der aktuelle Stand ist lokal gesichert.' });
-    } catch {
-      toast({
-        title: 'Speichern fehlgeschlagen',
-        description: 'IndexedDB ist derzeit nicht erreichbar.',
-        variant: 'destructive',
-      });
+  const handleOpenSaveDialog = useCallback(() => {
+    setIsSaveDialogOpen(true);
+  }, []);
+
+  const handleSaveComplete = useCallback(
+    (template: SavedFlowTemplate) => {
+      setSavedTemplates(
+        savedTemplates.some((t) => t.id === template.id)
+          ? savedTemplates.map((t) => (t.id === template.id ? template : t))
+          : [...savedTemplates, template],
+      );
+      setActiveTemplate(template.id, template.name);
+      toast({ title: 'Template gespeichert', description: `"${template.name}" wurde gesichert.` });
+    },
+    [savedTemplates, setSavedTemplates, setActiveTemplate, toast],
+  );
+
+  const handleLoadSavedTemplate = useCallback(
+    (template: SavedFlowTemplate) => {
+      loadSavedTemplate(template);
+      toast({ title: 'Template geladen', description: template.name });
+    },
+    [loadSavedTemplate, toast],
+  );
+
+  const handleDeleteTemplate = useCallback(async () => {
+    if (!deleteTarget) return;
+    await deleteTemplateFromDb(deleteTarget.id);
+    setSavedTemplates(savedTemplates.filter((t) => t.id !== deleteTarget.id));
+    if (activeTemplateId === deleteTarget.id) {
+      setActiveTemplate(null, null);
     }
-  }, [toast, workflow]);
+    toast({ title: 'Template gelöscht', description: `"${deleteTarget.name}" wurde entfernt.` });
+  }, [deleteTarget, savedTemplates, activeTemplateId, setSavedTemplates, setActiveTemplate, toast]);
 
   // Keep refs in sync for keyboard shortcuts
-  handleSaveRef.current = handleSaveNow;
+  handleSaveRef.current = handleOpenSaveDialog;
 
   const handleClearStatus = useCallback(() => {
     setCompileWarnings([]);
@@ -463,11 +522,75 @@ export default function FlowPage() {
         <div>
           <h1 className="text-sm font-semibold tracking-wide">LocAI Flow</h1>
           <p className="text-xs text-muted-foreground">
-            Wire your AI. See it think.
+            {activeTemplateName ?? 'Unnamed Flow'}
           </p>
         </div>
 
         <div className="flex items-center gap-2">
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-8 gap-1.5"
+                disabled={isRunning}
+              >
+                <Plus className="h-3.5 w-3.5" />
+                New Flow
+                <ChevronDown className="h-3 w-3 opacity-50" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-64">
+              <DropdownMenuLabel>Built-in Templates</DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              {FLOW_TEMPLATES.map((template) => (
+                <DropdownMenuItem
+                  key={template.id}
+                  onClick={() => handleLoadTemplate(template.id)}
+                >
+                  <div>
+                    <div className="text-sm font-medium">
+                      {template.id === 'pdf-processing' && <FileText className="mr-1.5 inline h-3.5 w-3.5 text-cyan-300" />}
+                      {template.name}
+                    </div>
+                    <div className="text-xs text-muted-foreground">{template.description}</div>
+                  </div>
+                </DropdownMenuItem>
+              ))}
+              {savedTemplates.length > 0 && (
+                <>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuLabel>Saved Templates</DropdownMenuLabel>
+                  <DropdownMenuSeparator />
+                  {savedTemplates.map((template) => (
+                    <DropdownMenuItem
+                      key={template.id}
+                      className="group flex items-center justify-between"
+                      onClick={() => handleLoadSavedTemplate(template)}
+                    >
+                      <div className="min-w-0 flex-1">
+                        <div className="truncate text-sm font-medium">{template.name}</div>
+                        {template.description && (
+                          <div className="truncate text-xs text-muted-foreground">{template.description}</div>
+                        )}
+                      </div>
+                      <button
+                        type="button"
+                        className="ml-2 hidden shrink-0 rounded p-0.5 text-muted-foreground hover:text-red-400 group-hover:inline-flex"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setDeleteTarget(template);
+                        }}
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
+                    </DropdownMenuItem>
+                  ))}
+                </>
+              )}
+            </DropdownMenuContent>
+          </DropdownMenu>
+
           <Button
             variant="outline"
             size="sm"
@@ -485,7 +608,7 @@ export default function FlowPage() {
             variant="outline"
             size="sm"
             className="h-8 gap-1.5"
-            onClick={handleSaveNow}
+            onClick={handleOpenSaveDialog}
             disabled={isRunning}
           >
             <Save className="h-3.5 w-3.5" />
@@ -579,6 +702,19 @@ export default function FlowPage() {
         open={isCommandPaletteOpen}
         onOpenChange={setIsCommandPaletteOpen}
         onSelectKind={handleInsertNodeFromCommand}
+      />
+
+      <SaveFlowDialog
+        open={isSaveDialogOpen}
+        onOpenChange={setIsSaveDialogOpen}
+        onSaveComplete={handleSaveComplete}
+      />
+
+      <DeleteTemplateDialog
+        open={deleteTarget !== null}
+        onOpenChange={(open) => { if (!open) setDeleteTarget(null); }}
+        templateName={deleteTarget?.name ?? ''}
+        onConfirm={handleDeleteTemplate}
       />
     </div>
   );
