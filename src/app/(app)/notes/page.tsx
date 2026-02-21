@@ -76,9 +76,15 @@ export default function NotesPage() {
   } = useNoteSearch({ basePath });
   
   // UI state
+  const NOTES_AI_MODEL_KEY = 'locai-notes-ai-model';
   const [isNoteMinimized, setIsNoteMinimized] = useState(false);
   const [highlightTerm, setHighlightTerm] = useState<string | null>(null);
-  const [model, setModel] = useState(selectedModel || '');
+  const [model, setModel] = useState(() => {
+    if (typeof window !== 'undefined') {
+      return window.localStorage.getItem(NOTES_AI_MODEL_KEY) || selectedModel || '';
+    }
+    return selectedModel || '';
+  });
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   
   // Unsaved changes dialog state
@@ -97,9 +103,16 @@ export default function NotesPage() {
     }
   }, [basePath, fetchNotes]);
 
-  // Update model when selectedModel changes
+  // Persist model selection to localStorage
   useEffect(() => {
-    if (selectedModel) {
+    if (model) {
+      localStorage.setItem(NOTES_AI_MODEL_KEY, model);
+    }
+  }, [model]);
+
+  // Sync from context only when no localStorage value exists
+  useEffect(() => {
+    if (selectedModel && !localStorage.getItem(NOTES_AI_MODEL_KEY)) {
       setModel(selectedModel);
     }
   }, [selectedModel]);
