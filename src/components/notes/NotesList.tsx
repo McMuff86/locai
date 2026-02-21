@@ -1,7 +1,8 @@
 "use client";
 
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
-import { Loader2 } from 'lucide-react';
+import { FolderDown, Loader2 } from 'lucide-react';
 import { NoteSummary } from './types';
 
 interface NotesListProps {
@@ -12,6 +13,14 @@ interface NotesListProps {
   onSelectNote: (id: string) => void;
   onNewNote: () => void;
   onRefresh: () => void;
+  onSaveToWorkspace?: (noteId: string) => void;
+}
+
+interface ContextMenuState {
+  visible: boolean;
+  x: number;
+  y: number;
+  noteId: string | null;
 }
 
 export function NotesList({
@@ -22,7 +31,43 @@ export function NotesList({
   onSelectNote,
   onNewNote,
   onRefresh,
+  onSaveToWorkspace,
 }: NotesListProps) {
+  const [contextMenu, setContextMenu] = useState<ContextMenuState>({
+    visible: false, x: 0, y: 0, noteId: null,
+  });
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  const handleContextMenu = useCallback((e: React.MouseEvent, noteId: string) => {
+    e.preventDefault();
+    setContextMenu({ visible: true, x: e.clientX, y: e.clientY, noteId });
+  }, []);
+
+  const closeContextMenu = useCallback(() => {
+    setContextMenu((prev) => ({ ...prev, visible: false, noteId: null }));
+  }, []);
+
+  // Close on outside click or Escape
+  useEffect(() => {
+    if (!contextMenu.visible) return;
+
+    const handleClick = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        closeContextMenu();
+      }
+    };
+    const handleKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') closeContextMenu();
+    };
+
+    document.addEventListener('mousedown', handleClick);
+    document.addEventListener('keydown', handleKey);
+    return () => {
+      document.removeEventListener('mousedown', handleClick);
+      document.removeEventListener('keydown', handleKey);
+    };
+  }, [contextMenu.visible, closeContextMenu]);
+
   return (
     <div className="w-1/3 min-w-[200px] max-w-[350px] flex flex-col rounded-xl border border-border/40 bg-background/60 backdrop-blur-sm shadow-sm overflow-hidden flex-shrink-0">
       <div className="flex items-center justify-between px-3 py-2.5 border-b border-border/30 bg-muted/20 flex-shrink-0">
@@ -54,6 +99,7 @@ export function NotesList({
                     : 'hover:bg-muted/40'
                 }`}
                 onClick={() => onSelectNote(note.id)}
+                onContextMenu={(e) => handleContextMenu(e, note.id)}
               >
                 <div className="text-xs font-medium truncate leading-tight">{note.title}</div>
                 <div className="text-[10px] text-muted-foreground/70 truncate mt-0.5 leading-tight">
@@ -67,6 +113,29 @@ export function NotesList({
           )}
         </div>
       </div>
+
+      {/* Context Menu */}
+      {contextMenu.visible && (
+        <div
+          ref={menuRef}
+          className="fixed z-50 min-w-[180px] rounded-lg border border-border/60 bg-popover p-1 shadow-xl animate-in fade-in-0 zoom-in-95"
+          style={{ top: contextMenu.y, left: contextMenu.x }}
+        >
+          {onSaveToWorkspace && (
+            <button
+              type="button"
+              className="flex w-full items-center gap-2 rounded-md px-2.5 py-1.5 text-xs transition-colors hover:bg-accent"
+              onClick={() => {
+                if (contextMenu.noteId) onSaveToWorkspace(contextMenu.noteId);
+                closeContextMenu();
+              }}
+            >
+              <FolderDown className="h-3.5 w-3.5" />
+              Im Agent Workspace speichern
+            </button>
+          )}
+        </div>
+      )}
     </div>
   );
 }
