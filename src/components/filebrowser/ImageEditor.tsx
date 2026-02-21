@@ -2798,6 +2798,45 @@ export function ImageEditor({ imageUrl, rootId, relativePath, fileName }: ImageE
                   ) : (
                     <>
                       <div className="space-y-1.5">
+                        <label className="block text-[11px] font-medium text-muted-foreground">Schriftgrösse</label>
+                        <div className="flex items-center gap-2">
+                          <Slider value={[activeTextLayer.fontSize]} onValueChange={([v]) => updateTextLayer('fontSize', v)} min={8} max={200} step={1} />
+                          <span className="text-[11px] font-mono w-7 text-right">{activeTextLayer.fontSize}</span>
+                        </div>
+                      </div>
+                      <div className="space-y-1.5">
+                        <label className="block text-[11px] font-medium text-muted-foreground">Schriftfarbe</label>
+                        <input type="color" value={activeTextLayer.color} onChange={(e) => updateTextLayer('color', e.target.value)} className="h-7 w-full rounded border border-border cursor-pointer" />
+                      </div>
+                      <div className="space-y-1.5">
+                        <label className="block text-[11px] font-medium text-muted-foreground">Schriftart</label>
+                        <select value={activeTextLayer.fontFamily} onChange={(e) => updateTextLayer('fontFamily', e.target.value)} className="w-full h-7 rounded border border-border bg-background text-xs px-1.5">
+                          <option value="sans-serif">Sans-Serif</option>
+                          <option value="serif">Serif</option>
+                          <option value="monospace">Monospace</option>
+                          <option value="Arial">Arial</option>
+                          <option value="Helvetica">Helvetica</option>
+                          <option value="Georgia">Georgia</option>
+                          <option value="Times New Roman">Times New Roman</option>
+                          <option value="Courier New">Courier New</option>
+                          <option value="Verdana">Verdana</option>
+                        </select>
+                      </div>
+                      <div className="space-y-1.5">
+                        <label className="block text-[11px] font-medium text-muted-foreground">Deckkraft</label>
+                        <div className="flex items-center gap-2">
+                          <Slider value={[Math.round(activeTextLayer.opacity * 100)]} onValueChange={([v]) => updateTextLayer('opacity', v / 100)} min={0} max={100} step={1} />
+                          <span className="text-[11px] font-mono w-7 text-right">{Math.round(activeTextLayer.opacity * 100)}%</span>
+                        </div>
+                      </div>
+                      <div className="space-y-1.5">
+                        <label className="block text-[11px] font-medium text-muted-foreground">Zeilenhöhe</label>
+                        <div className="flex items-center gap-2">
+                          <Slider value={[activeTextLayer.lineHeight]} onValueChange={([v]) => updateTextLayer('lineHeight', v)} min={0.8} max={3} step={0.1} />
+                          <span className="text-[11px] font-mono w-7 text-right">{activeTextLayer.lineHeight.toFixed(1)}</span>
+                        </div>
+                      </div>
+                      <div className="space-y-1.5">
                         <label className="block text-[11px] font-medium text-muted-foreground">Tracking</label>
                         <Slider value={[activeTextLayer.tracking]} onValueChange={([v]) => updateTextLayer('tracking', v)} min={-2} max={20} step={0.5} />
                       </div>

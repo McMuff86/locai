@@ -31,7 +31,7 @@ import {
   MessageSquare,
   SplitSquareHorizontal,
   Palette,
-  Move,
+  MousePointer,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
@@ -175,7 +175,7 @@ export function ImageToolbar({
           <Sep />
 
           {/* Transform */}
-          <ToolBtn icon={Move} label="Auswahl" active={activeTool === 'select'} onClick={() => onToolChange('select')} />
+          <ToolBtn icon={MousePointer} label="Auswahl / Verschieben (V)" active={activeTool === 'select'} onClick={() => onToolChange('select')} />
           <ToolBtn icon={Square} label="Marquee" active={activeTool === 'marquee'} onClick={() => onToolChange('marquee')} />
           <ToolBtn icon={Circle} label="Lasso" active={activeTool === 'lasso'} onClick={() => onToolChange('lasso')} />
           <ToolBtn icon={Sparkles} label="Magic Wand" active={activeTool === 'magicWand'} onClick={() => onToolChange('magicWand')} />
@@ -536,6 +536,15 @@ export function ImageToolbar({
                 Auswahl aufheben
               </Button>
             )}
+          </div>
+        )}
+
+        {/* Persistent deselect bar — visible whenever a selection exists and no selection tool is active */}
+        {hasSelection && !isSelectionTool && (
+          <div className="flex items-center px-2 py-0.5 rounded-md bg-muted/30 border border-border/20">
+            <Button size="sm" variant="ghost" className="h-7 text-xs px-3 ml-auto" onClick={onClearSelection}>
+              Auswahl aufheben
+            </Button>
           </div>
         )}
       </div>
