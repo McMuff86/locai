@@ -16,4 +16,4 @@ export interface BrowseableRoot {
   exists: boolean;
 }
 
-export type FilePreviewType = 'text' | 'code' | 'markdown' | 'json' | 'binary' | 'image';
+export type FilePreviewType = 'text' | 'code' | 'markdown' | 'json' | 'binary' | 'image' | 'pdf';

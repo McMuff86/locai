@@ -26,6 +26,7 @@ export function getPreviewType(ext: string): FilePreviewType {
   if (ext === '.json') return 'json';
   if (ext === '.txt' || ext === '.csv' || ext === '.log') return 'text';
   if (IMAGE_EXTENSIONS.has(ext)) return 'image';
+  if (ext === '.pdf') return 'pdf';
   if (TEXT_EXTENSIONS.has(ext)) return 'code';
   return 'binary';
 }
@@ -265,6 +266,17 @@ export async function readFileContent(rootId: string, relativePath: string): Pro
 
   // Images are served separately via /api/filebrowser/image
   if (previewType === 'image') {
+    return {
+      content: '',
+      truncated: false,
+      size: stat.size,
+      previewType,
+      language: 'text',
+    };
+  }
+
+  // PDFs are served separately via /api/filebrowser/pdf
+  if (previewType === 'pdf') {
     return {
       content: '',
       truncated: false,
