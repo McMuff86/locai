@@ -117,6 +117,15 @@ export interface StoredWorkflow {
   isFavorite: boolean;
 }
 
+export interface SavedFlowTemplate {
+  id: string;
+  name: string;
+  description?: string;
+  graph: VisualWorkflow;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface FlowCompileResult {
   plan: WorkflowPlan;
   entryMessage: string;
