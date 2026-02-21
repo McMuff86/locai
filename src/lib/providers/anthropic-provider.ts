@@ -110,15 +110,17 @@ export class AnthropicProvider implements ChatProvider {
     const { system, messages: anthropicMessages } = toAnthropicMessages(messages);
     const tools = toAnthropicTools(options.tools);
 
-    const response = await client.messages.create({
-      model: options.model,
-      max_tokens: options.maxTokens ?? 4096,
-      ...(system && { system }),
-      messages: anthropicMessages as Parameters<typeof client.messages.create>[0]['messages'],
-      ...(options.temperature !== undefined && { temperature: options.temperature }),
-      ...(tools && { tools: tools as Parameters<typeof client.messages.create>[0]['tools'] }),
-      ...(options.signal && { signal: options.signal }),
-    });
+    const response = await client.messages.create(
+      {
+        model: options.model,
+        max_tokens: options.maxTokens ?? 4096,
+        ...(system && { system }),
+        messages: anthropicMessages as Parameters<typeof client.messages.create>[0]['messages'],
+        ...(options.temperature !== undefined && { temperature: options.temperature }),
+        ...(tools && { tools: tools as Parameters<typeof client.messages.create>[0]['tools'] }),
+      },
+      ...(options.signal ? [{ signal: options.signal }] : []),
+    );
 
     // Extract text and tool calls from response
     let content = '';

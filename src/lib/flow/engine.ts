@@ -179,14 +179,21 @@ export function compileVisualWorkflowToPlan(workflow: VisualWorkflow): FlowCompi
     inputNode && inputNode.data.kind === 'input'
       ? inputNode.data.config.text.trim() || goal
       : goal;
-  const model =
-    firstAgentNode && firstAgentNode.data.kind === 'agent'
-      ? firstAgentNode.data.config.model.trim() || 'llama3'
-      : 'llama3';
   const provider =
     firstAgentNode && firstAgentNode.data.kind === 'agent'
       ? firstAgentNode.data.config.provider ?? 'ollama'
       : 'ollama' as const;
+  const rawModel =
+    firstAgentNode && firstAgentNode.data.kind === 'agent'
+      ? firstAgentNode.data.config.model.trim()
+      : '';
+  const providerDefault: Record<string, string> = {
+    ollama: 'llama3',
+    anthropic: 'claude-sonnet-4-20250514',
+    openai: 'gpt-4o',
+    openrouter: 'anthropic/claude-sonnet-4-20250514',
+  };
+  const model = rawModel || providerDefault[provider] || 'llama3';
   const systemPrompt =
     firstAgentNode && firstAgentNode.data.kind === 'agent'
       ? firstAgentNode.data.config.systemPrompt?.trim() || undefined

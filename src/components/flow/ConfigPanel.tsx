@@ -116,6 +116,15 @@ export function ConfigPanel() {
     return options;
   }, [agentData?.config.model, agentData?.config.provider, modelsByProvider]);
 
+  // Auto-select first model when current model is empty or not in the list
+  useEffect(() => {
+    if (!selectedNode || !agentData) return;
+    const currentModel = agentData.config.model?.trim();
+    if (agentModelOptions.length > 0 && (!currentModel || !agentModelOptions.some((m) => m.id === currentModel))) {
+      updateNodeConfig(selectedNode.id, { model: agentModelOptions[0].id });
+    }
+  }, [agentModelOptions, agentData, selectedNode, updateNodeConfig]);
+
   const handleResizeStart = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
     e.preventDefault();
     isResizingRef.current = true;
