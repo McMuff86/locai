@@ -23,6 +23,13 @@ import { WORKFLOW_DEFAULTS } from '@/lib/agents/workflowTypes';
 import { apiError } from '../../../_utils/responses';
 
 // ---------------------------------------------------------------------------
+// Active Engine Registry (for REST cancel endpoint)
+// ---------------------------------------------------------------------------
+
+/** Map of workflowId → WorkflowEngine for active workflows */
+export const activeEngines = new Map<string, InstanceType<typeof WorkflowEngine>>();
+
+// ---------------------------------------------------------------------------
 // Agent System Prompt (same as /api/chat/agent for consistency)
 // ---------------------------------------------------------------------------
 
@@ -204,6 +211,10 @@ export async function POST(request: NextRequest) {
       },
     });
 
+    // Register engine for REST cancel endpoint
+    const workflowId = engine.getState().id;
+    activeEngines.set(workflowId, engine);
+
     // Create NDJSON streaming response
     const stream = new ReadableStream({
       async start(controller) {
@@ -224,11 +235,13 @@ export async function POST(request: NextRequest) {
           emit({ type: 'error', message: errMsg, recoverable: false });
         } finally {
           request.signal.removeEventListener('abort', onAbort);
+          activeEngines.delete(workflowId);
           controller.close();
         }
       },
       cancel() {
         engine.cancel();
+        activeEngines.delete(workflowId);
       },
     });
 

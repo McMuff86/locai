@@ -11,6 +11,7 @@
 // - Parses WorkflowStreamEvent (richer event types)
 // - Reflection is default ON (toggle to disable)
 // - Cancel support via AbortController
+// - Auto-save to IndexedDB for resume after refresh
 // ============================================================================
 
 import { useState, useCallback, useRef } from 'react';
@@ -23,7 +24,13 @@ import {
   WorkflowStepReflection,
   WorkflowStreamEvent,
   WorkflowApiRequest,
+  WorkflowState,
 } from '@/lib/agents/workflowTypes';
+import {
+  saveActiveWorkflow,
+  loadActiveWorkflow,
+  clearActiveWorkflow,
+} from '@/lib/agents/workflowPersistence';
 
 // ---------------------------------------------------------------------------
 // Internal state shape
@@ -78,6 +85,8 @@ export interface UseWorkflowChatReturn {
   cancelWorkflow: () => void;
   /** Reset workflow state */
   resetWorkflow: () => void;
+  /** Restore state from a saved WorkflowState (for resume) */
+  restoreWorkflowState: (state: WorkflowState) => void;
 }
 
 // ---------------------------------------------------------------------------
@@ -103,6 +112,47 @@ function makeInitialState(): WorkflowRunState {
 }
 
 // ---------------------------------------------------------------------------
+// Persistence helpers (fire-and-forget)
+// ---------------------------------------------------------------------------
+
+function persistSnapshot(state: WorkflowState): void {
+  saveActiveWorkflow(state).catch(console.warn);
+}
+
+function clearPersistence(conversationId: string): void {
+  clearActiveWorkflow(conversationId).catch(console.warn);
+}
+
+async function saveToServer(state: WorkflowState): Promise<void> {
+  try {
+    await fetch('/api/workflows', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ workflow: state }),
+    });
+  } catch {
+    console.warn('[useWorkflowChat] Failed to save workflow to server');
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Exported: check IndexedDB for active workflow
+// ---------------------------------------------------------------------------
+
+export async function checkActiveWorkflow(conversationId: string): Promise<WorkflowState | null> {
+  const state = await loadActiveWorkflow(conversationId);
+  if (!state) return null;
+  // Only return if workflow was in-progress (not done/error/cancelled)
+  const activeStatuses: WorkflowStatus[] = ['planning', 'executing', 'reflecting'];
+  if (activeStatuses.includes(state.status)) {
+    return state;
+  }
+  // Clean up stale entries
+  clearPersistence(conversationId);
+  return null;
+}
+
+// ---------------------------------------------------------------------------
 // Hook Implementation
 // ---------------------------------------------------------------------------
 
@@ -113,6 +163,7 @@ export function useWorkflowChat(): UseWorkflowChatReturn {
   const [enablePlanning, setEnablePlanning] = useState(true);
 
   const abortControllerRef = useRef<AbortController | null>(null);
+  const conversationIdRef = useRef<string | undefined>(undefined);
 
   const toggleReflection = useCallback(() => {
     setEnableReflection((prev) => !prev);
@@ -135,6 +186,30 @@ export function useWorkflowChat(): UseWorkflowChatReturn {
       status: 'cancelled',
       completedAt: new Date().toISOString(),
     }));
+    // Clear persistence on cancel
+    if (conversationIdRef.current) {
+      clearPersistence(conversationIdRef.current);
+    }
+  }, []);
+
+  /** Restore state from a saved WorkflowState (for resume dialog) */
+  const restoreWorkflowState = useCallback((state: WorkflowState) => {
+    setWorkflowState({
+      workflowId: state.id,
+      status: state.status,
+      plan: state.plan,
+      steps: state.steps,
+      currentStepIndex: state.currentStepIndex,
+      finalAnswer: state.finalAnswer ?? null,
+      streamingAnswer: '',
+      error: state.errorMessage ?? null,
+      startedAt: state.startedAt,
+      completedAt: state.completedAt ?? null,
+      durationMs: state.durationMs ?? null,
+      totalSteps: state.plan?.steps.length ?? null,
+      isPlanAdjusted: false,
+    });
+    conversationIdRef.current = state.conversationId;
   }, []);
 
   // -------------------------------------------------------------------------
@@ -278,8 +353,9 @@ export function useWorkflowChat(): UseWorkflowChatReturn {
         }
 
         case 'state_snapshot': {
-          // Full state sync from server
+          // Full state sync from server — also persist to IndexedDB
           const serverState = event.state;
+          persistSnapshot(serverState);
           return {
             ...prev,
             workflowId: serverState.id,
@@ -306,6 +382,9 @@ export function useWorkflowChat(): UseWorkflowChatReturn {
   const sendWorkflowMessage = useCallback(
     async (content: string, options?: WorkflowSendOptions): Promise<string | null> => {
       if (!content.trim()) return null;
+
+      // Track conversationId for persistence
+      conversationIdRef.current = options?.conversationId;
 
       // Reset for new run
       resetWorkflow();
@@ -348,6 +427,7 @@ export function useWorkflowChat(): UseWorkflowChatReturn {
         const decoder = new TextDecoder();
         let buffer = '';
         let finalContent = '';
+        let lastServerState: WorkflowState | null = null;
 
         // Parse NDJSON stream
         while (true) {
@@ -366,6 +446,11 @@ export function useWorkflowChat(): UseWorkflowChatReturn {
               const event = JSON.parse(trimmed) as WorkflowStreamEvent;
               processEvent(event);
 
+              // Track server state for persistence
+              if (event.type === 'state_snapshot') {
+                lastServerState = event.state;
+              }
+
               if (event.type === 'message' && event.done) {
                 finalContent = event.content;
               }
@@ -383,6 +468,9 @@ export function useWorkflowChat(): UseWorkflowChatReturn {
             if (event.type === 'message') {
               finalContent += event.content;
             }
+            if (event.type === 'state_snapshot') {
+              lastServerState = event.state;
+            }
           } catch {
             // Ignore
           }
@@ -390,11 +478,23 @@ export function useWorkflowChat(): UseWorkflowChatReturn {
 
         setIsRunning(false);
 
+        // On completion: clear IndexedDB, save to server
+        if (options?.conversationId) {
+          clearPersistence(options.conversationId);
+        }
+        if (lastServerState) {
+          saveToServer(lastServerState);
+        }
+
         // Return the accumulated final answer from state
         return finalContent || null;
       } catch (error) {
         if ((error as Error).name === 'AbortError') {
           setIsRunning(false);
+          // Clear persistence on abort
+          if (options?.conversationId) {
+            clearPersistence(options.conversationId);
+          }
           return null;
         }
 
@@ -421,6 +521,7 @@ export function useWorkflowChat(): UseWorkflowChatReturn {
     sendWorkflowMessage,
     cancelWorkflow,
     resetWorkflow,
+    restoreWorkflowState,
   };
 }
 
