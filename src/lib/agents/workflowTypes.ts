@@ -382,6 +382,16 @@ export interface WorkflowCancelledEvent {
   completedSteps: number;
 }
 
+/** Log-Eintrag aus der Workflow/Executor Engine */
+export interface WorkflowLogEvent {
+  type: 'log';
+  level: 'info' | 'warn' | 'error';
+  message: string;
+  timestamp: string;
+  stepId?: string;
+  durationMs?: number;
+}
+
 /** State-Snapshot für Persistenz */
 export interface WorkflowStateSnapshotEvent {
   type: 'state_snapshot';
@@ -428,7 +438,8 @@ export type WorkflowStreamEvent =
   | WorkflowStateSnapshotEvent
   | WorkflowConditionEvalEvent
   | WorkflowStepSkippedEvent
-  | WorkflowLoopIterationEvent;
+  | WorkflowLoopIterationEvent
+  | WorkflowLogEvent;
 
 // ---------------------------------------------------------------------------
 // API Request Type
@@ -465,8 +476,8 @@ export interface WorkflowApiRequest {
 export const WORKFLOW_DEFAULTS: Omit<WorkflowConfig, 'model' | 'enabledTools' | 'host'> = {
   maxSteps: 8,
   maxRePlans: 2,
-  timeoutMs: 120_000,
-  stepTimeoutMs: 30_000,
+  timeoutMs: 600_000,
+  stepTimeoutMs: 240_000,
   enableReflection: true,  // Default ON
   enablePlanning: true,
 } as const;
@@ -505,4 +516,8 @@ export function isWorkflowErrorEvent(e: WorkflowStreamEvent): e is WorkflowError
 
 export function isWorkflowReflectionEvent(e: WorkflowStreamEvent): e is WorkflowReflectionEvent {
   return e.type === 'reflection';
+}
+
+export function isWorkflowLogEvent(e: WorkflowStreamEvent): e is WorkflowLogEvent {
+  return e.type === 'log';
 }

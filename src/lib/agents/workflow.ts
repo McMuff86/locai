@@ -27,6 +27,7 @@ import {
   WorkflowState,
   WorkflowConfig,
   WorkflowStreamEvent,
+  WorkflowLogEvent,
   WORKFLOW_DEFAULTS,
 } from './workflowTypes';
 import { DagScheduler } from './dagScheduler';
@@ -242,6 +243,7 @@ export class WorkflowEngine {
   private registry: ToolRegistry;
   private provider: ChatProvider;
   private abortController: AbortController;
+  private logBuffer: WorkflowLogEvent[] = [];
 
   constructor(options: WorkflowEngineOptions) {
     const {
@@ -302,7 +304,13 @@ export class WorkflowEngine {
     const startedAt = Date.now();
 
     // Set up global timeout
+    const globalTimeoutSec = (this.config.timeoutMs / 1000).toFixed(0);
+    const stepTimeoutSec = (this.config.stepTimeoutMs / 1000).toFixed(0);
+    console.log(`[Workflow] 🚀 Workflow started (global timeout: ${globalTimeoutSec}s, step timeout: ${stepTimeoutSec}s, model: ${this.config.model})`);
+    yield this.makeLog('info', `Workflow started (global timeout: ${globalTimeoutSec}s, step timeout: ${stepTimeoutSec}s, model: ${this.config.model})`);
     const timeoutId = setTimeout(() => {
+      console.error(`[Workflow] ⏰ GLOBAL TIMEOUT after ${globalTimeoutSec}s — aborting workflow`);
+      this.bufferLog('error', `GLOBAL TIMEOUT after ${globalTimeoutSec}s — aborting workflow`);
       this.abortController.abort();
       this.transition('timeout');
     }, this.config.timeoutMs);
@@ -364,6 +372,7 @@ export class WorkflowEngine {
         this.transition('done');
 
         const finalAnswer = await this.generateFinalAnswer();
+        yield* this.drainLogBuffer();
         if (finalAnswer) {
           this.state.finalAnswer = finalAnswer;
           yield this.emit({
@@ -550,6 +559,7 @@ export class WorkflowEngine {
         (s) => !scheduler.isSkipped(s.id) && s.id !== stepId,
       );
       const reflection = await this.runReflectionPhase(step, remainingSteps);
+      yield* this.drainLogBuffer();
 
       if (reflection) {
         step.reflection = reflection;
@@ -937,6 +947,7 @@ export class WorkflowEngine {
         this.transition('reflecting');
         const remainingSteps = allPlanSteps.slice(stepIndex + 1);
         const reflection = await this.runReflectionPhase(step, remainingSteps);
+        yield* this.drainLogBuffer();
 
         if (reflection) {
           step.reflection = reflection;
@@ -1113,10 +1124,18 @@ export class WorkflowEngine {
     planStep: WorkflowPlanStep,
   ): AsyncGenerator<WorkflowStreamEvent> {
     step.status = 'running';
+    const stepStartMs = Date.now();
+    const stepTimeoutSec = (this.config.stepTimeoutMs / 1000).toFixed(0);
+    console.log(`[Workflow] ▶ Step "${planStep.description.slice(0, 60)}" started (timeout: ${stepTimeoutSec}s, model: ${this.config.model})`);
+    yield this.makeLog('info', `Step "${planStep.description.slice(0, 60)}" started (timeout: ${stepTimeoutSec}s)`, planStep.id);
 
     // Per-step AbortController with timeout, cascading from parent
     const stepAbort = new AbortController();
-    const stepTimeout = setTimeout(() => stepAbort.abort(), this.config.stepTimeoutMs);
+    const stepTimeout = setTimeout(() => {
+      console.error(`[Workflow] ⏰ Step "${planStep.description.slice(0, 60)}" TIMED OUT after ${stepTimeoutSec}s`);
+      this.bufferLog('error', `Step "${planStep.description.slice(0, 60)}" TIMED OUT after ${stepTimeoutSec}s`, planStep.id);
+      stepAbort.abort();
+    }, this.config.stepTimeoutMs);
 
     // If the parent aborts, also abort the step
     const onParentAbort = () => stepAbort.abort();
@@ -1139,6 +1158,9 @@ export class WorkflowEngine {
         enabledTools: this.config.enabledTools,
         signal: stepAbort.signal,
         chatOptions: { temperature: 0.3 },
+        onLog: (message, level) => {
+          this.bufferLog(level, message, planStep.id);
+        },
       },
       provider: this.provider,
     };
@@ -1187,6 +1209,9 @@ export class WorkflowEngine {
           });
         }
 
+        // Drain any executor logs buffered via onLog callback
+        yield* this.drainLogBuffer();
+
         // If the executor has a final answer, store it for later
         if (turn.assistantMessage) {
           step.description = step.description; // Keep original
@@ -1196,11 +1221,13 @@ export class WorkflowEngine {
       }
     } catch (err) {
       if (!this.isAborted()) {
+        const elapsed = ((Date.now() - stepStartMs) / 1000).toFixed(1);
         const msg = err instanceof Error ? err.message : 'Schritt-Fehler';
-        console.error('[Workflow] Step execution error:', msg, err);
+        console.error(`[Workflow] ❌ Step "${planStep.description.slice(0, 60)}" failed after ${elapsed}s: ${msg}`);
         step.error = msg;
         step.status = 'failed';
 
+        yield this.makeLog('error', `Step "${planStep.description.slice(0, 60)}" failed after ${elapsed}s: ${msg}`, planStep.id, Date.now() - stepStartMs);
         yield this.emit({
           type: 'error',
           message: msg,
@@ -1211,6 +1238,11 @@ export class WorkflowEngine {
     } finally {
       clearTimeout(stepTimeout);
       this.abortController.signal.removeEventListener('abort', onParentAbort);
+      const elapsed = ((Date.now() - stepStartMs) / 1000).toFixed(1);
+      if (step.status !== 'failed') {
+        console.log(`[Workflow] ✅ Step "${planStep.description.slice(0, 60)}" finished (${elapsed}s)`);
+        yield this.makeLog('info', `Step "${planStep.description.slice(0, 60)}" finished (${elapsed}s)`, planStep.id, Date.now() - stepStartMs);
+      }
     }
   }
 
@@ -1250,6 +1282,9 @@ export class WorkflowEngine {
     const prompt = buildReflectionPrompt(step, remainingSteps);
 
     try {
+      const reflStart = Date.now();
+      console.log(`[Workflow] 🔍 Reflection LLM call started...`);
+      this.bufferLog('info', 'Reflection LLM call started...', step.planStepId);
       const response = await this.provider.chat(
         [...this.messages, { role: 'user', content: prompt }],
         {
@@ -1258,16 +1293,25 @@ export class WorkflowEngine {
           temperature: 0.1,
         },
       );
+      const reflDuration = Date.now() - reflStart;
+      console.log(`[Workflow] 🔍 Reflection LLM call completed (${(reflDuration / 1000).toFixed(1)}s)`);
+      this.bufferLog('info', `Reflection LLM call completed (${(reflDuration / 1000).toFixed(1)}s)`, step.planStepId, reflDuration);
 
       if (response.content) {
         const reflection = parseReflection(response.content);
         if (reflection?.nextAction === 'abort') {
-          console.warn('[Workflow] Reflection chose ABORT:', response.content);
+          console.warn('[Workflow] ⚠️ Reflection chose ABORT:', reflection.comment ?? response.content.slice(0, 200));
+          this.bufferLog('warn', `Reflection chose ABORT: ${reflection.comment ?? response.content.slice(0, 200)}`, step.planStepId);
+        } else if (reflection) {
+          console.log(`[Workflow] 🔍 Reflection result: ${reflection.nextAction} — ${reflection.comment?.slice(0, 100) ?? ''}`);
+          this.bufferLog('info', `Reflection result: ${reflection.nextAction} — ${reflection.comment?.slice(0, 100) ?? ''}`, step.planStepId);
         }
         return reflection;
       }
     } catch (err) {
-      console.warn('[Workflow] Reflection phase error:', err instanceof Error ? err.message : err);
+      const errMsg = err instanceof Error ? err.message : String(err);
+      console.error('[Workflow] ❌ Reflection phase error:', errMsg);
+      this.bufferLog('error', `Reflection phase error: ${errMsg}`, step.planStepId);
     }
 
     return null;
@@ -1295,6 +1339,9 @@ export class WorkflowEngine {
       `basierend auf diesen Ergebnissen. Antworte direkt und präzise.`;
 
     try {
+      const finalStart = Date.now();
+      console.log(`[Workflow] 📝 Final answer LLM call started...`);
+      this.bufferLog('info', 'Final answer LLM call started...');
       const response = await this.provider.chat(
         [...this.messages, { role: 'user', content: finalPrompt }],
         {
@@ -1303,9 +1350,15 @@ export class WorkflowEngine {
           temperature: 0.4,
         },
       );
+      const finalDuration = Date.now() - finalStart;
+      console.log(`[Workflow] 📝 Final answer LLM call completed (${(finalDuration / 1000).toFixed(1)}s)`);
+      this.bufferLog('info', `Final answer LLM call completed (${(finalDuration / 1000).toFixed(1)}s)`, undefined, finalDuration);
 
       return response.content || null;
-    } catch {
+    } catch (err) {
+      const errMsg = err instanceof Error ? err.message : String(err);
+      console.error(`[Workflow] ❌ Final answer generation failed: ${errMsg}`);
+      this.bufferLog('error', `Final answer generation failed: ${errMsg}`);
       return null;
     }
   }
@@ -1313,6 +1366,44 @@ export class WorkflowEngine {
   // -------------------------------------------------------------------------
   // Private: State Machine Helpers
   // -------------------------------------------------------------------------
+
+  /**
+   * Buffer a log event (for non-generator methods like runReflectionPhase).
+   * Buffered logs are drained via `yield* this.drainLogBuffer()`.
+   */
+  private bufferLog(level: WorkflowLogEvent['level'], message: string, stepId?: string, durationMs?: number): void {
+    this.logBuffer.push({
+      type: 'log',
+      level,
+      message,
+      timestamp: nowIso(),
+      stepId,
+      durationMs,
+    });
+  }
+
+  /**
+   * Yield all buffered log events and clear the buffer.
+   */
+  private *drainLogBuffer(): Generator<WorkflowStreamEvent> {
+    while (this.logBuffer.length > 0) {
+      yield this.logBuffer.shift()!;
+    }
+  }
+
+  /**
+   * Create a log event that can be directly yielded from an async generator.
+   */
+  private makeLog(level: WorkflowLogEvent['level'], message: string, stepId?: string, durationMs?: number): WorkflowLogEvent {
+    return {
+      type: 'log',
+      level,
+      message,
+      timestamp: nowIso(),
+      stepId,
+      durationMs,
+    };
+  }
 
   private transition(newStatus: WorkflowStatus): void {
     this.state.status = newStatus;
@@ -1339,6 +1430,9 @@ export class WorkflowEngine {
   }
 
   private async *finalize(startedAt: number): AsyncGenerator<WorkflowStreamEvent> {
+    // Drain any remaining buffered logs (e.g. from timeout callbacks)
+    yield* this.drainLogBuffer();
+
     const completedAt = Date.now();
     const durationMs = completedAt - startedAt;
 

@@ -194,6 +194,7 @@ export async function* executeAgentLoop(
 
   const maxIterations = options.maxIterations ?? AGENT_DEFAULTS.maxIterations;
   const signal = options.signal;
+  const onLog = options.onLog;
 
   // Optional planning step
   if (options.enablePlanning) {
@@ -233,6 +234,9 @@ export async function* executeAgentLoop(
     const startedAt = new Date().toISOString();
 
     // Send to provider (non-streaming, tool-calling)
+    const llmStart = Date.now();
+    console.log(`[Executor] 🔄 LLM call #${i + 1}/${maxIterations} started (model: ${model}, tools: ${providerTools.length})`);
+    onLog?.(`LLM call #${i + 1}/${maxIterations} started (model: ${model}, tools: ${providerTools.length})`, 'info');
     const response = await chatViaProvider(
       provider,
       model,
@@ -241,6 +245,9 @@ export async function* executeAgentLoop(
       signal,
       options.chatOptions,
     );
+    const llmDuration = ((Date.now() - llmStart) / 1000).toFixed(1);
+    console.log(`[Executor] ✅ LLM call #${i + 1} completed (${llmDuration}s)`);
+    onLog?.(`LLM call #${i + 1} completed (${llmDuration}s)`, 'info');
 
     // No tool_calls → check for tool calls embedded in text (fallback)
     if (!response.tool_calls || response.tool_calls.length === 0) {
@@ -282,7 +289,13 @@ export async function* executeAgentLoop(
         if (signal?.aborted) {
           throw new DOMException('Agent loop aborted', 'AbortError');
         }
+        const toolStart = Date.now();
+        console.log(`[Executor] 🔧 Tool "${call.name}" started (args: ${JSON.stringify(call.arguments).slice(0, 120)})`);
+        onLog?.(`Tool "${call.name}" started`, 'info');
         const result = await registry.execute(call, signal);
+        const toolDuration = ((Date.now() - toolStart) / 1000).toFixed(1);
+        console.log(`[Executor] ${result.success ? '✅' : '❌'} Tool "${call.name}" ${result.success ? 'completed' : 'failed'} (${toolDuration}s)${result.error ? ` — ${result.error}` : ''}`);
+        onLog?.(`Tool "${call.name}" ${result.success ? 'completed' : 'failed'} (${toolDuration}s)${result.error ? ` — ${result.error}` : ''}`, result.success ? 'info' : 'error');
         toolResults.push(result);
 
         conversationMessages.push({
@@ -321,7 +334,13 @@ export async function* executeAgentLoop(
       if (signal?.aborted) {
         throw new DOMException('Agent loop aborted', 'AbortError');
       }
+      const toolStart = Date.now();
+      console.log(`[Executor] 🔧 Tool "${call.name}" started (args: ${JSON.stringify(call.arguments).slice(0, 120)})`);
+      onLog?.(`Tool "${call.name}" started`, 'info');
       const result = await registry.execute(call, signal);
+      const toolDuration = ((Date.now() - toolStart) / 1000).toFixed(1);
+      console.log(`[Executor] ${result.success ? '✅' : '❌'} Tool "${call.name}" ${result.success ? 'completed' : 'failed'} (${toolDuration}s)${result.error ? ` — ${result.error}` : ''}`);
+      onLog?.(`Tool "${call.name}" ${result.success ? 'completed' : 'failed'} (${toolDuration}s)${result.error ? ` — ${result.error}` : ''}`, result.success ? 'info' : 'error');
       toolResults.push(result);
 
       // Feed the tool result back to the conversation
@@ -346,6 +365,9 @@ export async function* executeAgentLoop(
   }
 
   // If we exhausted max iterations, ask the model for a final answer without tools
+  console.log(`[Executor] 🔄 Final answer LLM call started (max iterations exhausted)`);
+  onLog?.('Final answer LLM call started (max iterations exhausted)', 'info');
+  const finalLlmStart = Date.now();
   const finalResponse = await chatViaProvider(
     provider,
     model,
@@ -354,6 +376,10 @@ export async function* executeAgentLoop(
     signal,
     options.chatOptions,
   );
+
+  const finalDuration = ((Date.now() - finalLlmStart) / 1000).toFixed(1);
+  console.log(`[Executor] ✅ Final answer LLM call completed (${finalDuration}s)`);
+  onLog?.(`Final answer LLM call completed (${finalDuration}s)`, 'info');
 
   const exhaustedTurn: AgentFinalTurn = {
     index: maxIterations,
