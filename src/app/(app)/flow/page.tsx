@@ -515,6 +515,15 @@ export default function FlowPage() {
           });
           break;
 
+        case 'state_snapshot':
+          // Safety net: if the message event was somehow lost, extract
+          // the finalAnswer from the state snapshot.
+          if (event.state.finalAnswer && !streamBufferRef.current) {
+            streamBufferRef.current = event.state.finalAnswer;
+            setOutputResult(event.state.finalAnswer);
+          }
+          break;
+
         case 'log': {
           const logEvent = event as WorkflowLogEvent;
           const entry: LogEntry = {

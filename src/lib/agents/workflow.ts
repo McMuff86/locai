@@ -373,14 +373,24 @@ export class WorkflowEngine {
 
         const finalAnswer = await this.generateFinalAnswer();
         yield* this.drainLogBuffer();
-        if (finalAnswer) {
-          this.state.finalAnswer = finalAnswer;
-          yield this.emit({
-            type: 'message',
-            content: finalAnswer,
-            done: true,
-          });
-        }
+
+        // Build the effective answer, falling back to a summary of tool results
+        const effectiveAnswer = finalAnswer?.trim()
+          || this.buildFallbackAnswer()
+          || 'Workflow abgeschlossen.';
+
+        this.state.finalAnswer = effectiveAnswer;
+        yield this.makeLog(
+          finalAnswer ? 'info' : 'warn',
+          finalAnswer
+            ? `Final answer ready (${finalAnswer.length} chars)`
+            : 'Final answer was empty — using fallback',
+        );
+        yield this.emit({
+          type: 'message',
+          content: effectiveAnswer,
+          done: true,
+        });
       }
     } catch (err) {
       if (!this.isAborted()) {
@@ -1351,16 +1361,34 @@ export class WorkflowEngine {
         },
       );
       const finalDuration = Date.now() - finalStart;
-      console.log(`[Workflow] 📝 Final answer LLM call completed (${(finalDuration / 1000).toFixed(1)}s)`);
-      this.bufferLog('info', `Final answer LLM call completed (${(finalDuration / 1000).toFixed(1)}s)`, undefined, finalDuration);
+      const contentLength = response.content?.length ?? 0;
+      console.log(`[Workflow] 📝 Final answer LLM call completed (${(finalDuration / 1000).toFixed(1)}s, ${contentLength} chars)`);
+      this.bufferLog('info', `Final answer LLM call completed (${(finalDuration / 1000).toFixed(1)}s, ${contentLength} chars)`, undefined, finalDuration);
 
-      return response.content || null;
+      return response.content ?? null;
     } catch (err) {
       const errMsg = err instanceof Error ? err.message : String(err);
       console.error(`[Workflow] ❌ Final answer generation failed: ${errMsg}`);
       this.bufferLog('error', `Final answer generation failed: ${errMsg}`);
       return null;
     }
+  }
+
+  /**
+   * Build a fallback answer from tool results when the LLM final-answer call
+   * returns empty content.
+   */
+  private buildFallbackAnswer(): string | null {
+    const parts: string[] = [];
+    for (const step of this.state.steps) {
+      const successResults = step.toolResults
+        .filter((r) => r.success && r.content.trim())
+        .map((r) => r.content.slice(0, 1000));
+      if (successResults.length > 0) {
+        parts.push(`**${step.description}**:\n${successResults.join('\n')}`);
+      }
+    }
+    return parts.length > 0 ? parts.join('\n\n') : null;
   }
 
   // -------------------------------------------------------------------------
