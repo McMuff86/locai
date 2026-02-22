@@ -19,6 +19,8 @@ const DEFAULT_SETTINGS: Record<string, unknown> = {
   notesEmbeddingModel: 'nomic-embed-text',
   notesAllowAI: true,
   agentWorkspacePath: '',
+  aceStepUrl: 'http://localhost:8001',
+  qwenTTSUrl: 'http://localhost:7861',
 };
 
 // ── Settings validation schema ──────────────────────────────────────
@@ -50,6 +52,8 @@ const SETTINGS_SCHEMA: Record<string, FieldSchema> = {
   notesEmbeddingModel:  { type: 'string', maxLength: 100 },
   notesAllowAI:         { type: 'boolean' },
   agentWorkspacePath:   { type: 'path', maxLength: 500 },
+  aceStepUrl:           { type: 'url', maxLength: 500 },
+  qwenTTSUrl:           { type: 'url', maxLength: 500 },
 };
 
 /**

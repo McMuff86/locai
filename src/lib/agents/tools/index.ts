@@ -20,6 +20,8 @@ import generateImageTool from './generateImage';
 import readPdfTool from './readPdf';
 import readExcelTool from './readExcel';
 import runCodeTool from './runCode';
+import generateMusicTool from './generateMusic';
+import textToSpeechTool from './textToSpeech';
 
 /** All built-in tools in registration order */
 export const builtinTools = [
@@ -36,6 +38,8 @@ export const builtinTools = [
   generateImageTool,
   readPdfTool,
   readExcelTool,
+  generateMusicTool,
+  textToSpeechTool,
 ] as const;
 
 /**
@@ -51,4 +55,4 @@ export function registerBuiltinTools(registry: ToolRegistry = defaultRegistry): 
 }
 
 // Re-export individual tools for selective registration
-export { searchDocumentsTool, webSearchTool, readFileTool, writeFileTool, editFileTool, createNoteTool, saveMemoryTool, recallMemoryTool, runCommandTool, runCodeTool, generateImageTool, readPdfTool, readExcelTool };
+export { searchDocumentsTool, webSearchTool, readFileTool, writeFileTool, editFileTool, createNoteTool, saveMemoryTool, recallMemoryTool, runCommandTool, runCodeTool, generateImageTool, readPdfTool, readExcelTool, generateMusicTool, textToSpeechTool };
