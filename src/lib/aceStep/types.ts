@@ -3,7 +3,7 @@ export interface AceStepConfig {
   timeout?: number;
 }
 
-export type TaskType = "caption" | "description";
+export type TaskType = "text2music" | "remix" | "repaint" | "caption" | "description";
 export type TaskStatus = "queued" | "processing" | "success" | "failed";
 
 export interface GenerateOptions {
@@ -14,6 +14,15 @@ export interface GenerateOptions {
   duration?: number;
   bpm?: number;
   batch?: number;
+  srcAudioPath?: string;
+  instrumental?: boolean;
+  thinking?: boolean;
+  strength?: number;
+  repaintStart?: number;
+  repaintEnd?: number;
+  seed?: number;
+  numSteps?: number;
+  cfgScale?: number;
 }
 
 export interface TaskInfo {
@@ -58,4 +67,27 @@ export interface RawTaskResult {
   status: 0 | 1 | 2;
   audio_path?: string;
   [key: string]: unknown;
+}
+
+/** Shape returned by /query_result for each task_id */
+export interface RawQueryResultItem {
+  task_id: string;
+  status: 0 | 1;
+  result: string; // JSON-encoded array of RawAudioItem
+}
+
+/** Individual audio entry inside a query_result item's `result` JSON */
+export interface RawAudioItem {
+  file: string;
+  url: string;
+  status: number;
+  create_time: number;
+  seed?: number;
+  caption?: string;
+  lyrics?: string;
+  bpm?: number;
+  duration?: number;
+  keyscale?: string;
+  timesignature?: string;
+  vocal_language?: string;
 }

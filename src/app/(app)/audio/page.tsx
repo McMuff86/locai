@@ -2,7 +2,9 @@
 
 import React, { useRef, useCallback, useState, useEffect } from 'react';
 import { useSettings } from '@/hooks/useSettings';
+import { useAudioGenerator } from '@/hooks/useAudioGenerator';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import { HealthIndicator } from '@/components/HealthIndicator';
 import { MusicGenerator } from '@/components/audio/MusicGenerator';
 import { TextToSpeech } from '@/components/audio/TextToSpeech';
@@ -13,6 +15,7 @@ import { Loader2, Music, Volume2, Play } from 'lucide-react';
 export default function AudioPage() {
   const { settings, isLoaded } = useSettings();
   const historyRef = useRef<AudioHistoryHandle>(null);
+  const gen = useAudioGenerator();
 
   // ACE-Step health status
   const [aceStepRunning, setAceStepRunning] = useState<boolean | null>(null);
@@ -51,7 +54,6 @@ export default function AudioPage() {
       });
       const data = await res.json();
       if (data.success) {
-        // Wait a bit then re-check health
         setTimeout(checkAceStepHealth, 5000);
       } else {
         setLaunchError(data.error || 'Start fehlgeschlagen');
@@ -64,7 +66,6 @@ export default function AudioPage() {
   }, [settings?.aceStepPath, checkAceStepHealth]);
 
   const handleGenerated = useCallback(() => {
-    // Delay slightly so the file is written before we re-fetch
     setTimeout(() => historyRef.current?.refresh(), 1000);
   }, []);
 
@@ -118,10 +119,9 @@ export default function AudioPage() {
 
       {/* Content */}
       <div className="flex-1 min-h-0 overflow-y-auto p-4">
-        <div className="max-w-3xl mx-auto space-y-6">
-          {/* Generation tabs */}
+        <div className="max-w-6xl mx-auto">
           <Tabs defaultValue="music">
-            <TabsList className="w-full">
+            <TabsList className="w-full max-w-xs">
               <TabsTrigger value="music" className="gap-1.5">
                 <Music className="h-4 w-4" />
                 Musik
@@ -132,26 +132,38 @@ export default function AudioPage() {
               </TabsTrigger>
             </TabsList>
 
-            <TabsContent value="music">
-              <div className="bg-card border border-border rounded-lg p-4 mt-2">
-                <MusicGenerator onGenerated={handleGenerated} />
+            <TabsContent value="music" className="mt-4">
+              <div className="grid grid-cols-1 xl:grid-cols-[1fr_300px] gap-6">
+                {/* Main generation area */}
+                <div className="bg-card/50 backdrop-blur-sm border border-border/50 rounded-xl p-5">
+                  <MusicGenerator gen={gen} onGenerated={handleGenerated} />
+                </div>
+
+                {/* Right panel: History */}
+                <div className="space-y-3">
+                  <h2 className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                    Audio-Verlauf
+                  </h2>
+                  <ScrollArea className="h-[calc(100vh-200px)]">
+                    <AudioHistory
+                      ref={historyRef}
+                      compact
+                      onSendToRemix={(src, name) => gen.sendToRemix(src, name)}
+                      onSendToRepaint={(src, name) => gen.sendToRepaint(src, name)}
+                    />
+                  </ScrollArea>
+                </div>
               </div>
             </TabsContent>
 
-            <TabsContent value="tts">
-              <div className="bg-card border border-border rounded-lg p-4 mt-2">
-                <TextToSpeech onGenerated={handleGenerated} />
+            <TabsContent value="tts" className="mt-4">
+              <div className="max-w-2xl">
+                <div className="bg-card/50 backdrop-blur-sm border border-border/50 rounded-xl p-5">
+                  <TextToSpeech onGenerated={handleGenerated} />
+                </div>
               </div>
             </TabsContent>
           </Tabs>
-
-          {/* History */}
-          <div>
-            <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-3">
-              Verlauf
-            </h2>
-            <AudioHistory ref={historyRef} />
-          </div>
         </div>
       </div>
     </div>

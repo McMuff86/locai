@@ -66,14 +66,29 @@ export async function POST(request: Request) {
 
     const client = new AceStepClient({ baseUrl });
 
+    // Backward-compat: map "caption"/"description" to "text2music"
+    let taskType = (body.task_type as string) || 'caption';
+    if (taskType === 'caption' || taskType === 'description') {
+      taskType = 'text2music';
+    }
+
     const options: GenerateOptions = {
-      taskType: (body.task_type as GenerateOptions['taskType']) || 'caption',
+      taskType: taskType as GenerateOptions['taskType'],
       caption: body.caption as string | undefined,
       lyrics: body.lyrics as string | undefined,
       description: body.description as string | undefined,
       duration: body.duration as number | undefined,
       bpm: body.bpm as number | undefined,
       batch: body.batch as number | undefined,
+      srcAudioPath: body.src_audio_path as string | undefined,
+      instrumental: body.instrumental as boolean | undefined,
+      thinking: body.thinking as boolean | undefined,
+      strength: body.strength as number | undefined,
+      repaintStart: body.repainting_start as number | undefined,
+      repaintEnd: body.repainting_end as number | undefined,
+      seed: body.seed as number | undefined,
+      numSteps: body.num_steps as number | undefined,
+      cfgScale: body.cfg_scale as number | undefined,
     };
 
     // Derive a meaningful name from caption or description

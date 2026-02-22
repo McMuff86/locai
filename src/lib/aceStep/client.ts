@@ -5,6 +5,8 @@ import type {
   GenerationResult,
   HealthStatus,
   ModelInfo,
+  RawAudioItem,
+  RawQueryResultItem,
   RawTaskResult,
   TaskInfo,
   TaskResult,
@@ -14,6 +16,15 @@ import { AceStepError, AceStepGenerationError, AceStepTimeoutError } from "./err
 
 const DEFAULT_BASE_URL = "http://localhost:8001";
 const DEFAULT_TIMEOUT = 300_000;
+
+/**
+ * Map legacy task types to ACE-Step V1.5 equivalents.
+ * "caption" and "description" both map to "text2music".
+ */
+function normalizeTaskType(taskType: string): string {
+  if (taskType === "caption" || taskType === "description") return "text2music";
+  return taskType;
+}
 
 export class AceStepClient {
   private baseUrl: string;
@@ -92,7 +103,7 @@ export class AceStepClient {
 
   async generate(options: GenerateOptions): Promise<TaskInfo> {
     const body: Record<string, unknown> = {
-      task_type: options.taskType,
+      task_type: normalizeTaskType(options.taskType),
     };
     if (options.caption !== undefined) body.caption = options.caption;
     if (options.lyrics !== undefined) body.lyrics = options.lyrics;
@@ -100,6 +111,15 @@ export class AceStepClient {
     if (options.duration !== undefined) body.duration = options.duration;
     if (options.bpm !== undefined) body.bpm = options.bpm;
     if (options.batch !== undefined) body.batch = options.batch;
+    if (options.srcAudioPath !== undefined) body.src_audio_path = options.srcAudioPath;
+    if (options.instrumental !== undefined) body.instrumental = options.instrumental;
+    if (options.thinking !== undefined) body.thinking = options.thinking;
+    if (options.strength !== undefined) body.strength = options.strength;
+    if (options.repaintStart !== undefined) body.repainting_start = options.repaintStart;
+    if (options.repaintEnd !== undefined) body.repainting_end = options.repaintEnd;
+    if (options.seed !== undefined) body.seed = options.seed;
+    if (options.numSteps !== undefined) body.num_steps = options.numSteps;
+    if (options.cfgScale !== undefined) body.cfg_scale = options.cfgScale;
 
     const data = await this.post<{ task_id: string; status: string }>("/release_task", body);
     return {
@@ -109,19 +129,42 @@ export class AceStepClient {
   }
 
   async getStatus(taskId: string): Promise<TaskResult[]> {
-    const items = await this.post<RawTaskResult[]>("/query_result", { task_id: taskId });
-    return items.map((item) => {
-      const { status, audio_path, ...rest } = item;
-      const mapped: TaskResult = {
-        status: this.mapTaskStatus(status),
-        audioPath: audio_path,
-        metadata: rest as Record<string, unknown>,
-      };
-      if (audio_path) {
-        mapped.audioUrl = this.getAudioUrl(audio_path);
-      }
-      return mapped;
+    const items = await this.post<RawQueryResultItem[]>("/query_result", {
+      task_id_list: [taskId],
     });
+
+    const results: TaskResult[] = [];
+
+    for (const item of items) {
+      if (item.status === 1) {
+        // Parse the result JSON string containing audio items
+        try {
+          const audioItems: RawAudioItem[] = JSON.parse(item.result);
+          for (const audio of audioItems) {
+            results.push({
+              status: "success",
+              audioPath: audio.file,
+              audioUrl: audio.url
+                ? `${this.baseUrl}${audio.url}`
+                : this.getAudioUrl(audio.file),
+              metadata: {
+                seed: audio.seed,
+                caption: audio.caption,
+                bpm: audio.bpm,
+                duration: audio.duration,
+                keyscale: audio.keyscale,
+              },
+            });
+          }
+        } catch {
+          results.push({ status: "failed" });
+        }
+      } else {
+        results.push({ status: "processing" });
+      }
+    }
+
+    return results;
   }
 
   getAudioUrl(audioPath: string): string {

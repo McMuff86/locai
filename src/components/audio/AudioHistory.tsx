@@ -2,8 +2,7 @@
 
 import React, { useState, useEffect, useCallback, useImperativeHandle, forwardRef } from 'react';
 import { AudioPlayer } from '@/components/AudioPlayer';
-import { Loader2, Music, Trash2 } from 'lucide-react';
-import { Button } from '@/components/ui/button';
+import { Loader2, Music, Repeat, PaintBucket } from 'lucide-react';
 
 interface AudioFile {
   filename: string;
@@ -13,6 +12,12 @@ interface AudioFile {
 
 export interface AudioHistoryHandle {
   refresh: () => void;
+}
+
+interface AudioHistoryProps {
+  compact?: boolean;
+  onSendToRemix?: (audioPath: string, audioName: string) => void;
+  onSendToRepaint?: (audioPath: string, audioName: string) => void;
 }
 
 function formatDate(iso: string): string {
@@ -29,7 +34,8 @@ function formatSize(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
-export const AudioHistory = forwardRef<AudioHistoryHandle>(function AudioHistory(_props, ref) {
+export const AudioHistory = forwardRef<AudioHistoryHandle, AudioHistoryProps>(
+  function AudioHistory({ compact, onSendToRemix, onSendToRepaint }, ref) {
   const [files, setFiles] = useState<AudioFile[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -74,24 +80,55 @@ export const AudioHistory = forwardRef<AudioHistoryHandle>(function AudioHistory
 
   return (
     <div className="space-y-2">
-      {files.map((file) => (
-        <div
-          key={file.filename}
-          className="bg-card border border-border rounded-lg p-3 space-y-2"
-        >
-          <div className="flex items-center justify-between text-xs text-muted-foreground">
-            <span className="truncate font-mono">{file.filename}</span>
-            <span className="flex-shrink-0 ml-2">
-              {formatSize(file.size)} &middot; {formatDate(file.createdAt)}
-            </span>
+      {files.map((file) => {
+        const audioSrc = `/api/audio/${file.filename}`;
+        return (
+          <div
+            key={file.filename}
+            className={compact
+              ? 'border-b border-border/30 pb-2 last:border-0'
+              : 'bg-card border border-border rounded-lg p-3 space-y-2'
+            }
+          >
+            <div className="flex items-center justify-between text-xs text-muted-foreground">
+              <span className="truncate font-mono text-[10px]">{file.filename}</span>
+              {!compact && (
+                <span className="flex-shrink-0 ml-2">
+                  {formatSize(file.size)} &middot; {formatDate(file.createdAt)}
+                </span>
+              )}
+            </div>
+            <AudioPlayer
+              src={audioSrc}
+              compact
+              downloadable
+            />
+            {/* Remix / Repaint actions */}
+            {(onSendToRemix || onSendToRepaint) && (
+              <div className="flex items-center gap-1 pt-0.5">
+                {onSendToRemix && (
+                  <button
+                    onClick={() => onSendToRemix(audioSrc, file.filename)}
+                    className="flex items-center gap-1 text-[10px] text-muted-foreground hover:text-foreground transition-colors px-1.5 py-0.5 rounded hover:bg-muted/30"
+                  >
+                    <Repeat className="h-3 w-3" />
+                    Remix
+                  </button>
+                )}
+                {onSendToRepaint && (
+                  <button
+                    onClick={() => onSendToRepaint(audioSrc, file.filename)}
+                    className="flex items-center gap-1 text-[10px] text-muted-foreground hover:text-foreground transition-colors px-1.5 py-0.5 rounded hover:bg-muted/30"
+                  >
+                    <PaintBucket className="h-3 w-3" />
+                    Repaint
+                  </button>
+                )}
+              </div>
+            )}
           </div>
-          <AudioPlayer
-            src={`/api/audio/${file.filename}`}
-            compact
-            downloadable
-          />
-        </div>
-      ))}
+        );
+      })}
     </div>
   );
 });

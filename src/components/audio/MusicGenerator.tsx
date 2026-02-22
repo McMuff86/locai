@@ -1,183 +1,185 @@
 "use client";
 
-import React, { useState, useCallback } from 'react';
+import React from 'react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
-import { Slider } from '@/components/ui/slider';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { AudioPlayer } from '@/components/AudioPlayer';
 import { Loader2, Music } from 'lucide-react';
+import { AnimatePresence, motion } from 'framer-motion';
+import { ModeSelector } from './ModeSelector';
+import { ParameterPanel } from './ParameterPanel';
+import { ReferenceAudioUpload } from './ReferenceAudioUpload';
+import { ResultCard } from './ResultCard';
+import { GenerationStatus } from './GenerationStatus';
+import type { useAudioGenerator } from '@/hooks/useAudioGenerator';
 
 interface MusicGeneratorProps {
+  gen: ReturnType<typeof useAudioGenerator>;
   onGenerated?: () => void;
 }
 
-interface GeneratedAudio {
-  url: string;
-  caption: string;
-}
-
-export function MusicGenerator({ onGenerated }: MusicGeneratorProps) {
-  const [caption, setCaption] = useState('');
-  const [lyrics, setLyrics] = useState('');
-  const [duration, setDuration] = useState(30);
-  const [bpm, setBpm] = useState(120);
-  const [batch, setBatch] = useState('1');
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [results, setResults] = useState<GeneratedAudio[]>([]);
-  const [statusText, setStatusText] = useState('');
-
-  const generate = useCallback(async () => {
-    if (!caption.trim() && !lyrics.trim()) {
-      setError('Bitte gib eine Beschreibung oder Lyrics ein.');
-      return;
-    }
-
-    setLoading(true);
-    setError(null);
-    setResults([]);
-    setStatusText('Generiere Musik...');
-
-    try {
-      const res = await fetch('/api/ace-step/generate-sync', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          task_type: caption.trim() ? 'caption' : 'description',
-          caption: caption.trim() || undefined,
-          lyrics: lyrics.trim() || undefined,
-          duration,
-          bpm,
-          batch: parseInt(batch),
-        }),
-      });
-
-      const data = await res.json();
-      if (!data.success) {
-        throw new Error(data.error || 'Generierung fehlgeschlagen');
-      }
-
-      const audioUrls = data.audioUrls as string[];
-      setResults(
-        audioUrls.map((url, i) => ({
-          url,
-          caption: `Track ${i + 1}`,
-        }))
-      );
-      setStatusText('');
-      onGenerated?.();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Unbekannter Fehler');
-      setStatusText('');
-    } finally {
-      setLoading(false);
-    }
-  }, [caption, lyrics, duration, bpm, batch, onGenerated]);
+export function MusicGenerator({ gen, onGenerated }: MusicGeneratorProps) {
+  const needsReference = gen.mode === 'remix' || gen.mode === 'repaint';
+  const showLyrics = gen.mode !== 'simple';
 
   return (
-    <div className="space-y-4">
-      {/* Caption */}
-      <div>
-        <label className="block text-sm font-medium mb-1">Beschreibung</label>
-        <Textarea
-          placeholder="Beschreibe die Musik, z.B. 'Entspannte Lo-Fi Beats mit sanftem Piano'"
-          value={caption}
-          onChange={(e) => setCaption(e.target.value)}
-          rows={2}
-          disabled={loading}
+    <div className="grid grid-cols-1 xl:grid-cols-[280px_1fr] gap-6">
+      {/* ── Left Panel: Controls ── */}
+      <div className="space-y-5">
+        <ModeSelector
+          value={gen.mode}
+          onChange={gen.setMode}
+          disabled={gen.loading}
+        />
+
+        <AnimatePresence mode="wait">
+          {needsReference && (
+            <motion.div
+              key="ref-upload"
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: 'auto' }}
+              exit={{ opacity: 0, height: 0 }}
+              transition={{ duration: 0.2 }}
+            >
+              <ReferenceAudioUpload
+                srcAudioPath={gen.srcAudioPath}
+                srcAudioName={gen.srcAudioName}
+                onUploaded={(path, name) => {
+                  gen.setSrcAudioPath(path);
+                  gen.setSrcAudioName(name);
+                }}
+                onClear={gen.clearReference}
+                disabled={gen.loading}
+              />
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        <ParameterPanel
+          mode={gen.mode}
+          duration={gen.duration}
+          bpm={gen.bpm}
+          batch={gen.batch}
+          seed={gen.seed}
+          instrumental={gen.instrumental}
+          thinking={gen.thinking}
+          numSteps={gen.numSteps}
+          cfgScale={gen.cfgScale}
+          strength={gen.strength}
+          repaintStart={gen.repaintStart}
+          repaintEnd={gen.repaintEnd}
+          onDurationChange={gen.setDuration}
+          onBpmChange={gen.setBpm}
+          onBatchChange={gen.setBatch}
+          onSeedChange={gen.setSeed}
+          onInstrumentalChange={gen.setInstrumental}
+          onThinkingChange={gen.setThinking}
+          onNumStepsChange={gen.setNumSteps}
+          onCfgScaleChange={gen.setCfgScale}
+          onStrengthChange={gen.setStrength}
+          onRepaintStartChange={gen.setRepaintStart}
+          onRepaintEndChange={gen.setRepaintEnd}
+          disabled={gen.loading}
         />
       </div>
 
-      {/* Lyrics */}
-      <div>
-        <label className="block text-sm font-medium mb-1">Lyrics (optional)</label>
-        <Textarea
-          placeholder="Liedtext eingeben..."
-          value={lyrics}
-          onChange={(e) => setLyrics(e.target.value)}
-          rows={3}
-          disabled={loading}
-        />
-      </div>
-
-      {/* Duration + BPM row */}
-      <div className="grid grid-cols-2 gap-4">
+      {/* ── Center Panel: Input + Results ── */}
+      <div className="space-y-4">
+        {/* Caption */}
         <div>
-          <label className="block text-sm font-medium mb-2">
-            Dauer: {duration}s
+          <label className="block text-xs font-medium text-muted-foreground uppercase tracking-wider mb-1.5">
+            Beschreibung
           </label>
-          <Slider
-            min={5}
-            max={300}
-            step={5}
-            value={[duration]}
-            onValueChange={(v) => setDuration(v[0])}
-            disabled={loading}
+          <Textarea
+            placeholder="Beschreibe die Musik, z.B. 'Entspannte Lo-Fi Beats mit sanftem Piano'"
+            value={gen.caption}
+            onChange={(e) => gen.setCaption(e.target.value)}
+            rows={2}
+            disabled={gen.loading}
+            className="resize-none"
           />
         </div>
-        <div>
-          <label className="block text-sm font-medium mb-2">
-            BPM: {bpm}
-          </label>
-          <Slider
-            min={60}
-            max={200}
-            step={1}
-            value={[bpm]}
-            onValueChange={(v) => setBpm(v[0])}
-            disabled={loading}
-          />
-        </div>
-      </div>
 
-      {/* Batch */}
-      <div>
-        <label className="block text-sm font-medium mb-1">Varianten</label>
-        <Select value={batch} onValueChange={setBatch} disabled={loading}>
-          <SelectTrigger className="w-full">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="1">1 Variante</SelectItem>
-            <SelectItem value="2">2 Varianten</SelectItem>
-            <SelectItem value="3">3 Varianten</SelectItem>
-            <SelectItem value="4">4 Varianten</SelectItem>
-          </SelectContent>
-        </Select>
-      </div>
+        {/* Lyrics (not in simple mode) */}
+        <AnimatePresence mode="wait">
+          {showLyrics && (
+            <motion.div
+              key="lyrics"
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: 'auto' }}
+              exit={{ opacity: 0, height: 0 }}
+              transition={{ duration: 0.2 }}
+            >
+              <label className="block text-xs font-medium text-muted-foreground uppercase tracking-wider mb-1.5">
+                Lyrics (optional)
+              </label>
+              <Textarea
+                placeholder="Liedtext eingeben..."
+                value={gen.lyrics}
+                onChange={(e) => gen.setLyrics(e.target.value)}
+                rows={4}
+                disabled={gen.loading}
+                className="resize-none font-mono text-xs"
+              />
+            </motion.div>
+          )}
+        </AnimatePresence>
 
-      {/* Generate button */}
-      <Button onClick={generate} disabled={loading} className="w-full gap-2">
-        {loading ? (
-          <>
-            <Loader2 className="h-4 w-4 animate-spin" />
-            {statusText || 'Generiere...'}
-          </>
-        ) : (
-          <>
-            <Music className="h-4 w-4" />
-            Musik generieren
-          </>
+        {/* Generate button */}
+        <Button
+          onClick={() => gen.generate(onGenerated)}
+          disabled={gen.loading}
+          className="w-full gap-2"
+          size="lg"
+        >
+          {gen.loading ? (
+            <>
+              <Loader2 className="h-4 w-4 animate-spin" />
+              {gen.statusText || 'Generiere...'}
+            </>
+          ) : (
+            <>
+              <Music className="h-4 w-4" />
+              Musik generieren
+            </>
+          )}
+        </Button>
+
+        {/* Error */}
+        <AnimatePresence>
+          {gen.error && (
+            <motion.div
+              initial={{ opacity: 0, y: -8 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -8 }}
+              className="text-sm text-destructive bg-destructive/10 rounded-lg p-3"
+            >
+              {gen.error}
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Generation Status */}
+        <GenerationStatus loading={gen.loading} statusText={gen.statusText} />
+
+        {/* Results */}
+        {gen.results.length > 0 && (
+          <div className="space-y-3">
+            <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+              Ergebnisse
+            </h3>
+            {gen.results.map((r, i) => (
+              <ResultCard
+                key={`${r.url}-${i}`}
+                url={r.url}
+                label={r.label}
+                index={i}
+                onSendToRemix={(src) => gen.sendToRemix(src, r.label)}
+                onSendToRepaint={(src) => gen.sendToRepaint(src, r.label)}
+              />
+            ))}
+          </div>
         )}
-      </Button>
-
-      {/* Error */}
-      {error && (
-        <div className="text-sm text-red-500 bg-red-500/10 rounded-lg p-3">
-          {error}
-        </div>
-      )}
-
-      {/* Results */}
-      {results.length > 0 && (
-        <div className="space-y-2">
-          <p className="text-sm font-medium text-muted-foreground">Ergebnis:</p>
-          {results.map((r, i) => (
-            <AudioPlayer key={i} src={r.url} title={r.caption} downloadable />
-          ))}
-        </div>
-      )}
+      </div>
     </div>
   );
 }
