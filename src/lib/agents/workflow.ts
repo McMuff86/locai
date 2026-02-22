@@ -1257,12 +1257,21 @@ export class WorkflowEngine {
   }
 
   private buildStepContext(planStep: WorkflowPlanStep): string {
+    // Pass full content from previous steps so downstream agents have
+    // complete context (e.g. full PDF/Excel text, not just 200 chars).
+    const MAX_RESULT_CHARS = 30_000;
+
     const executedSummary = this.state.steps
       .filter((s) => s.status === 'success' || s.status === 'failed')
       .map((s) => {
-        const results = s.toolResults.map((r) =>
-          r.success ? `  ✅ ${r.content.slice(0, 200)}` : `  ❌ ${r.error}`,
-        );
+        const results = s.toolResults.map((r) => {
+          if (!r.success) return `  ❌ ${r.error}`;
+          const content =
+            r.content.length > MAX_RESULT_CHARS
+              ? r.content.slice(0, MAX_RESULT_CHARS) + '\n  ... [truncated]'
+              : r.content;
+          return `  ✅ ${content}`;
+        });
         return `Schritt "${s.description}":\n${results.join('\n') || '  (keine Ergebnisse)'}`;
       })
       .join('\n\n');
