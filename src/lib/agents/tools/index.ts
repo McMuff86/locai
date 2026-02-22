@@ -5,6 +5,8 @@
 // ============================================================================
 
 import { ToolRegistry, defaultRegistry } from '../registry';
+export { BUILTIN_TOOL_NAMES } from './names';
+export type { BuiltinToolName } from './names';
 import searchDocumentsTool from './searchDocuments';
 import webSearchTool from './webSearch';
 import readFileTool from './readFile';

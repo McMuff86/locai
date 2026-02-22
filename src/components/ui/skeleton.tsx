@@ -100,6 +100,27 @@ function StatsSkeleton() {
   )
 }
 
+// Document card skeleton
+function DocumentCardSkeleton() {
+  return (
+    <div className="flex items-center gap-3 rounded-lg border border-border p-3">
+      <Skeleton className="w-10 h-10 rounded-lg flex-shrink-0" />
+      <div className="flex-1 min-w-0 space-y-2">
+        <div className="flex items-center gap-2">
+          <Skeleton className="h-4 w-48" />
+          <Skeleton className="h-5 w-16 rounded-full" />
+        </div>
+        <div className="flex items-center gap-3">
+          <Skeleton className="h-3 w-12" />
+          <Skeleton className="h-3 w-16" />
+          <Skeleton className="h-3 w-24" />
+        </div>
+      </div>
+      <Skeleton className="h-8 w-8 rounded-md flex-shrink-0" />
+    </div>
+  )
+}
+
 // Full page loading skeleton
 function PageSkeleton() {
   return (
@@ -135,14 +156,15 @@ function PageSkeleton() {
   )
 }
 
-export { 
-  Skeleton, 
-  MessageSkeleton, 
-  ChatSkeleton, 
+export {
+  Skeleton,
+  MessageSkeleton,
+  ChatSkeleton,
   ConversationItemSkeleton,
   SidebarSkeleton,
   ModelSelectorSkeleton,
   ImageGridSkeleton,
+  DocumentCardSkeleton,
   StatsSkeleton,
   PageSkeleton
 }

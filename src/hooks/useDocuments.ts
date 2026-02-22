@@ -29,6 +29,10 @@ interface UseDocumentsReturn {
   uploadDocument: (file: File) => Promise<void>;
   /** Delete a document by id */
   deleteDocument: (id: string) => Promise<void>;
+  /** Rename a document */
+  renameDocument: (id: string, newName: string) => Promise<void>;
+  /** Copy (duplicate) a document */
+  copyDocument: (id: string) => Promise<void>;
   /** Semantic search across documents */
   searchDocuments: (query: string) => Promise<DocumentSearchResult[]>;
   /** Number of ready (indexed) documents */
@@ -162,6 +166,61 @@ export function useDocuments(): UseDocumentsReturn {
     }
   }, []);
 
+  // ── Rename ─────────────────────────────────────────────────────────────
+  const renameDocument = useCallback(async (id: string, newName: string) => {
+    try {
+      const res = await fetch(`/api/documents/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: newName }),
+      });
+
+      if (!res.ok) {
+        const error = await res.json().catch(() => ({ error: 'Umbenennen fehlgeschlagen' }));
+        throw new Error(error.error || 'Umbenennen fehlgeschlagen');
+      }
+
+      const data = await res.json();
+      setDocuments((prev) => prev.map((d) => (d.id === id ? data.document : d)));
+      toast({ title: 'Dokument umbenannt', description: `Neuer Name: "${newName}"` });
+    } catch (err) {
+      console.error('[useDocuments] rename error', err);
+      toast({
+        title: 'Umbenennen fehlgeschlagen',
+        description: err instanceof Error ? err.message : 'Unbekannter Fehler',
+        variant: 'destructive',
+      });
+    }
+  }, []);
+
+  // ── Copy ──────────────────────────────────────────────────────────────
+  const copyDocument = useCallback(async (id: string) => {
+    try {
+      const res = await fetch(`/api/documents/${id}/copy`, { method: 'POST' });
+
+      if (!res.ok) {
+        const error = await res.json().catch(() => ({ error: 'Kopieren fehlgeschlagen' }));
+        throw new Error(error.error || 'Kopieren fehlgeschlagen');
+      }
+
+      const data = await res.json();
+      if (data.document) {
+        setDocuments((prev) => [data.document, ...prev]);
+      }
+      toast({
+        title: 'Dokument kopiert',
+        description: `"${data.document?.name}" wurde erstellt.`,
+      });
+    } catch (err) {
+      console.error('[useDocuments] copy error', err);
+      toast({
+        title: 'Kopieren fehlgeschlagen',
+        description: err instanceof Error ? err.message : 'Unbekannter Fehler',
+        variant: 'destructive',
+      });
+    }
+  }, []);
+
   // ── Search ─────────────────────────────────────────────────────────────
   const searchDocuments = useCallback(async (query: string): Promise<DocumentSearchResult[]> => {
     try {
@@ -197,6 +256,8 @@ export function useDocuments(): UseDocumentsReturn {
     setRagEnabled,
     uploadDocument,
     deleteDocument,
+    renameDocument,
+    copyDocument,
     searchDocuments,
     readyCount,
     refresh: fetchDocuments,
