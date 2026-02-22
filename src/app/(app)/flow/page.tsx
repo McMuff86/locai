@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ChevronDown, Download, FileText, Loader2, Play, Plus, Save, Square, Trash2, Upload, X } from 'lucide-react';
+import { ChevronDown, Download, FileText, GripHorizontal, Loader2, Play, Plus, Save, Square, Trash2, Upload, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -78,6 +78,8 @@ export default function FlowPage() {
   const logEntriesRef = useRef<LogEntry[]>([]);
   const [logEntries, setLogEntries] = useState<LogEntry[]>([]);
   const [activeBottomTab, setActiveBottomTab] = useState<string>('logger');
+  const [bottomPanelHeight, setBottomPanelHeight] = useState(200);
+  const isResizingBottomRef = useRef(false);
 
   const lastRun = useMemo(() => workflow.runs[0] ?? null, [workflow.runs]);
   const runningNodeLabels = useMemo(
@@ -318,6 +320,32 @@ export default function FlowPage() {
     logEntriesRef.current = [];
     setLogEntries([]);
   }, []);
+
+  const handleBottomPanelResize = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    isResizingBottomRef.current = true;
+    const startY = e.clientY;
+    const startHeight = bottomPanelHeight;
+
+    const onPointerMove = (moveEvent: PointerEvent) => {
+      if (!isResizingBottomRef.current) return;
+      const delta = startY - moveEvent.clientY;
+      setBottomPanelHeight(Math.max(80, Math.min(600, startHeight + delta)));
+    };
+
+    const onPointerUp = () => {
+      isResizingBottomRef.current = false;
+      document.removeEventListener('pointermove', onPointerMove);
+      document.removeEventListener('pointerup', onPointerUp);
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+    };
+
+    document.body.style.cursor = 'row-resize';
+    document.body.style.userSelect = 'none';
+    document.addEventListener('pointermove', onPointerMove);
+    document.addEventListener('pointerup', onPointerUp);
+  }, [bottomPanelHeight]);
 
   const handleClearStatus = useCallback(() => {
     setCompileWarnings([]);
@@ -888,9 +916,17 @@ export default function FlowPage() {
           <ConfigPanel />
         </div>
 
-        <section className="border-t border-border/60">
-          <Tabs value={activeBottomTab} onValueChange={setActiveBottomTab} className="gap-0">
-            <TabsList className="h-8 w-full justify-start rounded-none bg-zinc-900/40 px-2">
+        <section className="flex shrink-0 flex-col border-t border-border/60 bg-zinc-900/40" style={{ height: bottomPanelHeight }}>
+          {/* Resize handle */}
+          <div
+            onPointerDown={handleBottomPanelResize}
+            className="group flex h-1.5 shrink-0 cursor-row-resize items-center justify-center transition-colors hover:bg-primary/10"
+          >
+            <GripHorizontal className="h-3 w-3 text-muted-foreground/30 transition-colors group-hover:text-muted-foreground/60" />
+          </div>
+
+          <Tabs value={activeBottomTab} onValueChange={setActiveBottomTab} className="flex min-h-0 flex-1 flex-col gap-0">
+            <TabsList className="h-8 w-full shrink-0 justify-start rounded-none border-b border-border/40 bg-transparent px-2">
               <TabsTrigger value="logger" className="h-6 rounded px-2.5 text-[11px] data-[state=active]:bg-muted/60">
                 Logger
                 {logEntries.length > 0 && (
@@ -911,19 +947,13 @@ export default function FlowPage() {
                 )}
               </TabsTrigger>
             </TabsList>
-            <TabsContent value="logger" className="mt-0">
+            <TabsContent value="logger" className="min-h-0 flex-1 mt-0">
               <LoggerPanel logs={logEntries} onClear={handleClearLogs} />
             </TabsContent>
-            <TabsContent value="timeline" className="mt-0">
-              {timelineData && timelineData.entries.length > 0 ? (
-                <StepTimeline data={timelineData} />
-              ) : (
-                <div className="px-4 py-6 text-center text-xs text-muted-foreground">
-                  Keine Timeline-Daten vorhanden. Starte einen Workflow.
-                </div>
-              )}
+            <TabsContent value="timeline" className="min-h-0 flex-1 mt-0">
+              <StepTimeline data={timelineData} />
             </TabsContent>
-            <TabsContent value="history" className="mt-0">
+            <TabsContent value="history" className="min-h-0 flex-1 mt-0">
               <RunHistoryPanel
                 runs={workflow.runs}
                 selectedRunId={selectedRunId}

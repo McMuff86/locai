@@ -68,15 +68,15 @@ export function LoggerPanel({ logs, onClear }: LoggerPanelProps) {
 
   if (logs.length === 0) {
     return (
-      <div className="px-4 py-6 text-center text-xs text-muted-foreground">
+      <div className="flex h-full items-center justify-center text-xs text-muted-foreground">
         Keine Log-Einträge vorhanden. Starte einen Workflow um Logs zu sehen.
       </div>
     );
   }
 
   return (
-    <div className="flex flex-col">
-      <div className="flex items-center justify-between border-b border-border/40 px-4 py-1">
+    <div className="flex h-full flex-col">
+      <div className="flex shrink-0 items-center justify-between border-b border-border/40 px-4 py-1">
         <span className="text-[11px] text-muted-foreground">
           {logs.length} Einträge
         </span>
@@ -95,8 +95,7 @@ export function LoggerPanel({ logs, onClear }: LoggerPanelProps) {
       <div
         ref={scrollRef}
         onScroll={handleScroll}
-        className="overflow-y-auto font-mono text-[11px] leading-relaxed"
-        style={{ maxHeight: 300 }}
+        className="min-h-0 flex-1 overflow-y-auto font-mono text-[11px] leading-relaxed"
       >
         {logs.map((log, i) => (
           <div

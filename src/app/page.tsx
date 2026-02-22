@@ -177,13 +177,13 @@ export default function Home() {
             initial="hidden"
             animate="visible"
           >
-            <Link href="/chat">
+            <Link href="/flow">
               <Button
                 size="lg"
                 className="group text-base px-8 h-12 shadow-lg shadow-primary/20 hover:shadow-primary/40 transition-shadow"
               >
-                <MessageSquare className="mr-2 h-5 w-5" />
-                Start Chatting
+                <Zap className="mr-2 h-5 w-5" />
+                Open Flow Builder
                 <ArrowRight className="ml-2 h-4 w-4 transition-transform group-hover:translate-x-1" />
               </Button>
             </Link>
