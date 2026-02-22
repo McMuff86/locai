@@ -19,7 +19,7 @@ vi.mock('../../_utils/security', () => ({
 vi.mock('../../_utils/responses', () => ({
   apiError: (message: string, status: number) =>
     new Response(JSON.stringify({ success: false, error: message }), { status }),
-  apiSuccess: (data: unknown) =>
+  apiSuccess: (data: Record<string, unknown>) =>
     new Response(JSON.stringify({ success: true, ...data }), { status: 200 }),
 }));
 
