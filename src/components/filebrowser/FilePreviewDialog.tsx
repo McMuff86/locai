@@ -28,7 +28,7 @@ const OPEN_FILE_IN_AGENT_SESSION_KEY = 'openFileInAgent';
 const AGENT_PREVIEW_SNIPPET_LIMIT = 4000;
 
 // Preview types that support in-dialog editing
-const EDITABLE_TYPES: FilePreviewType[] = ['text', 'code', 'json', 'markdown'];
+const EDITABLE_TYPES: FilePreviewType[] = ['text', 'code', 'json', 'markdown', 'svg'];
 
 interface OpenFileInAgentPayload {
   rootId: string;
@@ -480,6 +480,18 @@ function PreviewContent({
         </div>
       );
     }
+
+    case 'svg':
+      return (
+        <div className="flex items-center justify-center py-4">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={`data:image/svg+xml;charset=utf-8,${encodeURIComponent(content)}`}
+            alt="SVG Preview"
+            className="max-w-full max-h-[70vh] object-contain rounded-lg"
+          />
+        </div>
+      );
 
     case 'json':
       try {

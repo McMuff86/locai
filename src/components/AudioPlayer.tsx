@@ -1,14 +1,13 @@
 "use client";
 
-import React, { useRef, useState, useEffect, useCallback } from 'react';
-import { Play, Pause, Download, FolderDown, Volume2, Check } from 'lucide-react';
+import React, { useCallback } from 'react';
+import { Play, Pause, Volume2, Repeat } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
+import { formatTime } from '@/lib/audio-utils';
+import { useAudioPlayback } from '@/hooks/useAudioPlayback';
+import { SaveMenu } from '@/components/audio/SaveMenu';
+
+const SPEED_OPTIONS = [0.5, 0.75, 1, 1.25, 1.5, 2];
 
 /** Props for the AudioPlayer component. */
 interface AudioPlayerProps {
@@ -18,68 +17,55 @@ interface AudioPlayerProps {
   compact?: boolean;
 }
 
-/** Formats a duration in seconds to `m:ss` display format. */
-function formatTime(seconds: number): string {
-  if (!isFinite(seconds) || seconds < 0) return '0:00';
-  const m = Math.floor(seconds / 60);
-  const s = Math.floor(seconds % 60);
-  return `${m}:${s.toString().padStart(2, '0')}`;
-}
-
 /**
  * Inline audio player with play/pause, seekable progress bar, time display, and optional download.
  * Supports a compact variant for embedding within chat messages.
  */
 export function AudioPlayer({ src, title, downloadable = false, compact = false }: AudioPlayerProps) {
-  const audioRef = useRef<HTMLAudioElement>(null);
-  const [playing, setPlaying] = useState(false);
-  const [currentTime, setCurrentTime] = useState(0);
-  const [duration, setDuration] = useState(0);
-
-  useEffect(() => {
-    const audio = audioRef.current;
-    if (!audio) return;
-
-    const onTimeUpdate = () => setCurrentTime(audio.currentTime);
-    const onLoadedMetadata = () => setDuration(audio.duration);
-    const onEnded = () => setPlaying(false);
-
-    audio.addEventListener('timeupdate', onTimeUpdate);
-    audio.addEventListener('loadedmetadata', onLoadedMetadata);
-    audio.addEventListener('ended', onEnded);
-
-    return () => {
-      audio.removeEventListener('timeupdate', onTimeUpdate);
-      audio.removeEventListener('loadedmetadata', onLoadedMetadata);
-      audio.removeEventListener('ended', onEnded);
-    };
-  }, []);
-
-  const togglePlay = useCallback(() => {
-    const audio = audioRef.current;
-    if (!audio) return;
-    if (playing) {
-      audio.pause();
-    } else {
-      audio.play();
-    }
-    setPlaying(!playing);
-  }, [playing]);
+  const {
+    audioRef,
+    playing,
+    currentTime,
+    duration,
+    playbackRate,
+    loop,
+    togglePlay,
+    seek,
+    setPlaybackRate,
+    toggleLoop,
+  } = useAudioPlayback(src);
 
   const handleSeek = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    const audio = audioRef.current;
-    if (!audio) return;
-    const time = parseFloat(e.target.value);
-    audio.currentTime = time;
-    setCurrentTime(time);
-  }, []);
+    seek(parseFloat(e.target.value));
+  }, [seek]);
+
+  const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
+    if (e.key === ' ') {
+      e.preventDefault();
+      togglePlay();
+    } else if (e.key === 'ArrowLeft') {
+      e.preventDefault();
+      seek(Math.max(0, currentTime - 5));
+    } else if (e.key === 'ArrowRight') {
+      e.preventDefault();
+      seek(Math.min(duration, currentTime + 5));
+    }
+  }, [togglePlay, seek, currentTime, duration]);
+
+  const cycleSpeed = useCallback(() => {
+    const idx = SPEED_OPTIONS.indexOf(playbackRate);
+    const next = SPEED_OPTIONS[(idx + 1) % SPEED_OPTIONS.length];
+    setPlaybackRate(next);
+  }, [playbackRate, setPlaybackRate]);
 
   const progress = duration > 0 ? (currentTime / duration) * 100 : 0;
 
   return (
     <div
+      tabIndex={0}
+      onKeyDown={handleKeyDown}
       className={cn(
-        'flex items-center gap-2 rounded-lg border border-border bg-card',
+        'flex items-center gap-2 rounded-lg border border-border bg-card outline-none focus-visible:ring-1 focus-visible:ring-primary',
         compact ? 'px-2 py-1.5' : 'px-3 py-2.5',
       )}
     >
@@ -133,74 +119,34 @@ export function AudioPlayer({ src, title, downloadable = false, compact = false 
         {formatTime(currentTime)} / {formatTime(duration)}
       </span>
 
+      {/* Speed */}
+      <button
+        onClick={cycleSpeed}
+        className={cn(
+          'flex-shrink-0 tabular-nums text-muted-foreground hover:text-foreground transition-colors',
+          compact ? 'text-[10px]' : 'text-xs',
+        )}
+        title="Wiedergabegeschwindigkeit"
+      >
+        {playbackRate}x
+      </button>
+
+      {/* Loop */}
+      <button
+        onClick={toggleLoop}
+        className={cn(
+          'flex-shrink-0 transition-colors',
+          loop ? 'text-primary' : 'text-muted-foreground hover:text-foreground',
+        )}
+        title="Wiederholen"
+      >
+        <Repeat className={compact ? 'h-3 w-3' : 'h-3.5 w-3.5'} />
+      </button>
+
       {/* Download / Save */}
       {downloadable && (
         <SaveMenu src={src} compact={compact} />
       )}
     </div>
-  );
-}
-
-/** Extract the filename from an audio src URL like /api/audio/my-file.flac */
-function extractFilename(src: string): string {
-  const parts = src.split('/');
-  return decodeURIComponent(parts[parts.length - 1] || 'audio.flac');
-}
-
-/** Dropdown menu with "Save as..." (browser download) and "Save to workspace" options. */
-function SaveMenu({ src, compact = false }: { src: string; compact?: boolean }) {
-  const [saved, setSaved] = useState(false);
-  const [saving, setSaving] = useState(false);
-  const iconSize = compact ? 'h-3.5 w-3.5' : 'h-4 w-4';
-
-  const handleSaveToWorkspace = useCallback(async () => {
-    const filename = extractFilename(src);
-    setSaving(true);
-    try {
-      const res = await fetch('/api/audio-files/save-to-workspace', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ filename }),
-      });
-      const data = await res.json();
-      if (data.success) {
-        setSaved(true);
-        setTimeout(() => setSaved(false), 3000);
-      }
-    } catch {
-      // silently fail
-    } finally {
-      setSaving(false);
-    }
-  }, [src]);
-
-  return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <button className="flex-shrink-0 text-muted-foreground hover:text-foreground transition-colors">
-          <Download className={iconSize} />
-        </button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="min-w-[180px]">
-        <DropdownMenuItem asChild>
-          <a href={src} download className="flex items-center gap-2 cursor-pointer">
-            <Download className="h-4 w-4" />
-            Speichern unter...
-          </a>
-        </DropdownMenuItem>
-        <DropdownMenuItem
-          onClick={handleSaveToWorkspace}
-          disabled={saving}
-          className="flex items-center gap-2"
-        >
-          {saved ? (
-            <Check className="h-4 w-4 text-green-500" />
-          ) : (
-            <FolderDown className="h-4 w-4" />
-          )}
-          {saving ? 'Speichere...' : saved ? 'Gespeichert!' : 'Im Workspace speichern'}
-        </DropdownMenuItem>
-      </DropdownMenuContent>
-    </DropdownMenu>
   );
 }
