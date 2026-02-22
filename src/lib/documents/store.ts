@@ -8,6 +8,7 @@
 
 import path from 'path';
 import { promises as fs } from 'fs';
+import { randomBytes } from 'crypto';
 import {
   Document,
   DocumentChunk,
@@ -374,4 +375,87 @@ export async function loadDocumentEmbeddingsById(
 ): Promise<DocumentEmbeddingEntry[]> {
   const all = await loadDocumentEmbeddings(basePath);
   return all.filter((e) => e.documentId === documentId);
+}
+
+// ---------------------------------------------------------------------------
+// Rename & Copy
+// ---------------------------------------------------------------------------
+
+/**
+ * Rename a document (metadata only – the physical file keeps its original name).
+ */
+export async function renameDocument(
+  id: string,
+  newName: string,
+  basePath?: string,
+): Promise<Document | null> {
+  const storagePath = getStoragePath(basePath);
+  const docs = await loadDocuments(storagePath);
+  const idx = docs.findIndex((d) => d.id === id);
+  if (idx < 0) return null;
+
+  docs[idx] = { ...docs[idx], name: newName };
+  await saveDocumentsArray(storagePath, docs);
+  return docs[idx];
+}
+
+/**
+ * Deep-copy a document: metadata, uploaded file, and all embeddings.
+ */
+export async function copyDocument(
+  sourceId: string,
+  newName?: string,
+  basePath?: string,
+): Promise<Document | null> {
+  const storagePath = getStoragePath(basePath);
+  const source = await getDocument(sourceId, storagePath);
+  if (!source) return null;
+
+  const newId = randomBytes(12).toString('base64url');
+
+  const newDoc: Document = {
+    ...source,
+    id: newId,
+    name: newName ?? `Kopie von ${source.name}`,
+    uploadedAt: new Date().toISOString(),
+  };
+
+  // Save metadata
+  await saveDocument(newDoc, storagePath);
+
+  // Copy physical file(s)
+  try {
+    const srcDir = path.join(uploadsDir(storagePath), sourceId);
+    const dstDir = path.join(uploadsDir(storagePath), newId);
+    await fs.mkdir(dstDir, { recursive: true });
+    const entries = await fs.readdir(srcDir);
+    for (const entry of entries) {
+      const content = await fs.readFile(path.join(srcDir, entry));
+      await fs.writeFile(path.join(dstDir, entry), content);
+    }
+  } catch {
+    // Source file may not exist (e.g. for very old documents); metadata copy still succeeds
+  }
+
+  // Copy embeddings
+  const allEmbeddings = await loadDocumentEmbeddings(storagePath);
+  const sourceEmbeddings = allEmbeddings.filter(
+    (e) => e.documentId === sourceId,
+  );
+
+  if (sourceEmbeddings.length > 0) {
+    const now = new Date().toISOString();
+    const newEmbeddings: DocumentEmbeddingEntry[] = sourceEmbeddings.map(
+      (e, i) => ({
+        ...e,
+        id: `${newId}#${i}`,
+        documentId: newId,
+        createdAt: now,
+      }),
+    );
+    const merged = [...allEmbeddings, ...newEmbeddings];
+    await saveDocumentEmbeddingsArray(storagePath, merged);
+  }
+
+  return newDoc;
 }

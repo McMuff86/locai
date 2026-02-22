@@ -19,6 +19,8 @@ export {
   saveDocumentEmbeddings,
   removeDocumentEmbeddings,
   loadDocumentEmbeddingsById,
+  renameDocument,
+  copyDocument,
 } from './store';
 export {
   searchDocuments,

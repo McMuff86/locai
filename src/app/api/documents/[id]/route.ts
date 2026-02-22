@@ -7,6 +7,7 @@ import { NextRequest } from 'next/server';
 import {
   getDocument,
   deleteDocument,
+  renameDocument,
   loadDocumentEmbeddingsById,
 } from '@/lib/documents/store';
 import { apiError, apiSuccess } from '../../_utils/responses';
@@ -50,6 +51,38 @@ export async function GET(
     console.error('[Documents] Get error:', err);
     return apiError(
       err instanceof Error ? err.message : 'Dokument konnte nicht geladen werden',
+      500,
+    );
+  }
+}
+
+/**
+ * PATCH /api/documents/[id]
+ * Rename a document.
+ */
+export async function PATCH(
+  req: NextRequest,
+  { params }: RouteParams,
+) {
+  try {
+    const { id } = await params;
+    const body = await req.json();
+    const { name } = body;
+
+    if (!name || typeof name !== 'string' || name.trim().length === 0) {
+      return apiError('Neuer Name fehlt oder ist ungültig', 400);
+    }
+
+    const doc = await renameDocument(id, name.trim());
+    if (!doc) {
+      return apiError('Dokument nicht gefunden', 404);
+    }
+
+    return apiSuccess({ document: doc });
+  } catch (err) {
+    console.error('[Documents] Rename error:', err);
+    return apiError(
+      err instanceof Error ? err.message : 'Umbenennen fehlgeschlagen',
       500,
     );
   }

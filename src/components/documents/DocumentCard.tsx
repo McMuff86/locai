@@ -1,8 +1,38 @@
 "use client";
 
-import React, { useState } from 'react';
-import { Trash2, Loader2, CheckCircle2, AlertCircle, Clock, File } from 'lucide-react';
+import React, { useState, useRef, useEffect } from 'react';
+import {
+  Trash2,
+  Loader2,
+  CheckCircle2,
+  AlertCircle,
+  Clock,
+  File,
+  FileText,
+  FileCode,
+  FileType,
+  MoreHorizontal,
+  Pencil,
+  Copy,
+} from 'lucide-react';
+import { motion } from 'framer-motion';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+} from '@/components/ui/dropdown-menu';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from '@/components/ui/dialog';
 import { cn } from '@/lib/utils';
 import type { Document } from '@/lib/documents/types';
 import { IndexStatus, DocumentType } from '@/lib/documents/types';
@@ -11,18 +41,36 @@ import { IndexStatus, DocumentType } from '@/lib/documents/types';
 // Helpers
 // ---------------------------------------------------------------------------
 
-function getFileIcon(type: DocumentType): React.ReactNode {
+function getFileIcon(type: DocumentType): {
+  icon: React.ReactNode;
+  bgClass: string;
+} {
   switch (type) {
     case DocumentType.PDF:
-      return <span className="text-lg">📄</span>;
+      return {
+        icon: <FileText className="h-5 w-5 text-red-500" />,
+        bgClass: 'bg-red-500/10 border-red-500/20',
+      };
     case DocumentType.TXT:
-      return <span className="text-lg">📝</span>;
+      return {
+        icon: <FileType className="h-5 w-5 text-gray-500 dark:text-gray-400" />,
+        bgClass: 'bg-gray-500/10 border-gray-500/20',
+      };
     case DocumentType.MD:
-      return <span className="text-lg">📋</span>;
+      return {
+        icon: <FileText className="h-5 w-5 text-emerald-500" />,
+        bgClass: 'bg-emerald-500/10 border-emerald-500/20',
+      };
     case DocumentType.CODE:
-      return <span className="text-lg">💻</span>;
+      return {
+        icon: <FileCode className="h-5 w-5 text-blue-500" />,
+        bgClass: 'bg-blue-500/10 border-blue-500/20',
+      };
     default:
-      return <File className="h-5 w-5 text-muted-foreground" />;
+      return {
+        icon: <File className="h-5 w-5 text-muted-foreground" />,
+        bgClass: 'bg-muted/50 border-border/30',
+      };
   }
 }
 
@@ -90,92 +138,185 @@ function StatusBadge({ status, error }: { status: IndexStatus; error?: string })
 // ---------------------------------------------------------------------------
 
 interface DocumentCardProps {
-  /** The document to display */
   document: Document;
-  /** Callback to delete a document by ID */
   onDelete: (id: string) => Promise<void>;
+  onRename: (id: string, newName: string) => Promise<void>;
+  onCopy: (id: string) => Promise<void>;
 }
 
-/**
- * Renders a single document row with type icon, status badge,
- * metadata (size, chunk count, date), and a delete button with
- * confirmation.
- */
-export function DocumentCard({ document: doc, onDelete }: DocumentCardProps) {
-  const [confirmDelete, setConfirmDelete] = useState(false);
+export function DocumentCard({ document: doc, onDelete, onRename, onCopy }: DocumentCardProps) {
+  const [isEditing, setIsEditing] = useState(false);
+  const [editName, setEditName] = useState(doc.name);
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  // Focus and select filename (without extension) when entering edit mode
+  useEffect(() => {
+    if (isEditing && inputRef.current) {
+      inputRef.current.focus();
+      const dotIndex = editName.lastIndexOf('.');
+      if (dotIndex > 0) {
+        inputRef.current.setSelectionRange(0, dotIndex);
+      } else {
+        inputRef.current.select();
+      }
+    }
+  }, [isEditing]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const handleRename = async () => {
+    const trimmed = editName.trim();
+    if (trimmed && trimmed !== doc.name) {
+      await onRename(doc.id, trimmed);
+    } else {
+      setEditName(doc.name);
+    }
+    setIsEditing(false);
+  };
 
   const handleDelete = async () => {
-    if (!confirmDelete) {
-      setConfirmDelete(true);
-      // Auto-reset after 3s
-      setTimeout(() => setConfirmDelete(false), 3000);
-      return;
-    }
-
     setIsDeleting(true);
     await onDelete(doc.id);
     setIsDeleting(false);
-    setConfirmDelete(false);
+    setShowDeleteDialog(false);
   };
 
+  const startEditing = () => {
+    setEditName(doc.name);
+    // Small delay to ensure dropdown has closed before focusing input
+    setTimeout(() => setIsEditing(true), 50);
+  };
+
+  const { icon, bgClass } = getFileIcon(doc.type);
+
   return (
-    <div
-      className={cn(
-        'group flex items-center gap-3 rounded-lg border border-border p-3 transition-colors',
-        'hover:bg-muted/30',
-        doc.status === IndexStatus.Error && 'border-red-500/30 bg-red-500/5',
-      )}
-    >
-      {/* File Type Icon */}
-      <div className="flex-shrink-0 flex items-center justify-center w-10 h-10 rounded-lg bg-muted/50">
-        {getFileIcon(doc.type)}
-      </div>
-
-      {/* Info */}
-      <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-2">
-          <h4 className="text-sm font-medium truncate">{doc.name}</h4>
-          <StatusBadge status={doc.status} error={doc.error} />
-        </div>
-        <div className="flex items-center gap-3 mt-0.5">
-          <span className="text-xs text-muted-foreground">
-            {formatFileSize(doc.size)}
-          </span>
-          {doc.chunkCount > 0 && (
-            <span className="text-xs text-muted-foreground">
-              {doc.chunkCount} Chunks
-            </span>
-          )}
-          <span className="text-xs text-muted-foreground">
-            {formatDate(doc.uploadedAt)}
-          </span>
-        </div>
-        {doc.status === IndexStatus.Error && doc.error && (
-          <p className="text-xs text-red-500 mt-1 truncate">{doc.error}</p>
+    <>
+      <motion.div
+        layout
+        initial={{ opacity: 0, y: 8 }}
+        animate={{ opacity: 1, y: 0 }}
+        exit={{ opacity: 0, x: -20, transition: { duration: 0.2 } }}
+        className={cn(
+          'group flex items-center gap-3 rounded-lg border border-border p-3',
+          'transition-all duration-150',
+          'hover:bg-muted/30 hover:shadow-sm hover:border-border/60',
+          doc.status === IndexStatus.Error && 'border-red-500/30 bg-red-500/5',
         )}
-      </div>
-
-      {/* Delete Button */}
-      <div className="flex-shrink-0">
-        <Button
-          variant={confirmDelete ? 'destructive' : 'ghost'}
-          size="icon"
+      >
+        {/* File Type Icon */}
+        <div
           className={cn(
-            'h-8 w-8 transition-opacity',
-            !confirmDelete && 'opacity-0 group-hover:opacity-100',
+            'flex-shrink-0 flex items-center justify-center w-10 h-10 rounded-lg border',
+            bgClass,
           )}
-          onClick={handleDelete}
-          disabled={isDeleting}
-          title={confirmDelete ? 'Klick zum Bestätigen' : 'Dokument löschen'}
         >
-          {isDeleting ? (
-            <Loader2 className="h-4 w-4 animate-spin" />
-          ) : (
-            <Trash2 className="h-4 w-4" />
+          {icon}
+        </div>
+
+        {/* Info */}
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2">
+            {isEditing ? (
+              <Input
+                ref={inputRef}
+                value={editName}
+                onChange={(e) => setEditName(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') handleRename();
+                  if (e.key === 'Escape') {
+                    setIsEditing(false);
+                    setEditName(doc.name);
+                  }
+                }}
+                onBlur={handleRename}
+                className="h-7 text-sm font-medium px-1.5 max-w-xs"
+              />
+            ) : (
+              <h4 className="text-sm font-medium truncate">{doc.name}</h4>
+            )}
+            {!isEditing && <StatusBadge status={doc.status} error={doc.error} />}
+          </div>
+          <div className="flex items-center gap-3 mt-0.5">
+            <span className="text-xs text-muted-foreground">
+              {formatFileSize(doc.size)}
+            </span>
+            {doc.chunkCount > 0 && (
+              <span className="text-xs text-muted-foreground">
+                {doc.chunkCount} Chunks
+              </span>
+            )}
+            <span className="text-xs text-muted-foreground">
+              {formatDate(doc.uploadedAt)}
+            </span>
+          </div>
+          {doc.status === IndexStatus.Error && doc.error && (
+            <p className="text-xs text-red-500 mt-1 truncate">{doc.error}</p>
           )}
-        </Button>
-      </div>
-    </div>
+        </div>
+
+        {/* Context Menu */}
+        <div className="flex-shrink-0">
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity"
+              >
+                <MoreHorizontal className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={startEditing}>
+                <Pencil className="h-4 w-4" />
+                Umbenennen
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => onCopy(doc.id)}>
+                <Copy className="h-4 w-4" />
+                Kopieren
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                variant="destructive"
+                onClick={() => setShowDeleteDialog(true)}
+              >
+                <Trash2 className="h-4 w-4" />
+                Löschen
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+      </motion.div>
+
+      {/* Delete Confirmation Dialog */}
+      <Dialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Dokument löschen?</DialogTitle>
+            <DialogDescription>
+              &ldquo;{doc.name}&rdquo; und alle zugehörigen Embeddings werden
+              unwiderruflich gelöscht.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowDeleteDialog(false)}>
+              Abbrechen
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={handleDelete}
+              disabled={isDeleting}
+            >
+              {isDeleting ? (
+                <Loader2 className="h-4 w-4 animate-spin mr-2" />
+              ) : (
+                <Trash2 className="h-4 w-4 mr-2" />
+              )}
+              Löschen
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }
