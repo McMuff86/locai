@@ -19,6 +19,7 @@ import {
   PanelLeftOpen,
   Workflow,
   Terminal,
+  Music,
 } from 'lucide-react';
 import Link from 'next/link';
 import NextImage from 'next/image';
@@ -39,6 +40,7 @@ const navSections = [
       { href: '/search',    label: 'Suche',     icon: Search },
       { href: '/documents', label: 'Dokumente', icon: Files },
       { href: '/gallery',   label: 'Galerie',   icon: Image },
+      { href: '/audio',     label: 'Audio',     icon: Music },
       { href: '/notes',     label: 'Notizen',   icon: FileText },
       { href: '/terminal',  label: 'Terminal',  icon: Terminal },
     ],
