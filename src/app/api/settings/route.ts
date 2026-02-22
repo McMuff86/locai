@@ -20,6 +20,8 @@ const DEFAULT_SETTINGS: Record<string, unknown> = {
   notesAllowAI: true,
   agentWorkspacePath: '',
   aceStepUrl: 'http://localhost:8001',
+  aceStepPath: '',
+  aceStepAutoStart: false,
   qwenTTSUrl: 'http://localhost:7861',
 };
 
@@ -53,6 +55,8 @@ const SETTINGS_SCHEMA: Record<string, FieldSchema> = {
   notesAllowAI:         { type: 'boolean' },
   agentWorkspacePath:   { type: 'path', maxLength: 500 },
   aceStepUrl:           { type: 'url', maxLength: 500 },
+  aceStepPath:          { type: 'path', maxLength: 500 },
+  aceStepAutoStart:     { type: 'boolean' },
   qwenTTSUrl:           { type: 'url', maxLength: 500 },
 };
 

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { usePathname } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { useTheme } from 'next-themes';
@@ -164,6 +164,57 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       const stored = localStorage.getItem(SIDEBAR_COLLAPSED_KEY);
       if (stored !== null) setCollapsed(stored === 'true');
     } catch { /* ignore */ }
+  }, []);
+
+  // ── Auto-start services on mount ──────────────────────────────────
+  const autoStartRan = useRef(false);
+  useEffect(() => {
+    if (autoStartRan.current) return;
+    autoStartRan.current = true;
+
+    (async () => {
+      try {
+        const res = await fetch('/api/settings');
+        const data = await res.json();
+        if (!data.success) return;
+        const s = data.settings;
+
+        // ComfyUI auto-start
+        if (s.comfyUIAutoStart && s.comfyUIPath) {
+          try {
+            const health = await fetch(`/api/comfyui/status?port=${s.comfyUIPort || 8188}`);
+            const info = await health.json();
+            if (!info.running) {
+              await fetch('/api/comfyui/launch', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ comfyUIPath: s.comfyUIPath }),
+              });
+              console.log('[auto-start] ComfyUI launch initiated');
+            }
+          } catch { /* ignore */ }
+        }
+
+        // ACE-Step auto-start
+        if (s.aceStepAutoStart && s.aceStepPath) {
+          try {
+            const health = await fetch('/api/ace-step/health', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: '{}',
+            });
+            if (!health.ok) {
+              await fetch('/api/ace-step/launch', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ aceStepPath: s.aceStepPath }),
+              });
+              console.log('[auto-start] ACE-Step launch initiated');
+            }
+          } catch { /* ignore */ }
+        }
+      } catch { /* ignore settings fetch error */ }
+    })();
   }, []);
 
   const toggleCollapse = () => {

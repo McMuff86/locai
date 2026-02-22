@@ -196,7 +196,7 @@ export default function SettingsPage() {
 
   // ── Helpers ────────────────────────────────────────────────────────────
 
-  const pickFolder = async (type: 'comfyPath' | 'outputPath' | 'notesPath' | 'agentWorkspace') => {
+  const pickFolder = async (type: 'comfyPath' | 'outputPath' | 'notesPath' | 'agentWorkspace' | 'aceStepPath') => {
     setIsPickingFolder(type);
     try {
       const response = await fetch('/api/folder-picker', {
@@ -214,6 +214,8 @@ export default function SettingsPage() {
             updateSettings({ comfyUIOutputPath: path });
           } else if (type === 'agentWorkspace') {
             updateSettings({ agentWorkspacePath: path });
+          } else if (type === 'aceStepPath') {
+            updateSettings({ aceStepPath: path });
           } else {
             updateSettings({ notesPath: path });
           }
@@ -745,6 +747,7 @@ export default function SettingsPage() {
             Audio Services
           </div>
           <div className="bg-card border border-border rounded-lg p-4 space-y-4">
+            {/* ACE-Step */}
             <div>
               <label className="block font-medium mb-1">ACE-Step URL</label>
               <p className="text-sm text-muted-foreground mb-2">URL des ACE-Step Musik-Generators</p>
@@ -757,6 +760,33 @@ export default function SettingsPage() {
             </div>
 
             <div>
+              <label className="block font-medium mb-1">ACE-Step Installationspfad</label>
+              <p className="text-sm text-muted-foreground mb-2">Pfad zur ACE-Step Installation (für Auto-Start)</p>
+              <div className="flex gap-2">
+                <Input
+                  value={settings?.aceStepPath || ''}
+                  onChange={(e) => handleInputChange('aceStepPath', e.target.value)}
+                  placeholder="C:\ACE-Step"
+                  className="flex-1"
+                />
+                <Button
+                  variant="outline"
+                  onClick={() => pickFolder('aceStepPath')}
+                  disabled={isPickingFolder === 'aceStepPath'}
+                >
+                  {isPickingFolder === 'aceStepPath' ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <FolderOpen className="h-4 w-4" />
+                  )}
+                </Button>
+              </div>
+            </div>
+
+            <div className="border-t border-border pt-4" />
+
+            {/* Qwen3-TTS */}
+            <div>
               <label className="block font-medium mb-1">Qwen3-TTS URL</label>
               <p className="text-sm text-muted-foreground mb-2">URL des Qwen3-TTS Sprachsynthese-Servers</p>
               <Input
@@ -765,6 +795,46 @@ export default function SettingsPage() {
                 placeholder="http://localhost:7861"
               />
               <HealthIndicator endpoint="/api/qwen-tts/health" label="Qwen3-TTS" />
+            </div>
+
+            <div className="border-t border-border pt-4" />
+
+            {/* Auto-Start Toggles */}
+            <div className="space-y-3">
+              <div className="font-medium">Auto-Start</div>
+              <div className="flex items-center justify-between">
+                <div>
+                  <div className="text-sm">ComfyUI beim Start automatisch starten</div>
+                </div>
+                <Button
+                  variant={settings?.comfyUIAutoStart ? 'default' : 'outline'}
+                  size="sm"
+                  onClick={() => {
+                    updateSettings({ comfyUIAutoStart: !settings?.comfyUIAutoStart });
+                    showSaved();
+                  }}
+                >
+                  {settings?.comfyUIAutoStart ? 'An' : 'Aus'}
+                </Button>
+              </div>
+              <div className="flex items-center justify-between">
+                <div>
+                  <div className="text-sm">ACE-Step beim Start automatisch starten</div>
+                </div>
+                <Button
+                  variant={settings?.aceStepAutoStart ? 'default' : 'outline'}
+                  size="sm"
+                  onClick={() => {
+                    updateSettings({ aceStepAutoStart: !settings?.aceStepAutoStart });
+                    showSaved();
+                  }}
+                >
+                  {settings?.aceStepAutoStart ? 'An' : 'Aus'}
+                </Button>
+              </div>
+              <div className="text-xs text-muted-foreground bg-muted/50 p-2 rounded">
+                Auto-Start erfordert konfigurierte Installationspfade. Die Services werden beim Laden der App gestartet, falls sie nicht bereits laufen.
+              </div>
             </div>
           </div>
         </section>

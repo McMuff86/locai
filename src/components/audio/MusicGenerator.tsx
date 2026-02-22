@@ -37,11 +37,10 @@ export function MusicGenerator({ onGenerated }: MusicGeneratorProps) {
     setLoading(true);
     setError(null);
     setResults([]);
-    setStatusText('Starte Generierung...');
+    setStatusText('Generiere Musik...');
 
     try {
-      // 1. Start generation
-      const genRes = await fetch('/api/ace-step/generate', {
+      const res = await fetch('/api/ace-step/generate-sync', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -54,61 +53,20 @@ export function MusicGenerator({ onGenerated }: MusicGeneratorProps) {
         }),
       });
 
-      const genData = await genRes.json();
-      if (!genData.success) {
-        throw new Error(genData.error || 'Generierung fehlgeschlagen');
+      const data = await res.json();
+      if (!data.success) {
+        throw new Error(data.error || 'Generierung fehlgeschlagen');
       }
 
-      const taskId = genData.taskId;
-      setStatusText('Generiere Musik...');
-
-      // 2. Poll for status
-      const deadline = Date.now() + 300_000; // 5 min timeout
-      while (Date.now() < deadline) {
-        await new Promise((r) => setTimeout(r, 3000));
-
-        const statusRes = await fetch(`/api/ace-step/status/${taskId}`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: '{}',
-        });
-
-        const statusData = await statusRes.json();
-        if (!statusData.success) continue;
-
-        const taskResults = statusData.results as Array<{
-          status: string;
-          audioPath?: string;
-          audioUrl?: string;
-        }>;
-
-        if (!taskResults || taskResults.length === 0) continue;
-
-        const allDone = taskResults.every((r) => r.status === 'success' || r.status === 'failed');
-        if (!allDone) {
-          setStatusText(`Generiere Musik... (${taskResults.filter((r) => r.status === 'success').length}/${taskResults.length})`);
-          continue;
-        }
-
-        const successful = taskResults.filter((r) => r.status === 'success' && r.audioUrl);
-        if (successful.length === 0) {
-          throw new Error('Alle Generierungen fehlgeschlagen');
-        }
-
-        // Audio URLs from ACE-Step are external — we need to proxy them through our cache
-        // For now, use the audioUrl directly (the client provides full URLs)
-        setResults(
-          successful.map((r, i) => ({
-            url: r.audioUrl!,
-            caption: `Track ${i + 1}`,
-          }))
-        );
-        setStatusText('');
-        onGenerated?.();
-        return;
-      }
-
-      throw new Error('Timeout: Generierung hat zu lange gedauert');
+      const audioUrls = data.audioUrls as string[];
+      setResults(
+        audioUrls.map((url, i) => ({
+          url,
+          caption: `Track ${i + 1}`,
+        }))
+      );
+      setStatusText('');
+      onGenerated?.();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unbekannter Fehler');
       setStatusText('');

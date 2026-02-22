@@ -44,6 +44,8 @@ export interface AppSettings {
 
   // Audio Services
   aceStepUrl: string;
+  aceStepPath: string;
+  aceStepAutoStart: boolean;
   qwenTTSUrl: string;
 }
 
@@ -70,6 +72,8 @@ const DEFAULT_SETTINGS: AppSettings = {
   aiAvatarType: 'icon',
   aiAvatarUrl: '',
   aceStepUrl: 'http://localhost:8001',
+  aceStepPath: '',
+  aceStepAutoStart: false,
   qwenTTSUrl: 'http://localhost:7861',
 };
 
