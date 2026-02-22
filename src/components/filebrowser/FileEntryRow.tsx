@@ -12,8 +12,18 @@ import {
   Pencil,
   Move,
   Bot,
+  MoreHorizontal,
+  Eye,
+  FolderOpen,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import type { FileEntry } from '@/lib/filebrowser/types';
 
 function formatFileSize(bytes: number): string {
@@ -167,6 +177,31 @@ export function FileEntryRow({
     onDropOnDirectory(entry.relativePath);
   };
 
+  const menuItems = useMemo(() => {
+    const items: { label: string; icon: React.ReactNode; action: (e: React.MouseEvent) => void; variant?: 'destructive'; separator?: boolean }[] = [];
+
+    if (entry.type === 'file') {
+      items.push({ label: 'Anzeigen', icon: <Eye className="h-3.5 w-3.5" />, action: (e) => { e.stopPropagation(); onPreview(entry); } });
+    }
+    if (entry.type === 'directory') {
+      items.push({ label: 'Öffnen', icon: <FolderOpen className="h-3.5 w-3.5" />, action: (e) => { e.stopPropagation(); onNavigate(entry.relativePath); } });
+    }
+    if (entry.type === 'file' && onOpenInAgent) {
+      items.push({ label: 'In Agent öffnen', icon: <Bot className="h-3.5 w-3.5" />, action: handleOpenInAgent });
+    }
+    if (entry.type === 'file') {
+      items.push({ label: 'Herunterladen', icon: <Download className="h-3.5 w-3.5" />, action: handleDownload, separator: true });
+    }
+    if (isWorkspaceEntry) {
+      items.push({ label: 'Umbenennen', icon: <Pencil className="h-3.5 w-3.5" />, action: handleRename });
+      items.push({ label: 'Verschieben', icon: <Move className="h-3.5 w-3.5" />, action: handleMove });
+    }
+    if (isWorkspaceEntry && entry.type === 'file') {
+      items.push({ label: confirmDelete ? 'Wirklich löschen?' : 'Löschen', icon: <Trash2 className="h-3.5 w-3.5" />, action: handleDelete, variant: 'destructive', separator: true });
+    }
+    return items;
+  }, [entry, isWorkspaceEntry, onOpenInAgent, onPreview, onNavigate, confirmDelete, handleOpenInAgent, handleDownload, handleRename, handleMove, handleDelete]);
+
   return (
     <div
       className={`group flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg cursor-pointer transition-all duration-150 border ${
@@ -196,12 +231,13 @@ export function FileEntryRow({
         </p>
       </div>
 
-      <div className="flex-shrink-0 flex items-center gap-0.5 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
+      {/* Quick actions: always visible download + agent; rest in menu */}
+      <div className="flex-shrink-0 flex items-center gap-0.5">
         {entry.type === 'file' && onOpenInAgent && (
           <Button
             variant="ghost"
             size="icon"
-            className="h-6 w-6 text-muted-foreground hover:text-primary rounded-md"
+            className="h-6 w-6 text-muted-foreground hover:text-primary rounded-md opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity"
             onClick={handleOpenInAgent}
             title="In Agent öffnen"
           >
@@ -212,46 +248,43 @@ export function FileEntryRow({
           <Button
             variant="ghost"
             size="icon"
-            className="h-6 w-6 rounded-md"
+            className="h-6 w-6 rounded-md opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity"
             onClick={handleDownload}
             title="Herunterladen"
           >
             <Download className="h-3 w-3" />
           </Button>
         )}
-        {isWorkspaceEntry && (
-          <>
+
+        {/* Actions dropdown – always visible */}
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
             <Button
               variant="ghost"
               size="icon"
-              className="h-6 w-6 rounded-md"
-              onClick={handleRename}
-              title="Umbenennen"
+              className="h-6 w-6 rounded-md text-muted-foreground/60 hover:text-foreground"
+              onClick={(e) => e.stopPropagation()}
+              title="Aktionen"
             >
-              <Pencil className="h-3 w-3" />
+              <MoreHorizontal className="h-3.5 w-3.5" />
             </Button>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-6 w-6 rounded-md"
-              onClick={handleMove}
-              title="Verschieben"
-            >
-              <Move className="h-3 w-3" />
-            </Button>
-          </>
-        )}
-        {isWorkspaceEntry && entry.type === 'file' && (
-          <Button
-            variant="ghost"
-            size="icon"
-            className={`h-6 w-6 rounded-md ${confirmDelete ? 'text-destructive hover:text-destructive' : ''}`}
-            onClick={handleDelete}
-            title={confirmDelete ? 'Klicken zum Bestätigen' : 'Löschen'}
-          >
-            <Trash2 className="h-3 w-3" />
-          </Button>
-        )}
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="min-w-[160px]">
+            {menuItems.map((item, i) => (
+              <React.Fragment key={item.label}>
+                {item.separator && i > 0 && <DropdownMenuSeparator />}
+                <DropdownMenuItem
+                  onClick={item.action}
+                  variant={item.variant === 'destructive' ? 'destructive' : 'default'}
+                  className="gap-2 text-xs"
+                >
+                  {item.icon}
+                  {item.label}
+                </DropdownMenuItem>
+              </React.Fragment>
+            ))}
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
     </div>
   );
