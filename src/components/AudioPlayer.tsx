@@ -1,8 +1,14 @@
 "use client";
 
 import React, { useRef, useState, useEffect, useCallback } from 'react';
-import { Play, Pause, Download, Volume2 } from 'lucide-react';
+import { Play, Pause, Download, FolderDown, Volume2, Check } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 
 /** Props for the AudioPlayer component. */
 interface AudioPlayerProps {
@@ -127,16 +133,74 @@ export function AudioPlayer({ src, title, downloadable = false, compact = false 
         {formatTime(currentTime)} / {formatTime(duration)}
       </span>
 
-      {/* Download */}
+      {/* Download / Save */}
       {downloadable && (
-        <a
-          href={src}
-          download
-          className="flex-shrink-0 text-muted-foreground hover:text-foreground transition-colors"
-        >
-          <Download className={compact ? 'h-3.5 w-3.5' : 'h-4 w-4'} />
-        </a>
+        <SaveMenu src={src} compact={compact} />
       )}
     </div>
+  );
+}
+
+/** Extract the filename from an audio src URL like /api/audio/my-file.flac */
+function extractFilename(src: string): string {
+  const parts = src.split('/');
+  return decodeURIComponent(parts[parts.length - 1] || 'audio.flac');
+}
+
+/** Dropdown menu with "Save as..." (browser download) and "Save to workspace" options. */
+function SaveMenu({ src, compact = false }: { src: string; compact?: boolean }) {
+  const [saved, setSaved] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const iconSize = compact ? 'h-3.5 w-3.5' : 'h-4 w-4';
+
+  const handleSaveToWorkspace = useCallback(async () => {
+    const filename = extractFilename(src);
+    setSaving(true);
+    try {
+      const res = await fetch('/api/audio-files/save-to-workspace', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ filename }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setSaved(true);
+        setTimeout(() => setSaved(false), 3000);
+      }
+    } catch {
+      // silently fail
+    } finally {
+      setSaving(false);
+    }
+  }, [src]);
+
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <button className="flex-shrink-0 text-muted-foreground hover:text-foreground transition-colors">
+          <Download className={iconSize} />
+        </button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="min-w-[180px]">
+        <DropdownMenuItem asChild>
+          <a href={src} download className="flex items-center gap-2 cursor-pointer">
+            <Download className="h-4 w-4" />
+            Speichern unter...
+          </a>
+        </DropdownMenuItem>
+        <DropdownMenuItem
+          onClick={handleSaveToWorkspace}
+          disabled={saving}
+          className="flex items-center gap-2"
+        >
+          {saved ? (
+            <Check className="h-4 w-4 text-green-500" />
+          ) : (
+            <FolderDown className="h-4 w-4" />
+          )}
+          {saving ? 'Speichere...' : saved ? 'Gespeichert!' : 'Im Workspace speichern'}
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }

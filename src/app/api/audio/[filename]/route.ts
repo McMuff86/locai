@@ -73,10 +73,14 @@ export async function GET(
       const stream = createReadStream(filePath, { start, end });
       const readable = new ReadableStream({
         start(controller) {
-          stream.on('data', (chunk: Buffer | string) => controller.enqueue(typeof chunk === 'string' ? Buffer.from(chunk) : chunk));
-          stream.on('end', () => controller.close());
-          stream.on('error', (err) => controller.error(err));
+          let closed = false;
+          stream.on('data', (chunk: Buffer | string) => {
+            if (!closed) controller.enqueue(typeof chunk === 'string' ? Buffer.from(chunk) : chunk);
+          });
+          stream.on('end', () => { if (!closed) { closed = true; controller.close(); } });
+          stream.on('error', (err) => { if (!closed) { closed = true; controller.error(err); } });
         },
+        cancel() { stream.destroy(); },
       });
 
       return new NextResponse(readable, {
@@ -95,10 +99,14 @@ export async function GET(
   const stream = createReadStream(filePath);
   const readable = new ReadableStream({
     start(controller) {
-      stream.on('data', (chunk: Buffer | string) => controller.enqueue(typeof chunk === 'string' ? Buffer.from(chunk) : chunk));
-      stream.on('end', () => controller.close());
-      stream.on('error', (err) => controller.error(err));
+      let closed = false;
+      stream.on('data', (chunk: Buffer | string) => {
+        if (!closed) controller.enqueue(typeof chunk === 'string' ? Buffer.from(chunk) : chunk);
+      });
+      stream.on('end', () => { if (!closed) { closed = true; controller.close(); } });
+      stream.on('error', (err) => { if (!closed) { closed = true; controller.error(err); } });
     },
+    cancel() { stream.destroy(); },
   });
 
   return new NextResponse(readable, {
