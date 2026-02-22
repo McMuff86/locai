@@ -1,15 +1,13 @@
 "use client";
 
 import React, { useRef, useState, useEffect, useCallback } from 'react';
-import { Play, Pause, Download, FolderDown, Check, Repeat, PaintBucket } from 'lucide-react';
+import { Play, Pause, Repeat, PaintBucket } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-  DropdownMenuSeparator,
-} from '@/components/ui/dropdown-menu';
+import { formatTime } from '@/lib/audio-utils';
+import { useAudioPlayback } from '@/hooks/useAudioPlayback';
+import { SaveMenu } from '@/components/audio/SaveMenu';
+
+const SPEED_OPTIONS = [0.5, 0.75, 1, 1.25, 1.5, 2];
 
 interface WaveformPlayerProps {
   src: string;
@@ -19,27 +17,23 @@ interface WaveformPlayerProps {
   onSendToRepaint?: (src: string) => void;
 }
 
-function formatTime(seconds: number): string {
-  if (!isFinite(seconds) || seconds < 0) return '0:00';
-  const m = Math.floor(seconds / 60);
-  const s = Math.floor(seconds % 60);
-  return `${m}:${s.toString().padStart(2, '0')}`;
-}
-
-function extractFilename(src: string): string {
-  const parts = src.split('/');
-  return decodeURIComponent(parts[parts.length - 1] || 'audio.flac');
-}
-
 export function WaveformPlayer({ src, title, downloadable = true, onSendToRemix, onSendToRepaint }: WaveformPlayerProps) {
-  const audioRef = useRef<HTMLAudioElement>(null);
+  const {
+    audioRef,
+    playing,
+    currentTime,
+    duration,
+    playbackRate,
+    loop,
+    togglePlay,
+    seek,
+    setPlaybackRate,
+    toggleLoop,
+  } = useAudioPlayback(src);
+
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const waveformData = useRef<Float32Array | null>(null);
   const animFrameRef = useRef<number>(0);
-
-  const [playing, setPlaying] = useState(false);
-  const [currentTime, setCurrentTime] = useState(0);
-  const [duration, setDuration] = useState(0);
   const [waveformReady, setWaveformReady] = useState(false);
 
   // Decode audio for waveform
@@ -56,7 +50,6 @@ export function WaveformPlayer({ src, title, downloadable = true, onSendToRemix,
 
         if (cancelled) return;
 
-        // Downsample to ~200 bars
         const raw = decoded.getChannelData(0);
         const samples = 200;
         const blockSize = Math.floor(raw.length / samples);
@@ -71,7 +64,6 @@ export function WaveformPlayer({ src, title, downloadable = true, onSendToRemix,
           peaks[i] = sum / blockSize;
         }
 
-        // Normalize
         const max = Math.max(...peaks);
         if (max > 0) {
           for (let i = 0; i < peaks.length; i++) {
@@ -82,7 +74,6 @@ export function WaveformPlayer({ src, title, downloadable = true, onSendToRemix,
         waveformData.current = peaks;
         setWaveformReady(true);
       } catch {
-        // Fallback to simple progress bar
         waveformData.current = null;
       }
     }
@@ -119,13 +110,9 @@ export function WaveformPlayer({ src, title, downloadable = true, onSendToRemix,
       const y = (h - barHeight) / 2;
 
       const isPlayed = i / data.length <= progress;
-
-      if (isPlayed) {
-        // LocAI cyan
-        ctx.fillStyle = 'oklch(0.75 0.17 182 / 0.9)';
-      } else {
-        ctx.fillStyle = 'oklch(0.5 0.02 240 / 0.3)';
-      }
+      ctx.fillStyle = isPlayed
+        ? 'oklch(0.75 0.17 182 / 0.9)'
+        : 'oklch(0.5 0.02 240 / 0.3)';
 
       ctx.beginPath();
       ctx.roundRect(x + 0.5, y, Math.max(barWidth - 1, 1), barHeight, 1);
@@ -151,52 +138,43 @@ export function WaveformPlayer({ src, title, downloadable = true, onSendToRemix,
     return () => cancelAnimationFrame(animFrameRef.current);
   }, [playing, waveformReady, drawWaveform]);
 
-  useEffect(() => {
-    const audio = audioRef.current;
-    if (!audio) return;
-
-    const onTimeUpdate = () => setCurrentTime(audio.currentTime);
-    const onLoadedMetadata = () => setDuration(audio.duration);
-    const onEnded = () => setPlaying(false);
-
-    audio.addEventListener('timeupdate', onTimeUpdate);
-    audio.addEventListener('loadedmetadata', onLoadedMetadata);
-    audio.addEventListener('ended', onEnded);
-
-    return () => {
-      audio.removeEventListener('timeupdate', onTimeUpdate);
-      audio.removeEventListener('loadedmetadata', onLoadedMetadata);
-      audio.removeEventListener('ended', onEnded);
-    };
-  }, []);
-
-  const togglePlay = useCallback(() => {
-    const audio = audioRef.current;
-    if (!audio) return;
-    if (playing) {
-      audio.pause();
-    } else {
-      audio.play();
-    }
-    setPlaying(!playing);
-  }, [playing]);
-
   const handleCanvasClick = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
-    const audio = audioRef.current;
     const canvas = canvasRef.current;
-    if (!audio || !canvas || !duration) return;
+    if (!canvas || !duration) return;
 
     const rect = canvas.getBoundingClientRect();
     const x = e.clientX - rect.left;
     const ratio = x / rect.width;
-    audio.currentTime = ratio * duration;
-    setCurrentTime(audio.currentTime);
-  }, [duration]);
+    seek(ratio * duration);
+  }, [duration, seek]);
+
+  const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
+    if (e.key === ' ') {
+      e.preventDefault();
+      togglePlay();
+    } else if (e.key === 'ArrowLeft') {
+      e.preventDefault();
+      seek(Math.max(0, currentTime - 5));
+    } else if (e.key === 'ArrowRight') {
+      e.preventDefault();
+      seek(Math.min(duration, currentTime + 5));
+    }
+  }, [togglePlay, seek, currentTime, duration]);
+
+  const cycleSpeed = useCallback(() => {
+    const idx = SPEED_OPTIONS.indexOf(playbackRate);
+    const next = SPEED_OPTIONS[(idx + 1) % SPEED_OPTIONS.length];
+    setPlaybackRate(next);
+  }, [playbackRate, setPlaybackRate]);
 
   const progress = duration > 0 ? (currentTime / duration) * 100 : 0;
 
   return (
-    <div className="space-y-2">
+    <div
+      tabIndex={0}
+      onKeyDown={handleKeyDown}
+      className="space-y-2 outline-none focus-visible:ring-1 focus-visible:ring-primary rounded"
+    >
       <audio ref={audioRef} src={src} preload="metadata" />
 
       <div className="flex items-center gap-3">
@@ -233,85 +211,55 @@ export function WaveformPlayer({ src, title, downloadable = true, onSendToRemix,
       </div>
 
       {/* Action bar */}
-      {(downloadable || onSendToRemix || onSendToRepaint) && (
-        <div className="flex items-center gap-1.5 pl-12">
-          {title && (
-            <span className="text-xs text-muted-foreground truncate flex-1">{title}</span>
+      <div className="flex items-center gap-1.5 pl-12">
+        {title && (
+          <span className="text-xs text-muted-foreground truncate flex-1">{title}</span>
+        )}
+        <div className="flex items-center gap-1 ml-auto">
+          {/* Speed */}
+          <button
+            onClick={cycleSpeed}
+            className="text-[10px] tabular-nums text-muted-foreground hover:text-foreground transition-colors px-1.5 py-0.5 rounded hover:bg-muted/30"
+            title="Wiedergabegeschwindigkeit"
+          >
+            {playbackRate}x
+          </button>
+
+          {/* Loop */}
+          <button
+            onClick={toggleLoop}
+            className={cn(
+              'px-1.5 py-0.5 rounded transition-colors',
+              loop ? 'text-primary' : 'text-muted-foreground hover:text-foreground hover:bg-muted/30',
+            )}
+            title="Wiederholen"
+          >
+            <Repeat className="h-3 w-3" />
+          </button>
+
+          {onSendToRemix && (
+            <button
+              onClick={() => onSendToRemix(src)}
+              className="flex items-center gap-1 text-[10px] text-muted-foreground hover:text-foreground transition-colors px-1.5 py-0.5 rounded hover:bg-muted/30"
+              title="Zum Remix senden"
+            >
+              <Repeat className="h-3 w-3" />
+              Remix
+            </button>
           )}
-          <div className="flex items-center gap-1 ml-auto">
-            {onSendToRemix && (
-              <button
-                onClick={() => onSendToRemix(src)}
-                className="flex items-center gap-1 text-[10px] text-muted-foreground hover:text-foreground transition-colors px-1.5 py-0.5 rounded hover:bg-muted/30"
-                title="Zum Remix senden"
-              >
-                <Repeat className="h-3 w-3" />
-                Remix
-              </button>
-            )}
-            {onSendToRepaint && (
-              <button
-                onClick={() => onSendToRepaint(src)}
-                className="flex items-center gap-1 text-[10px] text-muted-foreground hover:text-foreground transition-colors px-1.5 py-0.5 rounded hover:bg-muted/30"
-                title="Zum Repaint senden"
-              >
-                <PaintBucket className="h-3 w-3" />
-                Repaint
-              </button>
-            )}
-            {downloadable && <SaveMenu src={src} />}
-          </div>
+          {onSendToRepaint && (
+            <button
+              onClick={() => onSendToRepaint(src)}
+              className="flex items-center gap-1 text-[10px] text-muted-foreground hover:text-foreground transition-colors px-1.5 py-0.5 rounded hover:bg-muted/30"
+              title="Zum Repaint senden"
+            >
+              <PaintBucket className="h-3 w-3" />
+              Repaint
+            </button>
+          )}
+          {downloadable && <SaveMenu src={src} variant="label" />}
         </div>
-      )}
+      </div>
     </div>
-  );
-}
-
-function SaveMenu({ src }: { src: string }) {
-  const [saved, setSaved] = useState(false);
-  const [saving, setSaving] = useState(false);
-
-  const handleSaveToWorkspace = useCallback(async () => {
-    const filename = extractFilename(src);
-    setSaving(true);
-    try {
-      const res = await fetch('/api/audio-files/save-to-workspace', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ filename }),
-      });
-      const data = await res.json();
-      if (data.success) {
-        setSaved(true);
-        setTimeout(() => setSaved(false), 3000);
-      }
-    } catch {
-      // silently fail
-    } finally {
-      setSaving(false);
-    }
-  }, [src]);
-
-  return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <button className="flex items-center gap-1 text-[10px] text-muted-foreground hover:text-foreground transition-colors px-1.5 py-0.5 rounded hover:bg-muted/30">
-          <Download className="h-3 w-3" />
-          Speichern
-        </button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="min-w-[180px]">
-        <DropdownMenuItem asChild>
-          <a href={src} download className="flex items-center gap-2 cursor-pointer">
-            <Download className="h-4 w-4" />
-            Speichern unter...
-          </a>
-        </DropdownMenuItem>
-        <DropdownMenuItem onClick={handleSaveToWorkspace} disabled={saving} className="flex items-center gap-2">
-          {saved ? <Check className="h-4 w-4 text-green-500" /> : <FolderDown className="h-4 w-4" />}
-          {saving ? 'Speichere...' : saved ? 'Gespeichert!' : 'Im Workspace speichern'}
-        </DropdownMenuItem>
-      </DropdownMenuContent>
-    </DropdownMenu>
   );
 }
