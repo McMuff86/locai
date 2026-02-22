@@ -3,6 +3,7 @@
 import { useState, useCallback, useRef } from 'react';
 import { AgentTurn, ToolCall, ToolResult } from '@/lib/agents/types';
 import type { AgentPreset } from '@/lib/agents/presets';
+import { BUILTIN_TOOL_NAMES } from '@/lib/agents/tools/names';
 
 // ---------------------------------------------------------------------------
 // Stream event types coming from /api/chat/agent (NDJSON)
@@ -125,16 +126,7 @@ export interface UseAgentChatReturn {
 // Default available tools
 // ---------------------------------------------------------------------------
 
-const DEFAULT_TOOLS = [
-  'search_documents',
-  'web_search',
-  'read_file',
-  'write_file',
-  'edit_file',
-  'create_note',
-  'save_memory',
-  'recall_memory',
-];
+const DEFAULT_TOOLS: string[] = [...BUILTIN_TOOL_NAMES];
 
 // ---------------------------------------------------------------------------
 // Hook implementation
