@@ -583,22 +583,22 @@ export function FileBrowser({ onOpenFile }: FileBrowserProps = {}) {
       )}
 
       {currentRoot && (
-        <div className="space-y-2 flex-shrink-0">
+        <div className="space-y-1.5 flex-shrink-0">
           <div className="relative">
             <Search className="h-3.5 w-3.5 text-muted-foreground/60 absolute left-2.5 top-1/2 -translate-y-1/2" />
             <Input
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Suche nach Dateiname..."
-              className="pl-8 h-8 text-xs rounded-lg border-border/40 bg-muted/20 focus-visible:bg-background"
+              className="pl-8 h-7 text-xs rounded-lg border-border/40 bg-muted/20 focus-visible:bg-background"
             />
           </div>
 
-          <div className="flex flex-wrap items-center gap-1.5">
+          <div className="flex flex-wrap items-center gap-1">
             <select
               value={typeFilter}
               onChange={(e) => setTypeFilter(e.target.value as TypeFilter)}
-              className="h-7 rounded-md border border-border/40 bg-muted/20 px-1.5 text-[11px]"
+              className="h-6 rounded-md border border-border/40 bg-muted/20 px-1.5 text-[11px]"
               title="Dateityp filtern"
             >
               <option value="all">Alle Typen</option>
@@ -613,7 +613,7 @@ export function FileBrowser({ onOpenFile }: FileBrowserProps = {}) {
             <select
               value={extensionFilter}
               onChange={(e) => setExtensionFilter(e.target.value)}
-              className="h-7 rounded-md border border-border/40 bg-muted/20 px-1.5 text-[11px]"
+              className="h-6 rounded-md border border-border/40 bg-muted/20 px-1.5 text-[11px]"
               title="Extension filtern"
             >
               <option value="all">Alle Endungen</option>
@@ -626,7 +626,7 @@ export function FileBrowser({ onOpenFile }: FileBrowserProps = {}) {
               <select
                 value={sortBy}
                 onChange={(e) => setSortBy(e.target.value as SortBy)}
-                className="h-7 rounded-md border border-border/40 bg-muted/20 px-1.5 text-[11px]"
+                className="h-6 rounded-md border border-border/40 bg-muted/20 px-1.5 text-[11px]"
                 title="Sortierung"
               >
                 <option value="name">Name</option>
@@ -634,7 +634,7 @@ export function FileBrowser({ onOpenFile }: FileBrowserProps = {}) {
                 <option value="size">Größe</option>
               </select>
               <button
-                className="h-7 px-1.5 rounded-md border border-border/40 bg-muted/20 text-[11px] text-muted-foreground hover:bg-muted/40 transition-colors"
+                className="h-6 px-1.5 rounded-md border border-border/40 bg-muted/20 text-[11px] text-muted-foreground hover:bg-muted/40 transition-colors"
                 onClick={() => setSortOrder((prev) => (prev === 'asc' ? 'desc' : 'asc'))}
                 title="Sortierreihenfolge wechseln"
               >
@@ -644,19 +644,19 @@ export function FileBrowser({ onOpenFile }: FileBrowserProps = {}) {
           </div>
 
           {canMutate ? (
-            <div className="flex flex-wrap items-center gap-1.5">
-              <Button variant="outline" size="sm" className="h-7 text-[11px] rounded-lg border-border/40" onClick={handleCreateFile} disabled={isMutating}>
+            <div className="flex flex-wrap items-center gap-1">
+              <Button variant="outline" size="sm" className="h-6 text-[11px] rounded-lg border-border/40 px-2" onClick={handleCreateFile} disabled={isMutating}>
                 <FilePlus2 className="h-3 w-3 mr-1" />
                 Neu
               </Button>
-              <Button variant="outline" size="sm" className="h-7 text-[11px] rounded-lg border-border/40" onClick={handleCreateFolder} disabled={isMutating}>
+              <Button variant="outline" size="sm" className="h-6 text-[11px] rounded-lg border-border/40 px-2" onClick={handleCreateFolder} disabled={isMutating}>
                 <FolderPlus className="h-3 w-3 mr-1" />
                 Ordner
               </Button>
               <Button
                 variant="outline"
                 size="sm"
-                className="h-7 text-[11px] rounded-lg border-border/40"
+                className="h-6 text-[11px] rounded-lg border-border/40 px-2"
                 onClick={() => fileInputRef.current?.click()}
                 disabled={isMutating}
               >
@@ -676,7 +676,7 @@ export function FileBrowser({ onOpenFile }: FileBrowserProps = {}) {
             </div>
           ) : (
             <div className="flex items-center justify-between">
-              <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground/70 rounded-lg border border-border/30 bg-muted/20 px-2 py-1">
+              <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground/70 rounded-lg border border-border/30 bg-muted/20 px-2 py-0.5">
                 <FolderInput className="h-3 w-3" />
                 Schreibgeschützt
               </div>
