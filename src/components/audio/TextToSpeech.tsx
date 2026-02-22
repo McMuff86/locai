@@ -3,9 +3,11 @@
 import React, { useState, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
+import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { AudioPlayer } from '@/components/AudioPlayer';
-import { Loader2, Volume2 } from 'lucide-react';
+import { ReferenceAudioUpload } from './ReferenceAudioUpload';
+import { Loader2, Volume2, FileAudio } from 'lucide-react';
 
 const LANGUAGES = [
   'German', 'English', 'French', 'Spanish', 'Italian',
@@ -34,6 +36,10 @@ export function TextToSpeech({ onGenerated }: TextToSpeechProps) {
   const [mode, setMode] = useState('custom');
   const [speaker, setSpeaker] = useState('Vivian');
   const [voiceDescription, setVoiceDescription] = useState('');
+  const [referenceAudioPath, setReferenceAudioPath] = useState('');
+  const [referenceAudioName, setReferenceAudioName] = useState('');
+  const [referenceText, setReferenceText] = useState('');
+  const [transcribing, setTranscribing] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [resultUrl, setResultUrl] = useState<string | null>(null);
@@ -46,6 +52,11 @@ export function TextToSpeech({ onGenerated }: TextToSpeechProps) {
 
     if (mode === 'design' && !voiceDescription.trim()) {
       setError('Bitte beschreibe die gewünschte Stimme.');
+      return;
+    }
+
+    if (mode === 'clone' && !referenceAudioPath) {
+      setError('Bitte lade eine Referenz-Audiodatei hoch.');
       return;
     }
 
@@ -64,6 +75,9 @@ export function TextToSpeech({ onGenerated }: TextToSpeechProps) {
         body.speaker = speaker;
       } else if (mode === 'design') {
         body.voiceDescription = voiceDescription.trim();
+      } else if (mode === 'clone') {
+        body.referenceAudio = referenceAudioPath;
+        body.referenceText = referenceText.trim();
       }
 
       const res = await fetch('/api/qwen-tts/generate', {
@@ -84,7 +98,29 @@ export function TextToSpeech({ onGenerated }: TextToSpeechProps) {
     } finally {
       setLoading(false);
     }
-  }, [text, language, mode, speaker, voiceDescription, onGenerated]);
+  }, [text, language, mode, speaker, voiceDescription, referenceAudioPath, referenceText, onGenerated]);
+
+  const handleTranscribe = useCallback(async () => {
+    if (!referenceAudioPath) return;
+    setTranscribing(true);
+    setError(null);
+    try {
+      const res = await fetch('/api/qwen-tts/transcribe', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ filePath: referenceAudioPath }),
+      });
+      const data = await res.json();
+      if (!data.success) {
+        throw new Error(data.error || 'Transkription fehlgeschlagen');
+      }
+      setReferenceText(data.text);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Transkription fehlgeschlagen');
+    } finally {
+      setTranscribing(false);
+    }
+  }, [referenceAudioPath]);
 
   return (
     <div className="space-y-4">
@@ -126,6 +162,7 @@ export function TextToSpeech({ onGenerated }: TextToSpeechProps) {
             <SelectContent>
               <SelectItem value="custom">Sprecher</SelectItem>
               <SelectItem value="design">Stimm-Design</SelectItem>
+              <SelectItem value="clone">Voice Clone</SelectItem>
             </SelectContent>
           </Select>
         </div>
@@ -159,6 +196,57 @@ export function TextToSpeech({ onGenerated }: TextToSpeechProps) {
             rows={2}
             disabled={loading}
           />
+        </div>
+      )}
+
+      {/* Voice clone (clone mode) */}
+      {mode === 'clone' && (
+        <div className="space-y-3">
+          <ReferenceAudioUpload
+            srcAudioPath={referenceAudioPath}
+            srcAudioName={referenceAudioName}
+            onUploaded={(filePath, fileName) => {
+              setReferenceAudioPath(filePath);
+              setReferenceAudioName(fileName);
+            }}
+            onClear={() => {
+              setReferenceAudioPath('');
+              setReferenceAudioName('');
+              setReferenceText('');
+            }}
+            disabled={loading}
+          />
+          <div>
+            <div className="flex items-center justify-between mb-1">
+              <label className="block text-sm font-medium">Referenz-Text</label>
+              {referenceAudioPath && (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={handleTranscribe}
+                  disabled={transcribing || loading}
+                  className="h-7 text-xs gap-1"
+                >
+                  {transcribing ? (
+                    <Loader2 className="h-3 w-3 animate-spin" />
+                  ) : (
+                    <FileAudio className="h-3 w-3" />
+                  )}
+                  Auto-Transkribieren
+                </Button>
+              )}
+            </div>
+            <Input
+              placeholder="Text der im Referenz-Audio gesprochen wird..."
+              value={referenceText}
+              onChange={(e) => setReferenceText(e.target.value)}
+              disabled={loading}
+            />
+            <p className="text-xs text-muted-foreground mt-1">
+              Optional: Transkript des Referenz-Audios für bessere Ergebnisse
+            </p>
+          </div>
         </div>
       )}
 
