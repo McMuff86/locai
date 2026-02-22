@@ -658,7 +658,701 @@ export function createExcelProcessingWorkflow(): VisualWorkflow {
   };
 }
 
-export type FlowTemplateId = 'default' | 'pdf-processing' | 'excel-processing';
+// ---------------------------------------------------------------------------
+// Web Research Flow
+// ---------------------------------------------------------------------------
+export function createWebResearchWorkflow(): VisualWorkflow {
+  const inputNode: FlowNode = {
+    id: makeId('input'),
+    position: { x: 80, y: 220 },
+    type: 'inputNode',
+    draggable: true,
+    data: {
+      kind: 'input',
+      label: 'Recherche-Thema',
+      runtime: { status: 'idle' },
+      config: {
+        text: 'Recherchiere zum Thema: Aktuelle Entwicklungen in der KI-Regulierung in Europa',
+        successCriteria: 'Suchbegriff wurde bereitgestellt',
+      },
+    },
+  };
+
+  const searchAgent: FlowNode = {
+    id: makeId('agent'),
+    position: { x: 360, y: 220 },
+    type: 'agentNode',
+    draggable: true,
+    data: {
+      kind: 'agent',
+      label: 'Web-Suche',
+      runtime: { status: 'idle' },
+      config: {
+        model: 'qwen3:30b-a3b',
+        prompt: 'Fuehre eine umfassende Web-Suche zum angegebenen Thema durch. Nutze verschiedene Suchbegriffe um breite Ergebnisse zu erhalten.',
+        systemPrompt: 'Du bist ein Research-Assistent. Nutze das web_search Tool um relevante und aktuelle Quellen zu finden. Gib die Ergebnisse strukturiert mit Titel, URL und Zusammenfassung zurueck.',
+        tools: ['web_search'],
+        successCriteria: 'Relevante Suchergebnisse wurden gefunden',
+      },
+    },
+  };
+
+  const formatTemplate: FlowNode = {
+    id: makeId('template'),
+    position: { x: 640, y: 220 },
+    type: 'templateNode',
+    draggable: true,
+    data: {
+      kind: 'template',
+      label: 'Ergebnisse formatieren',
+      runtime: { status: 'idle' },
+      config: {
+        template:
+          'Analysiere und bewerte die folgenden Recherche-Ergebnisse:\n\n---\n{{result}}\n---\n\nBitte erstelle:\n1. Eine Zusammenfassung der wichtigsten Erkenntnisse\n2. Bewertung der Quellen nach Zuverlaessigkeit\n3. Widersprueche oder unterschiedliche Perspektiven\n4. Fazit und offene Fragen',
+        successCriteria: 'Analyse-Prompt wurde zusammengesetzt',
+      },
+    },
+  };
+
+  const analysisAgent: FlowNode = {
+    id: makeId('agent'),
+    position: { x: 920, y: 220 },
+    type: 'agentNode',
+    draggable: true,
+    data: {
+      kind: 'agent',
+      label: 'Analyse',
+      runtime: { status: 'idle' },
+      config: {
+        model: 'qwen3:30b-a3b',
+        prompt: 'Analysiere die Recherche-Ergebnisse gemaess den Anweisungen. Bewerte Quellen kritisch und identifiziere die wichtigsten Erkenntnisse.',
+        systemPrompt: 'Du bist ein Analyst mit Expertise in Quellenbewertung. Erstelle fundierte, ausgewogene Analysen und kennzeichne unsichere Informationen.',
+        tools: [],
+        successCriteria: 'Analyse mit Quellenbewertung wurde erstellt',
+      },
+    },
+  };
+
+  const outputNode: FlowNode = {
+    id: makeId('output'),
+    position: { x: 1200, y: 220 },
+    type: 'outputNode',
+    draggable: true,
+    data: {
+      kind: 'output',
+      label: 'Ergebnis',
+      runtime: { status: 'idle' },
+      config: {
+        result: '',
+        saveToFile: true,
+        filePath: 'recherche_ergebnis.md',
+      },
+    },
+  };
+
+  const nodes = [inputNode, searchAgent, formatTemplate, analysisAgent, outputNode];
+
+  const edges: FlowEdge[] = [
+    { id: `${inputNode.id}-${searchAgent.id}`, source: inputNode.id, target: searchAgent.id, type: 'smoothstep' },
+    { id: `${searchAgent.id}-${formatTemplate.id}`, source: searchAgent.id, target: formatTemplate.id, type: 'smoothstep' },
+    { id: `${formatTemplate.id}-${analysisAgent.id}`, source: formatTemplate.id, target: analysisAgent.id, type: 'smoothstep' },
+    { id: `${analysisAgent.id}-${outputNode.id}`, source: analysisAgent.id, target: outputNode.id, type: 'smoothstep' },
+  ].map((edge) => decorateFlowEdge(edge, nodes));
+
+  return {
+    metadata: {
+      name: 'Web Research',
+      description: 'Web-Suche → Ergebnisse formatieren → Analyse mit Quellenbewertung → Ergebnis',
+    },
+    nodes,
+    edges,
+    viewport: { x: 0, y: 0, zoom: 0.85 },
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Code Review Flow
+// ---------------------------------------------------------------------------
+export function createCodeReviewWorkflow(): VisualWorkflow {
+  const inputNode: FlowNode = {
+    id: makeId('input'),
+    position: { x: 80, y: 220 },
+    type: 'inputNode',
+    draggable: true,
+    data: {
+      kind: 'input',
+      label: 'Code / Dateipfad',
+      runtime: { status: 'idle' },
+      config: {
+        text: 'Review die Datei src/index.ts auf Code-Qualitaet, Bugs und Verbesserungsmoeglichkeiten.',
+        successCriteria: 'Dateipfad und Review-Auftrag wurden bereitgestellt',
+      },
+    },
+  };
+
+  const readAgent: FlowNode = {
+    id: makeId('agent'),
+    position: { x: 360, y: 220 },
+    type: 'agentNode',
+    draggable: true,
+    data: {
+      kind: 'agent',
+      label: 'Datei lesen',
+      runtime: { status: 'idle' },
+      config: {
+        model: 'qwen3:30b-a3b',
+        prompt: 'Lies die angegebene Datei mit read_file und gib den vollstaendigen Inhalt zurueck.',
+        systemPrompt: 'Du bist ein Code-Assistent. Lies Dateien praezise und gib den Inhalt zurueck.',
+        tools: ['read_file'],
+        successCriteria: 'Datei-Inhalt wurde gelesen',
+      },
+    },
+  };
+
+  const reviewTemplate: FlowNode = {
+    id: makeId('template'),
+    position: { x: 640, y: 220 },
+    type: 'templateNode',
+    draggable: true,
+    data: {
+      kind: 'template',
+      label: 'Review-Prompt',
+      runtime: { status: 'idle' },
+      config: {
+        template:
+          'Fuehre ein Code-Review fuer folgenden Code durch:\n\n```\n{{result}}\n```\n\nPruefe auf:\n1. Bugs und Fehler\n2. Security-Probleme\n3. Performance-Issues\n4. Code-Style und Best Practices\n5. Verbesserungsvorschlaege\n\nGib am Ende an ob Issues gefunden wurden (JA/NEIN).',
+        successCriteria: 'Review-Prompt wurde erstellt',
+      },
+    },
+  };
+
+  const reviewAgent: FlowNode = {
+    id: makeId('agent'),
+    position: { x: 920, y: 220 },
+    type: 'agentNode',
+    draggable: true,
+    data: {
+      kind: 'agent',
+      label: 'Code Review',
+      runtime: { status: 'idle' },
+      config: {
+        model: 'qwen3:30b-a3b',
+        prompt: 'Fuehre das Code-Review durch. Sei gruendlich und konstruktiv. Beende mit JA wenn Issues gefunden, NEIN wenn alles in Ordnung.',
+        systemPrompt: 'Du bist ein erfahrener Senior-Entwickler der Code-Reviews durchfuehrt. Sei praezise, konstruktiv und begruende deine Findings.',
+        tools: [],
+        successCriteria: 'Code-Review wurde durchgefuehrt',
+      },
+    },
+  };
+
+  const conditionNode: FlowNode = {
+    id: makeId('condition'),
+    position: { x: 1200, y: 220 },
+    type: 'conditionNode',
+    draggable: true,
+    data: {
+      kind: 'condition',
+      label: 'Issues gefunden?',
+      runtime: { status: 'idle' },
+      config: {
+        mode: 'llm',
+        prompt: 'Wurden im Code-Review Issues oder Probleme gefunden die behoben werden sollten? Antworte nur mit true oder false.',
+        expression: '',
+        model: 'qwen3:30b-a3b',
+        successCriteria: 'Bedingung wurde ausgewertet',
+      } satisfies ConditionNodeConfig,
+    },
+  };
+
+  const fixAgent: FlowNode = {
+    id: makeId('agent'),
+    position: { x: 1480, y: 160 },
+    type: 'agentNode',
+    draggable: true,
+    data: {
+      kind: 'agent',
+      label: 'Fixes vorschlagen',
+      runtime: { status: 'idle' },
+      config: {
+        model: 'qwen3:30b-a3b',
+        prompt: 'Erstelle konkrete Fix-Vorschlaege fuer die gefundenen Issues. Zeige den korrigierten Code.',
+        systemPrompt: 'Du bist ein Senior-Entwickler. Erstelle konkrete, anwendbare Code-Fixes mit Erklaerung.',
+        tools: [],
+        successCriteria: 'Fix-Vorschlaege wurden erstellt',
+      },
+    },
+  };
+
+  const outputTrue: FlowNode = {
+    id: makeId('output'),
+    position: { x: 1760, y: 160 },
+    type: 'outputNode',
+    draggable: true,
+    data: {
+      kind: 'output',
+      label: 'Review + Fixes',
+      runtime: { status: 'idle' },
+      config: {
+        result: '',
+        saveToFile: true,
+        filePath: 'code_review_fixes.md',
+      },
+    },
+  };
+
+  const outputFalse: FlowNode = {
+    id: makeId('output'),
+    position: { x: 1480, y: 280 },
+    type: 'outputNode',
+    draggable: true,
+    data: {
+      kind: 'output',
+      label: 'Review OK',
+      runtime: { status: 'idle' },
+      config: {
+        result: '',
+        saveToFile: true,
+        filePath: 'code_review_ok.md',
+      },
+    },
+  };
+
+  const nodes = [inputNode, readAgent, reviewTemplate, reviewAgent, conditionNode, fixAgent, outputTrue, outputFalse];
+
+  const edges: FlowEdge[] = [
+    { id: `${inputNode.id}-${readAgent.id}`, source: inputNode.id, target: readAgent.id, type: 'smoothstep' },
+    { id: `${readAgent.id}-${reviewTemplate.id}`, source: readAgent.id, target: reviewTemplate.id, type: 'smoothstep' },
+    { id: `${reviewTemplate.id}-${reviewAgent.id}`, source: reviewTemplate.id, target: reviewAgent.id, type: 'smoothstep' },
+    { id: `${reviewAgent.id}-${conditionNode.id}`, source: reviewAgent.id, target: conditionNode.id, type: 'smoothstep' },
+    { id: `${conditionNode.id}-true-${fixAgent.id}`, source: conditionNode.id, target: fixAgent.id, sourceHandle: 'true', type: 'smoothstep' },
+    { id: `${conditionNode.id}-false-${outputFalse.id}`, source: conditionNode.id, target: outputFalse.id, sourceHandle: 'false', type: 'smoothstep' },
+    { id: `${fixAgent.id}-${outputTrue.id}`, source: fixAgent.id, target: outputTrue.id, type: 'smoothstep' },
+  ].map((edge) => decorateFlowEdge(edge, nodes));
+
+  return {
+    metadata: {
+      name: 'Code Review',
+      description: 'Datei lesen → Review → Condition (Issues?) → Fixes vorschlagen oder OK',
+    },
+    nodes,
+    edges,
+    viewport: { x: 0, y: 0, zoom: 0.75 },
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Content Creation Flow
+// ---------------------------------------------------------------------------
+export function createContentCreationWorkflow(): VisualWorkflow {
+  const inputNode: FlowNode = {
+    id: makeId('input'),
+    position: { x: 80, y: 220 },
+    type: 'inputNode',
+    draggable: true,
+    data: {
+      kind: 'input',
+      label: 'Thema',
+      runtime: { status: 'idle' },
+      config: {
+        text: 'Schreibe einen Blog-Artikel ueber: Die Zukunft von Open-Source KI-Modellen',
+        successCriteria: 'Thema wurde bereitgestellt',
+      },
+    },
+  };
+
+  const researchAgent: FlowNode = {
+    id: makeId('agent'),
+    position: { x: 360, y: 220 },
+    type: 'agentNode',
+    draggable: true,
+    data: {
+      kind: 'agent',
+      label: 'Recherche',
+      runtime: { status: 'idle' },
+      config: {
+        model: 'qwen3:30b-a3b',
+        prompt: 'Recherchiere aktuelle Informationen zum Thema. Sammle Fakten, Statistiken und verschiedene Perspektiven.',
+        systemPrompt: 'Du bist ein Content-Researcher. Nutze web_search um aktuelle, relevante Quellen zu finden. Strukturiere die Ergebnisse nach Relevanz.',
+        tools: ['web_search'],
+        successCriteria: 'Recherche-Material wurde gesammelt',
+      },
+    },
+  };
+
+  const outlineTemplate: FlowNode = {
+    id: makeId('template'),
+    position: { x: 640, y: 220 },
+    type: 'templateNode',
+    draggable: true,
+    data: {
+      kind: 'template',
+      label: 'Outline erstellen',
+      runtime: { status: 'idle' },
+      config: {
+        template:
+          'Erstelle basierend auf der Recherche einen vollstaendigen Blog-Artikel:\n\nRecherche:\n{{result}}\n\nAnforderungen:\n- Fesselnde Einleitung\n- 3-5 Hauptabschnitte mit Unterueberschriften\n- Fakten und Beispiele einbauen\n- Starkes Fazit mit Call-to-Action\n- Laenge: 1000-1500 Woerter',
+        successCriteria: 'Outline wurde erstellt',
+      },
+    },
+  };
+
+  const writingAgent: FlowNode = {
+    id: makeId('agent'),
+    position: { x: 920, y: 220 },
+    type: 'agentNode',
+    draggable: true,
+    data: {
+      kind: 'agent',
+      label: 'Artikel schreiben',
+      runtime: { status: 'idle' },
+      config: {
+        model: 'qwen3:30b-a3b',
+        prompt: 'Schreibe den Blog-Artikel gemaess den Anforderungen. Achte auf einen engagierenden, professionellen Schreibstil.',
+        systemPrompt: 'Du bist ein erfahrener Content-Writer. Schreibe ansprechende, gut strukturierte Artikel mit klarer Sprache und SEO-freundlichen Ueberschriften.',
+        tools: [],
+        successCriteria: 'Artikel wurde geschrieben',
+      },
+    },
+  };
+
+  const seoTemplate: FlowNode = {
+    id: makeId('template'),
+    position: { x: 1200, y: 220 },
+    type: 'templateNode',
+    draggable: true,
+    data: {
+      kind: 'template',
+      label: 'SEO-Check',
+      runtime: { status: 'idle' },
+      config: {
+        template:
+          'Pruefe den folgenden Artikel auf SEO und Qualitaet:\n\n{{result}}\n\nPruefe:\n1. Keyword-Dichte und -Platzierung\n2. Meta-Description Vorschlag\n3. Ueberschriften-Struktur (H1, H2, H3)\n4. Lesbarkeit und Textfluss\n5. Verbesserungsvorschlaege\n\nGib den finalen, optimierten Artikel zurueck.',
+        successCriteria: 'SEO-Check Prompt wurde erstellt',
+      },
+    },
+  };
+
+  const reviewAgent: FlowNode = {
+    id: makeId('agent'),
+    position: { x: 1480, y: 220 },
+    type: 'agentNode',
+    draggable: true,
+    data: {
+      kind: 'agent',
+      label: 'SEO-Review',
+      runtime: { status: 'idle' },
+      config: {
+        model: 'qwen3:30b-a3b',
+        prompt: 'Fuehre den SEO-Check durch und optimiere den Artikel. Gib den finalen Artikel mit Meta-Description zurueck.',
+        systemPrompt: 'Du bist ein SEO-Experte und Lektor. Optimiere Texte fuer Suchmaschinen ohne die Lesbarkeit zu beeintraechtigen.',
+        tools: [],
+        successCriteria: 'SEO-optimierter Artikel liegt vor',
+      },
+    },
+  };
+
+  const outputNode: FlowNode = {
+    id: makeId('output'),
+    position: { x: 1760, y: 220 },
+    type: 'outputNode',
+    draggable: true,
+    data: {
+      kind: 'output',
+      label: 'Fertiger Artikel',
+      runtime: { status: 'idle' },
+      config: {
+        result: '',
+        saveToFile: true,
+        filePath: 'blog_artikel.md',
+      },
+    },
+  };
+
+  const nodes = [inputNode, researchAgent, outlineTemplate, writingAgent, seoTemplate, reviewAgent, outputNode];
+
+  const edges: FlowEdge[] = [
+    { id: `${inputNode.id}-${researchAgent.id}`, source: inputNode.id, target: researchAgent.id, type: 'smoothstep' },
+    { id: `${researchAgent.id}-${outlineTemplate.id}`, source: researchAgent.id, target: outlineTemplate.id, type: 'smoothstep' },
+    { id: `${outlineTemplate.id}-${writingAgent.id}`, source: outlineTemplate.id, target: writingAgent.id, type: 'smoothstep' },
+    { id: `${writingAgent.id}-${seoTemplate.id}`, source: writingAgent.id, target: seoTemplate.id, type: 'smoothstep' },
+    { id: `${seoTemplate.id}-${reviewAgent.id}`, source: seoTemplate.id, target: reviewAgent.id, type: 'smoothstep' },
+    { id: `${reviewAgent.id}-${outputNode.id}`, source: reviewAgent.id, target: outputNode.id, type: 'smoothstep' },
+  ].map((edge) => decorateFlowEdge(edge, nodes));
+
+  return {
+    metadata: {
+      name: 'Content Creation',
+      description: 'Recherche → Outline → Artikel schreiben → SEO-Check → Fertiger Artikel',
+    },
+    nodes,
+    edges,
+    viewport: { x: 0, y: 0, zoom: 0.7 },
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Music Generation Flow
+// ---------------------------------------------------------------------------
+export function createMusicGenerationWorkflow(): VisualWorkflow {
+  const inputNode: FlowNode = {
+    id: makeId('input'),
+    position: { x: 80, y: 220 },
+    type: 'inputNode',
+    draggable: true,
+    data: {
+      kind: 'input',
+      label: 'Musik-Beschreibung',
+      runtime: { status: 'idle' },
+      config: {
+        text: 'Erstelle einen entspannten Lo-Fi Hip-Hop Beat, 90 BPM, mit sanftem Piano und Vinyl-Crackle.',
+        successCriteria: 'Musik-Beschreibung wurde bereitgestellt',
+      },
+    },
+  };
+
+  const promptTemplate: FlowNode = {
+    id: makeId('template'),
+    position: { x: 360, y: 220 },
+    type: 'templateNode',
+    draggable: true,
+    data: {
+      kind: 'template',
+      label: 'ACE-Step Prompt',
+      runtime: { status: 'idle' },
+      config: {
+        template:
+          'Generiere Musik basierend auf folgender Beschreibung. Erstelle einen detaillierten Prompt fuer die Musikgenerierung:\n\n{{result}}\n\nNutze das generate_music Tool mit einem praezisen, englischen Prompt der Genre, Tempo, Instrumente und Stimmung beschreibt.',
+        successCriteria: 'Musik-Prompt wurde formatiert',
+      },
+    },
+  };
+
+  const musicAgent: FlowNode = {
+    id: makeId('agent'),
+    position: { x: 640, y: 220 },
+    type: 'agentNode',
+    draggable: true,
+    data: {
+      kind: 'agent',
+      label: 'Musik generieren',
+      runtime: { status: 'idle' },
+      config: {
+        model: 'qwen3:30b-a3b',
+        prompt: 'Generiere die Musik mit dem generate_music Tool basierend auf dem Prompt. Gib den Dateipfad der generierten Audiodatei zurueck.',
+        systemPrompt: 'Du bist ein Musik-Produzent. Nutze das generate_music Tool um Musik zu erstellen. Uebersetze die Beschreibung in einen praezisen englischen Prompt fuer die Generierung.',
+        tools: ['generate_music'],
+        successCriteria: 'Musik wurde generiert',
+      },
+    },
+  };
+
+  const outputNode: FlowNode = {
+    id: makeId('output'),
+    position: { x: 920, y: 220 },
+    type: 'outputNode',
+    draggable: true,
+    data: {
+      kind: 'output',
+      label: 'Generierte Musik',
+      runtime: { status: 'idle' },
+      config: {
+        result: '',
+        saveToFile: false,
+        filePath: '',
+      },
+    },
+  };
+
+  const nodes = [inputNode, promptTemplate, musicAgent, outputNode];
+
+  const edges: FlowEdge[] = [
+    { id: `${inputNode.id}-${promptTemplate.id}`, source: inputNode.id, target: promptTemplate.id, type: 'smoothstep' },
+    { id: `${promptTemplate.id}-${musicAgent.id}`, source: promptTemplate.id, target: musicAgent.id, type: 'smoothstep' },
+    { id: `${musicAgent.id}-${outputNode.id}`, source: musicAgent.id, target: outputNode.id, type: 'smoothstep' },
+  ].map((edge) => decorateFlowEdge(edge, nodes));
+
+  return {
+    metadata: {
+      name: 'Musik generieren',
+      description: 'Beschreibung → ACE-Step Prompt → Musik generieren → Ergebnis',
+    },
+    nodes,
+    edges,
+    viewport: { x: 0, y: 0, zoom: 0.85 },
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Data Pipeline Flow
+// ---------------------------------------------------------------------------
+export function createDataPipelineWorkflow(): VisualWorkflow {
+  const inputNode: FlowNode = {
+    id: makeId('input'),
+    position: { x: 80, y: 220 },
+    type: 'inputNode',
+    draggable: true,
+    data: {
+      kind: 'input',
+      label: 'Daten-Aufgabe',
+      runtime: { status: 'idle' },
+      config: {
+        text: 'Lies die Datei data/input.csv, bereinige die Daten und speichere das Ergebnis als data/output.json.',
+        successCriteria: 'Dateipfad und Transformationsauftrag wurden bereitgestellt',
+      },
+    },
+  };
+
+  const readAgent: FlowNode = {
+    id: makeId('agent'),
+    position: { x: 360, y: 220 },
+    type: 'agentNode',
+    draggable: true,
+    data: {
+      kind: 'agent',
+      label: 'Datei lesen',
+      runtime: { status: 'idle' },
+      config: {
+        model: 'qwen3:30b-a3b',
+        prompt: 'Lies die angegebene Datei mit read_file und gib den Inhalt zurueck.',
+        systemPrompt: 'Du bist ein Daten-Ingenieur. Lies Dateien praezise und gib den Inhalt vollstaendig zurueck.',
+        tools: ['read_file'],
+        successCriteria: 'Datei wurde gelesen',
+      },
+    },
+  };
+
+  const transformTemplate: FlowNode = {
+    id: makeId('template'),
+    position: { x: 640, y: 220 },
+    type: 'templateNode',
+    draggable: true,
+    data: {
+      kind: 'template',
+      label: 'Transform-Prompt',
+      runtime: { status: 'idle' },
+      config: {
+        template:
+          'Transformiere die folgenden Daten gemaess der Aufgabe. Schreibe ein Python-Script das die Transformation durchfuehrt:\n\n---\n{{result}}\n---\n\nDas Script soll:\n1. Die Daten parsen\n2. Bereinigen (fehlende Werte, Duplikate, Formatierung)\n3. Transformieren (gemaess Aufgabe)\n4. Das Ergebnis als String ausgeben (print)',
+        successCriteria: 'Transform-Prompt wurde erstellt',
+      },
+    },
+  };
+
+  const transformAgent: FlowNode = {
+    id: makeId('agent'),
+    position: { x: 920, y: 220 },
+    type: 'agentNode',
+    draggable: true,
+    data: {
+      kind: 'agent',
+      label: 'Daten transformieren',
+      runtime: { status: 'idle' },
+      config: {
+        model: 'qwen3:30b-a3b',
+        prompt: 'Schreibe und fuehre ein Python-Script aus das die Daten transformiert. Nutze run_code um das Script auszufuehren.',
+        systemPrompt: 'Du bist ein Daten-Ingenieur und Python-Experte. Schreibe sauberen, effizienten Code fuer Datentransformationen.',
+        tools: ['run_code'],
+        successCriteria: 'Daten wurden transformiert',
+      },
+    },
+  };
+
+  const conditionNode: FlowNode = {
+    id: makeId('condition'),
+    position: { x: 1200, y: 220 },
+    type: 'conditionNode',
+    draggable: true,
+    data: {
+      kind: 'condition',
+      label: 'Validierung OK?',
+      runtime: { status: 'idle' },
+      config: {
+        mode: 'llm',
+        prompt: 'Wurden die Daten erfolgreich transformiert ohne Fehler? Ist das Ergebnis valide und vollstaendig? Antworte mit true oder false.',
+        expression: '',
+        model: 'qwen3:30b-a3b',
+        successCriteria: 'Validierung wurde durchgefuehrt',
+      } satisfies ConditionNodeConfig,
+    },
+  };
+
+  const writeAgent: FlowNode = {
+    id: makeId('agent'),
+    position: { x: 1480, y: 160 },
+    type: 'agentNode',
+    draggable: true,
+    data: {
+      kind: 'agent',
+      label: 'Datei speichern',
+      runtime: { status: 'idle' },
+      config: {
+        model: 'qwen3:30b-a3b',
+        prompt: 'Speichere die transformierten Daten in die Zieldatei mit write_file.',
+        systemPrompt: 'Du bist ein Daten-Ingenieur. Speichere Daten praezise im gewuenschten Format.',
+        tools: ['write_file'],
+        successCriteria: 'Datei wurde gespeichert',
+      },
+    },
+  };
+
+  const outputTrue: FlowNode = {
+    id: makeId('output'),
+    position: { x: 1760, y: 160 },
+    type: 'outputNode',
+    draggable: true,
+    data: {
+      kind: 'output',
+      label: 'Pipeline OK',
+      runtime: { status: 'idle' },
+      config: {
+        result: '',
+        saveToFile: false,
+        filePath: '',
+      },
+    },
+  };
+
+  const outputFalse: FlowNode = {
+    id: makeId('output'),
+    position: { x: 1480, y: 280 },
+    type: 'outputNode',
+    draggable: true,
+    data: {
+      kind: 'output',
+      label: 'Fehler',
+      runtime: { status: 'idle' },
+      config: {
+        result: '',
+        saveToFile: true,
+        filePath: 'pipeline_fehler.md',
+      },
+    },
+  };
+
+  const nodes = [inputNode, readAgent, transformTemplate, transformAgent, conditionNode, writeAgent, outputTrue, outputFalse];
+
+  const edges: FlowEdge[] = [
+    { id: `${inputNode.id}-${readAgent.id}`, source: inputNode.id, target: readAgent.id, type: 'smoothstep' },
+    { id: `${readAgent.id}-${transformTemplate.id}`, source: readAgent.id, target: transformTemplate.id, type: 'smoothstep' },
+    { id: `${transformTemplate.id}-${transformAgent.id}`, source: transformTemplate.id, target: transformAgent.id, type: 'smoothstep' },
+    { id: `${transformAgent.id}-${conditionNode.id}`, source: transformAgent.id, target: conditionNode.id, type: 'smoothstep' },
+    { id: `${conditionNode.id}-true-${writeAgent.id}`, source: conditionNode.id, target: writeAgent.id, sourceHandle: 'true', type: 'smoothstep' },
+    { id: `${conditionNode.id}-false-${outputFalse.id}`, source: conditionNode.id, target: outputFalse.id, sourceHandle: 'false', type: 'smoothstep' },
+    { id: `${writeAgent.id}-${outputTrue.id}`, source: writeAgent.id, target: outputTrue.id, type: 'smoothstep' },
+  ].map((edge) => decorateFlowEdge(edge, nodes));
+
+  return {
+    metadata: {
+      name: 'Data Pipeline',
+      description: 'Datei lesen → Transformieren → Validierung → Speichern oder Fehler',
+    },
+    nodes,
+    edges,
+    viewport: { x: 0, y: 0, zoom: 0.75 },
+  };
+}
+
+export type FlowTemplateId = 'default' | 'pdf-processing' | 'excel-processing' | 'web-research' | 'code-review' | 'content-creation' | 'music-generation' | 'data-pipeline';
 
 export interface FlowTemplate {
   id: FlowTemplateId;
@@ -685,6 +1379,36 @@ export const FLOW_TEMPLATES: FlowTemplate[] = [
     name: 'Excel Verarbeitung',
     description: 'Excel lesen → Formatieren → Datenanalyse → Ergebnis',
     create: () => createExcelProcessingWorkflow(),
+  },
+  {
+    id: 'web-research',
+    name: 'Web Research',
+    description: 'Web-Suche → Analyse mit Quellenbewertung → Ergebnis',
+    create: () => createWebResearchWorkflow(),
+  },
+  {
+    id: 'code-review',
+    name: 'Code Review',
+    description: 'Datei lesen → Review → Condition → Fixes oder OK',
+    create: () => createCodeReviewWorkflow(),
+  },
+  {
+    id: 'content-creation',
+    name: 'Content Creation',
+    description: 'Recherche → Outline → Schreiben → SEO-Check → Artikel',
+    create: () => createContentCreationWorkflow(),
+  },
+  {
+    id: 'music-generation',
+    name: 'Musik generieren',
+    description: 'Beschreibung → Prompt → Musik generieren → Ergebnis',
+    create: () => createMusicGenerationWorkflow(),
+  },
+  {
+    id: 'data-pipeline',
+    name: 'Data Pipeline',
+    description: 'Datei lesen → Transformieren → Validieren → Speichern',
+    create: () => createDataPipelineWorkflow(),
   },
 ];
 
