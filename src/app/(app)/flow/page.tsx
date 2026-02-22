@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ChevronDown, Download, FileText, Loader2, Play, Plus, Save, Square, Trash2, Upload, X } from 'lucide-react';
+import { ChevronDown, Download, FileText, GripHorizontal, Loader2, Play, Plus, Save, Square, Trash2, Upload, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -11,19 +11,21 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useToast } from '@/components/ui/use-toast';
 import { ConfigPanel } from '@/components/flow/ConfigPanel';
 import { FlowCanvas } from '@/components/flow/FlowCanvas';
 import { NodeCommandPalette } from '@/components/flow/NodeCommandPalette';
 import { NodePalette } from '@/components/flow/NodePalette';
 import { RunHistoryPanel } from '@/components/flow/RunHistoryPanel';
+import { LoggerPanel, type LogEntry } from '@/components/flow/LoggerPanel';
 import { DeleteTemplateDialog } from '@/components/flow/DeleteTemplateDialog';
 import { SaveFlowDialog } from '@/components/flow/SaveFlowDialog';
 import { FlowCompileError, compileVisualWorkflowToPlan } from '@/lib/flow/engine';
 import { FLOW_TEMPLATES, type FlowTemplateId } from '@/lib/flow/registry';
 import { deleteTemplate as deleteTemplateFromDb, loadAllTemplates, loadCurrentWorkflow, saveCurrentWorkflow } from '@/lib/flow/serialization';
 import { useFlowStore } from '@/stores/flowStore';
-import type { WorkflowStatus, WorkflowStreamEvent } from '@/lib/agents/workflowTypes';
+import type { WorkflowStatus, WorkflowStreamEvent, WorkflowLogEvent } from '@/lib/agents/workflowTypes';
 import { saveFlowOutput } from '@/lib/flow/saveOutput';
 import type { FlowNodeKind, NodeRunStatus, OutputNodeData, SavedFlowTemplate, WorkflowRunSummary } from '@/lib/flow/types';
 import { buildTimelineFromEvents, type TimelineData } from '@/lib/flow/timeline';
@@ -73,6 +75,11 @@ export default function FlowPage() {
   const [deleteTarget, setDeleteTarget] = useState<SavedFlowTemplate | null>(null);
   const [timelineData, setTimelineData] = useState<TimelineData | null>(null);
   const timelineEventsRef = useRef<Array<{ stepId: string; label: string; type: 'start' | 'end'; timestampMs: number; status?: string }>>([]);
+  const logEntriesRef = useRef<LogEntry[]>([]);
+  const [logEntries, setLogEntries] = useState<LogEntry[]>([]);
+  const [activeBottomTab, setActiveBottomTab] = useState<string>('logger');
+  const [bottomPanelHeight, setBottomPanelHeight] = useState(200);
+  const isResizingBottomRef = useRef(false);
 
   const lastRun = useMemo(() => workflow.runs[0] ?? null, [workflow.runs]);
   const runningNodeLabels = useMemo(
@@ -309,6 +316,37 @@ export default function FlowPage() {
   // Keep refs in sync for keyboard shortcuts
   handleSaveRef.current = handleOpenSaveDialog;
 
+  const handleClearLogs = useCallback(() => {
+    logEntriesRef.current = [];
+    setLogEntries([]);
+  }, []);
+
+  const handleBottomPanelResize = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    isResizingBottomRef.current = true;
+    const startY = e.clientY;
+    const startHeight = bottomPanelHeight;
+
+    const onPointerMove = (moveEvent: PointerEvent) => {
+      if (!isResizingBottomRef.current) return;
+      const delta = startY - moveEvent.clientY;
+      setBottomPanelHeight(Math.max(80, Math.min(600, startHeight + delta)));
+    };
+
+    const onPointerUp = () => {
+      isResizingBottomRef.current = false;
+      document.removeEventListener('pointermove', onPointerMove);
+      document.removeEventListener('pointerup', onPointerUp);
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+    };
+
+    document.body.style.cursor = 'row-resize';
+    document.body.style.userSelect = 'none';
+    document.addEventListener('pointermove', onPointerMove);
+    document.addEventListener('pointerup', onPointerUp);
+  }, [bottomPanelHeight]);
+
   const handleClearStatus = useCallback(() => {
     setCompileWarnings([]);
     setRunError(null);
@@ -330,6 +368,9 @@ export default function FlowPage() {
     streamBufferRef.current = '';
     timelineEventsRef.current = [];
     setTimelineData(null);
+    logEntriesRef.current = [];
+    setLogEntries([]);
+    setActiveBottomTab('logger');
 
     let compiled;
     try {
@@ -473,6 +514,29 @@ export default function FlowPage() {
             message: `Iteration ${event.iteration + 1}/${event.maxIterations}`,
           });
           break;
+
+        case 'state_snapshot':
+          // Safety net: if the message event was somehow lost, extract
+          // the finalAnswer from the state snapshot.
+          if (event.state.finalAnswer && !streamBufferRef.current) {
+            streamBufferRef.current = event.state.finalAnswer;
+            setOutputResult(event.state.finalAnswer);
+          }
+          break;
+
+        case 'log': {
+          const logEvent = event as WorkflowLogEvent;
+          const entry: LogEntry = {
+            level: logEvent.level,
+            message: logEvent.message,
+            timestamp: logEvent.timestamp,
+            stepId: logEvent.stepId,
+            durationMs: logEvent.durationMs,
+          };
+          logEntriesRef.current = [...logEntriesRef.current, entry];
+          setLogEntries(logEntriesRef.current);
+          break;
+        }
       }
     };
 
@@ -861,13 +925,52 @@ export default function FlowPage() {
           <ConfigPanel />
         </div>
 
-        <RunHistoryPanel
-          runs={workflow.runs}
-          selectedRunId={selectedRunId}
-          onSelectRun={handleSelectRun}
-        />
+        <section className="flex shrink-0 flex-col border-t border-border/60 bg-zinc-900/40" style={{ height: bottomPanelHeight }}>
+          {/* Resize handle */}
+          <div
+            onPointerDown={handleBottomPanelResize}
+            className="group flex h-1.5 shrink-0 cursor-row-resize items-center justify-center transition-colors hover:bg-primary/10"
+          >
+            <GripHorizontal className="h-3 w-3 text-muted-foreground/30 transition-colors group-hover:text-muted-foreground/60" />
+          </div>
 
-        <StepTimeline data={timelineData} />
+          <Tabs value={activeBottomTab} onValueChange={setActiveBottomTab} className="flex min-h-0 flex-1 flex-col gap-0">
+            <TabsList className="h-8 w-full shrink-0 justify-start rounded-none border-b border-border/40 bg-transparent px-2">
+              <TabsTrigger value="logger" className="h-6 rounded px-2.5 text-[11px] data-[state=active]:bg-muted/60">
+                Logger
+                {logEntries.length > 0 && (
+                  <span className="ml-1.5 rounded-full bg-cyan-500/20 px-1.5 text-[10px] text-cyan-300">
+                    {logEntries.length}
+                  </span>
+                )}
+              </TabsTrigger>
+              <TabsTrigger value="timeline" className="h-6 rounded px-2.5 text-[11px] data-[state=active]:bg-muted/60">
+                Timeline
+              </TabsTrigger>
+              <TabsTrigger value="history" className="h-6 rounded px-2.5 text-[11px] data-[state=active]:bg-muted/60">
+                Run History
+                {workflow.runs.length > 0 && (
+                  <span className="ml-1.5 text-[10px] text-muted-foreground">
+                    ({workflow.runs.length})
+                  </span>
+                )}
+              </TabsTrigger>
+            </TabsList>
+            <TabsContent value="logger" className="min-h-0 flex-1 mt-0">
+              <LoggerPanel logs={logEntries} onClear={handleClearLogs} />
+            </TabsContent>
+            <TabsContent value="timeline" className="min-h-0 flex-1 mt-0">
+              <StepTimeline data={timelineData} />
+            </TabsContent>
+            <TabsContent value="history" className="min-h-0 flex-1 mt-0">
+              <RunHistoryPanel
+                runs={workflow.runs}
+                selectedRunId={selectedRunId}
+                onSelectRun={handleSelectRun}
+              />
+            </TabsContent>
+          </Tabs>
+        </section>
       </div>
 
       <NodeCommandPalette

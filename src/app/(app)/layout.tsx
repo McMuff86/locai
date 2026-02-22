@@ -29,14 +29,14 @@ import { motion, AnimatePresence } from 'framer-motion';
 
 const navSections = [
   {
-    label: 'Chat',
-    items: [{ href: '/chat', label: 'Chat', icon: MessageSquare }],
+    label: 'Start',
+    items: [{ href: '/flow', label: 'Flow', icon: Workflow }],
   },
   {
     label: 'Tools',
     items: [
+      { href: '/chat',      label: 'Chat',      icon: MessageSquare },
       { href: '/search',    label: 'Suche',     icon: Search },
-      { href: '/flow',      label: 'Flow',      icon: Workflow },
       { href: '/documents', label: 'Dokumente', icon: Files },
       { href: '/gallery',   label: 'Galerie',   icon: Image },
       { href: '/notes',     label: 'Notizen',   icon: FileText },

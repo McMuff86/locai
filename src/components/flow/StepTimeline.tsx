@@ -1,7 +1,6 @@
 "use client";
 
-import React, { useMemo, useState } from 'react';
-import { ChevronDown, ChevronRight, Clock } from 'lucide-react';
+import React, { useState } from 'react';
 import type { TimelineData, TimelineEntry } from '@/lib/flow/timeline';
 import { cn } from '@/lib/utils';
 
@@ -29,48 +28,34 @@ interface StepTimelineProps {
 }
 
 export function StepTimeline({ data }: StepTimelineProps) {
-  const [isCollapsed, setIsCollapsed] = useState(true);
-
   if (!data || data.entries.length === 0) {
-    return null;
+    return (
+      <div className="flex h-full items-center justify-center text-xs text-muted-foreground">
+        Keine Timeline-Daten vorhanden. Starte einen Workflow.
+      </div>
+    );
   }
 
   const laneHeight = 32;
   const chartHeight = (data.maxLane + 1) * laneHeight + 8;
 
   return (
-    <div className="border-t border-border/60 bg-card/30">
-      <button
-        type="button"
-        className="flex w-full items-center gap-2 px-4 py-2 text-xs text-muted-foreground hover:bg-accent/20"
-        onClick={() => setIsCollapsed(!isCollapsed)}
-      >
-        {isCollapsed ? (
-          <ChevronRight className="h-3.5 w-3.5" />
-        ) : (
-          <ChevronDown className="h-3.5 w-3.5" />
-        )}
-        <Clock className="h-3.5 w-3.5" />
-        <span className="font-medium">Timeline</span>
-        <span className="text-muted-foreground/70">
-          {data.entries.length} Steps | {formatMs(data.totalDurationMs)}
-        </span>
-      </button>
-
-      {!isCollapsed && (
-        <div className="overflow-x-auto px-4 pb-3">
-          <div className="relative min-w-[400px]" style={{ height: chartHeight }}>
-            {data.entries.map((entry) => (
-              <TimelineBar
-                key={entry.stepId}
-                entry={entry}
-                totalDurationMs={data.totalDurationMs}
-                laneHeight={laneHeight}
-              />
-            ))}
-          </div>
-        </div>
-      )}
+    <div className="h-full overflow-auto px-4 py-3">
+      <div className="mb-2 flex items-center gap-2 text-xs text-muted-foreground/70">
+        <span>{data.entries.length} Steps</span>
+        <span className="text-muted-foreground/30">|</span>
+        <span>{formatMs(data.totalDurationMs)} total</span>
+      </div>
+      <div className="relative min-w-[400px]" style={{ height: chartHeight }}>
+        {data.entries.map((entry) => (
+          <TimelineBar
+            key={entry.stepId}
+            entry={entry}
+            totalDurationMs={data.totalDurationMs}
+            laneHeight={laneHeight}
+          />
+        ))}
+      </div>
     </div>
   );
 }

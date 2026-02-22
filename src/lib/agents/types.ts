@@ -121,6 +121,8 @@ export interface AgentOptions {
   enablePlanning?: boolean;
   /** Ollama chat options (e.g. temperature, top_p) passed to the model */
   chatOptions?: Record<string, unknown>;
+  /** Optional log callback for streaming logs to the workflow engine */
+  onLog?: (message: string, level: 'info' | 'warn' | 'error') => void;
 }
 
 /** Default agent execution limits */
