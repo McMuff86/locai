@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { ChevronRight, Loader2, CheckCircle2, XCircle } from 'lucide-react';
 import { ToolCall, ToolResult } from '@/lib/agents/types';
 import { cn } from '@/lib/utils';
+import { AudioPlayer } from '@/components/AudioPlayer';
 
 // ── Tool display labels (German) ──────────────────────────────────
 
@@ -20,6 +21,8 @@ const TOOL_LABELS: Record<string, string> = {
   run_command:      'Befehl ausführen',
   run_code:         'Code ausführen',
   generate_image:   'Bild generieren',
+  generate_music:   'Musik generieren',
+  text_to_speech:   'Sprachsynthese',
 };
 
 function getToolLabel(name: string): string {
@@ -40,6 +43,8 @@ const TOOL_EMOJI: Record<string, string> = {
   run_command:      '⚡',
   run_code:         '🔬',
   generate_image:   '🎨',
+  generate_music:   '🎵',
+  text_to_speech:   '🗣️',
 };
 
 function getToolEmoji(name: string): string {
@@ -209,6 +214,18 @@ export function ToolCallBlock({ call, result, turnStartedAt, turnCompletedAt }: 
                   >
                     {result.error || result.content}
                   </pre>
+                  {/* Inline audio players for /api/audio/ URLs */}
+                  {result.success && result.content && (() => {
+                    const urls = result.content.match(/\/api\/audio\/[^\s)]+/g);
+                    if (!urls) return null;
+                    return (
+                      <div className="mt-2 space-y-1.5">
+                        {urls.map((url, i) => (
+                          <AudioPlayer key={`${url}-${i}`} src={url} compact downloadable />
+                        ))}
+                      </div>
+                    );
+                  })()}
                 </div>
               )}
 

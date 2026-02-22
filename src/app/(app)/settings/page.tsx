@@ -34,7 +34,9 @@ import {
   X,
   Zap,
   Key,
+  Music,
 } from 'lucide-react';
+import { HealthIndicator } from '@/components/HealthIndicator';
 import { ChatAvatar } from '@/components/chat/ChatAvatar';
 import {
   loadProviderSettings,
@@ -732,6 +734,37 @@ export default function SettingsPage() {
                 placeholder="8188"
                 className="w-32"
               />
+            </div>
+          </div>
+        </section>
+
+        {/* ────────────── Audio Services ────────────── */}
+        <section className="space-y-4">
+          <div className="flex items-center gap-2 text-lg font-semibold">
+            <Music className="h-5 w-5 text-primary" />
+            Audio Services
+          </div>
+          <div className="bg-card border border-border rounded-lg p-4 space-y-4">
+            <div>
+              <label className="block font-medium mb-1">ACE-Step URL</label>
+              <p className="text-sm text-muted-foreground mb-2">URL des ACE-Step Musik-Generators</p>
+              <Input
+                value={settings?.aceStepUrl || 'http://localhost:8001'}
+                onChange={(e) => handleInputChange('aceStepUrl', e.target.value)}
+                placeholder="http://localhost:8001"
+              />
+              <HealthIndicator endpoint="/api/ace-step/health" label="ACE-Step" />
+            </div>
+
+            <div>
+              <label className="block font-medium mb-1">Qwen3-TTS URL</label>
+              <p className="text-sm text-muted-foreground mb-2">URL des Qwen3-TTS Sprachsynthese-Servers</p>
+              <Input
+                value={settings?.qwenTTSUrl || 'http://localhost:7861'}
+                onChange={(e) => handleInputChange('qwenTTSUrl', e.target.value)}
+                placeholder="http://localhost:7861"
+              />
+              <HealthIndicator endpoint="/api/qwen-tts/health" label="Qwen3-TTS" />
             </div>
           </div>
         </section>
