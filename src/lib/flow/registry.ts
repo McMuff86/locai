@@ -368,7 +368,7 @@ export function createFlowNode(kind: FlowNodeKind, position: XYPosition): FlowNo
           label: 'Agent',
           runtime: { status: 'idle' },
           config: {
-            model: 'llama3',
+            model: 'qwen3:30b-a3b',
             prompt: 'Bearbeite die Aufgabe auf Basis des Kontexts.',
             systemPrompt: '',
             tools: ['search_documents', 'read_file'],
@@ -414,7 +414,7 @@ export function createFlowNode(kind: FlowNodeKind, position: XYPosition): FlowNo
             mode: 'expression',
             prompt: 'Ist das Ergebnis zufriedenstellend?',
             expression: 'result.length > 0',
-            model: 'llama3',
+            model: 'qwen3:30b-a3b',
             successCriteria: 'Bedingung wurde ausgewertet',
           } satisfies ConditionNodeConfig,
         },
@@ -432,7 +432,7 @@ export function createFlowNode(kind: FlowNodeKind, position: XYPosition): FlowNo
             count: 3,
             conditionExpression: 'result.length > 0',
             prompt: 'Soll die Schleife weiterlaufen?',
-            model: 'llama3',
+            model: 'qwen3:30b-a3b',
             successCriteria: 'Schleife wurde ausgefuehrt',
           } satisfies LoopNodeConfig,
         },
@@ -451,7 +451,7 @@ export function createPdfProcessingWorkflow(): VisualWorkflow {
       label: 'PDF Aufgabe',
       runtime: { status: 'idle' },
       config: {
-        text: 'Lies die Datei /workspace/dokument.pdf und erstelle eine strukturierte Zusammenfassung.',
+        text: 'Lies die Datei sample_explain.pdf und erstelle eine strukturierte Zusammenfassung.',
         successCriteria: 'PDF-Pfad und Aufgabe wurden bereitgestellt',
       },
     },
@@ -467,10 +467,10 @@ export function createPdfProcessingWorkflow(): VisualWorkflow {
       label: 'PDF lesen',
       runtime: { status: 'idle' },
       config: {
-        model: 'llama3',
-        prompt: 'Lies die angegebene PDF-Datei mit dem read_file Tool und gib den vollstaendigen Inhalt zurueck.',
-        systemPrompt: 'Du bist ein Dokumenten-Assistent. Lies Dateien praezise und gib den Inhalt vollstaendig zurueck.',
-        tools: ['read_file', 'search_documents'],
+        model: 'qwen3:30b-a3b',
+        prompt: 'Lies die angegebene PDF-Datei mit dem read_pdf Tool und gib den vollstaendigen Inhalt zurueck.',
+        systemPrompt: 'Du bist ein Dokumenten-Assistent. Lies PDF-Dateien praezise mit dem read_pdf Tool und gib den Inhalt vollstaendig zurueck.',
+        tools: ['read_pdf'],
         successCriteria: 'PDF-Inhalt wurde erfolgreich extrahiert',
       },
     },
@@ -503,7 +503,7 @@ export function createPdfProcessingWorkflow(): VisualWorkflow {
       label: 'PDF analysieren',
       runtime: { status: 'idle' },
       config: {
-        model: 'llama3',
+        model: 'qwen3:30b-a3b',
         prompt: 'Fuehre die Analyse gemaess den Anweisungen durch. Strukturiere die Ausgabe klar und uebersichtlich.',
         systemPrompt: 'Du bist ein Experte fuer Dokumentenanalyse. Erstelle praezise, gut strukturierte Zusammenfassungen.',
         tools: [],
@@ -549,7 +549,116 @@ export function createPdfProcessingWorkflow(): VisualWorkflow {
   };
 }
 
-export type FlowTemplateId = 'default' | 'pdf-processing';
+export function createExcelProcessingWorkflow(): VisualWorkflow {
+  const inputNode: FlowNode = {
+    id: makeId('input'),
+    position: { x: 80, y: 220 },
+    type: 'inputNode',
+    draggable: true,
+    data: {
+      kind: 'input',
+      label: 'Excel Aufgabe',
+      runtime: { status: 'idle' },
+      config: {
+        text: 'Lies die Excel-Datei und erstelle eine strukturierte Analyse der Daten.',
+        successCriteria: 'Dateipfad und Aufgabe wurden bereitgestellt',
+      },
+    },
+  };
+
+  const readExcelAgent: FlowNode = {
+    id: makeId('agent'),
+    position: { x: 360, y: 220 },
+    type: 'agentNode',
+    draggable: true,
+    data: {
+      kind: 'agent',
+      label: 'Excel lesen',
+      runtime: { status: 'idle' },
+      config: {
+        model: 'qwen3:30b-a3b',
+        prompt: 'Lies die angegebene Excel-Datei mit dem read_excel Tool und gib den vollstaendigen Inhalt aller Sheets zurueck.',
+        systemPrompt: 'Du bist ein Daten-Assistent. Lies Excel-Dateien praezise mit dem read_excel Tool und gib den Inhalt vollstaendig zurueck.',
+        tools: ['read_excel'],
+        successCriteria: 'Excel-Inhalt wurde erfolgreich extrahiert',
+      },
+    },
+  };
+
+  const formatTemplate: FlowNode = {
+    id: makeId('template'),
+    position: { x: 640, y: 220 },
+    type: 'templateNode',
+    draggable: true,
+    data: {
+      kind: 'template',
+      label: 'Analyse-Prompt',
+      runtime: { status: 'idle' },
+      config: {
+        template:
+          'Analysiere die folgenden Excel-Daten und erstelle eine strukturierte Auswertung:\n\n---\n{{result}}\n---\n\nBitte erstelle:\n1. Eine Uebersicht der enthaltenen Daten (Sheets, Spalten, Zeilenanzahl)\n2. Statistische Zusammenfassung (Summen, Durchschnitte, Trends falls erkennbar)\n3. Auffaelligkeiten oder bemerkenswerte Muster\n4. Eine kurze Gesamtbewertung',
+        successCriteria: 'Analyse-Prompt wurde korrekt zusammengesetzt',
+      },
+    },
+  };
+
+  const analyzeAgent: FlowNode = {
+    id: makeId('agent'),
+    position: { x: 920, y: 220 },
+    type: 'agentNode',
+    draggable: true,
+    data: {
+      kind: 'agent',
+      label: 'Daten analysieren',
+      runtime: { status: 'idle' },
+      config: {
+        model: 'qwen3:30b-a3b',
+        prompt: 'Fuehre die Datenanalyse gemaess den Anweisungen durch. Strukturiere die Ausgabe klar und uebersichtlich mit Tabellen wo sinnvoll.',
+        systemPrompt: 'Du bist ein Experte fuer Datenanalyse und Tabellenkalkulationen. Erstelle praezise, gut strukturierte Auswertungen mit statistischen Kennzahlen.',
+        tools: [],
+        successCriteria: 'Strukturierte Datenanalyse wurde erstellt',
+      },
+    },
+  };
+
+  const outputNode: FlowNode = {
+    id: makeId('output'),
+    position: { x: 1220, y: 220 },
+    type: 'outputNode',
+    draggable: true,
+    data: {
+      kind: 'output',
+      label: 'Ergebnis',
+      runtime: { status: 'idle' },
+      config: {
+        result: '',
+        saveToFile: true,
+        filePath: 'excel_analyse.md',
+      },
+    },
+  };
+
+  const nodes = [inputNode, readExcelAgent, formatTemplate, analyzeAgent, outputNode];
+
+  const edges: FlowEdge[] = [
+    { id: `${inputNode.id}-${readExcelAgent.id}`, source: inputNode.id, target: readExcelAgent.id, type: 'smoothstep' },
+    { id: `${readExcelAgent.id}-${formatTemplate.id}`, source: readExcelAgent.id, target: formatTemplate.id, type: 'smoothstep' },
+    { id: `${formatTemplate.id}-${analyzeAgent.id}`, source: formatTemplate.id, target: analyzeAgent.id, type: 'smoothstep' },
+    { id: `${analyzeAgent.id}-${outputNode.id}`, source: analyzeAgent.id, target: outputNode.id, type: 'smoothstep' },
+  ].map((edge) => decorateFlowEdge(edge, nodes));
+
+  return {
+    metadata: {
+      name: 'Excel Verarbeitung',
+      description: 'Excel lesen → Inhalt formatieren → Datenanalyse → Ergebnis speichern',
+    },
+    nodes,
+    edges,
+    viewport: { x: 0, y: 0, zoom: 0.85 },
+  };
+}
+
+export type FlowTemplateId = 'default' | 'pdf-processing' | 'excel-processing';
 
 export interface FlowTemplate {
   id: FlowTemplateId;
@@ -570,6 +679,12 @@ export const FLOW_TEMPLATES: FlowTemplate[] = [
     name: 'PDF Verarbeitung',
     description: 'PDF lesen → Formatieren → Analysieren → Ergebnis',
     create: () => createPdfProcessingWorkflow(),
+  },
+  {
+    id: 'excel-processing',
+    name: 'Excel Verarbeitung',
+    description: 'Excel lesen → Formatieren → Datenanalyse → Ergebnis',
+    create: () => createExcelProcessingWorkflow(),
   },
 ];
 

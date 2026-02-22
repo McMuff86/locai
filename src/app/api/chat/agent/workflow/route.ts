@@ -115,7 +115,7 @@ export async function POST(request: NextRequest) {
 
     const {
       message,
-      model = 'llama3',
+      model = 'qwen3:30b-a3b',
       systemPrompt,
       conversationId,
       enabledTools,
