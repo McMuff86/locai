@@ -11,20 +11,7 @@ import { saveFlowOutput } from '@/lib/flow/saveOutput';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/components/ui/use-toast';
 import { useFlowStore } from '@/stores/flowStore';
-
-const BUILTIN_TOOLS = [
-  'search_documents',
-  'web_search',
-  'read_file',
-  'write_file',
-  'edit_file',
-  'create_note',
-  'save_memory',
-  'recall_memory',
-  'run_command',
-  'run_code',
-  'generate_image',
-];
+import { BUILTIN_TOOL_NAMES } from '@/lib/agents/tools/names';
 
 const FALLBACK_AGENT_MODELS = [
   'llama3',
@@ -326,7 +313,7 @@ export function ConfigPanel() {
             <div className="space-y-2">
               <SectionTitle>Tools</SectionTitle>
               <div className="grid grid-cols-2 gap-1.5 rounded-md border border-border/60 bg-card/30 p-2">
-                {BUILTIN_TOOLS.map((tool) => {
+                {BUILTIN_TOOL_NAMES.map((tool) => {
                   const active = agentData.config.tools.includes(tool);
                   return (
                     <label
