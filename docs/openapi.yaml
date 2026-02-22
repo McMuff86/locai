@@ -1,0 +1,2619 @@
+openapi: 3.1.0
+info:
+  title: LocAI API
+  version: "1.0"
+  description: |
+    Local-first AI workspace API. No authentication required — all endpoints are
+    restricted to localhost requests.
+servers:
+  - url: http://localhost:3000
+    description: Local development server
+
+tags:
+  - name: Chat
+    description: Agent chat and workflow execution
+  - name: Workflows
+    description: Saved workflow management
+  - name: Conversations
+    description: Conversation history
+  - name: Documents
+    description: Document upload, RAG search, and management
+  - name: Notes
+    description: Markdown notes with embeddings and semantic search
+  - name: Gallery
+    description: ComfyUI gallery and image management
+  - name: Files
+    description: File browser operations
+  - name: Audio
+    description: Audio file management, TTS, and music generation
+  - name: Search
+    description: Web search with AI optimization
+  - name: System
+    description: Settings, health, models, stats, and preferences
+
+paths:
+  # ── Chat ─────────────────────────────────────────────────────────
+  /api/chat/agent:
+    post:
+      tags: [Chat]
+      summary: Stream agent chat with tool calling
+      description: Streams NDJSON events for the agent tool-calling loop.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AgentChatRequest"
+      responses:
+        "200":
+          description: NDJSON stream of agent events
+          content:
+            application/x-ndjson: {}
+        "500":
+          $ref: "#/components/responses/Error"
+
+  /api/chat/agent/workflow:
+    post:
+      tags: [Chat]
+      summary: Execute a workflow via the WorkflowEngine
+      description: Streams NDJSON WorkflowStreamEvents.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/WorkflowRequest"
+      responses:
+        "200":
+          description: NDJSON stream of workflow events
+          content:
+            application/x-ndjson: {}
+        "500":
+          $ref: "#/components/responses/Error"
+
+  /api/chat/agent/workflow/{workflowId}:
+    delete:
+      tags: [Chat]
+      summary: Cancel a running workflow
+      parameters:
+        - name: workflowId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          $ref: "#/components/responses/Success"
+        "404":
+          $ref: "#/components/responses/Error"
+
+  # ── Workflows ────────────────────────────────────────────────────
+  /api/workflows:
+    get:
+      tags: [Workflows]
+      summary: List saved workflow summaries
+      responses:
+        "200":
+          description: Workflow list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  workflows:
+                    type: array
+                    items:
+                      type: object
+    post:
+      tags: [Workflows]
+      summary: Save a completed workflow
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [workflow]
+              properties:
+                workflow:
+                  type: object
+                  required: [id]
+                  properties:
+                    id:
+                      type: string
+      responses:
+        "200":
+          $ref: "#/components/responses/Success"
+
+  /api/workflows/{id}:
+    get:
+      tags: [Workflows]
+      summary: Load a single workflow
+      parameters:
+        - $ref: "#/components/parameters/IdPath"
+      responses:
+        "200":
+          description: Workflow detail
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  workflow:
+                    type: object
+        "404":
+          $ref: "#/components/responses/Error"
+    delete:
+      tags: [Workflows]
+      summary: Delete a workflow
+      parameters:
+        - $ref: "#/components/parameters/IdPath"
+      responses:
+        "200":
+          $ref: "#/components/responses/Success"
+        "404":
+          $ref: "#/components/responses/Error"
+
+  # ── Conversations ────────────────────────────────────────────────
+  /api/conversations:
+    get:
+      tags: [Conversations]
+      summary: List conversation summaries
+      responses:
+        "200":
+          description: Conversation index
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  conversations:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/ConversationSummary"
+    post:
+      tags: [Conversations]
+      summary: Save a conversation
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [conversation]
+              properties:
+                conversation:
+                  $ref: "#/components/schemas/Conversation"
+      responses:
+        "200":
+          $ref: "#/components/responses/Success"
+    delete:
+      tags: [Conversations]
+      summary: Delete one or all conversations
+      parameters:
+        - name: id
+          in: query
+          schema:
+            type: string
+          description: Conversation ID to delete
+        - name: all
+          in: query
+          schema:
+            type: string
+            enum: ["true"]
+          description: Set to "true" to delete all
+      responses:
+        "200":
+          $ref: "#/components/responses/Success"
+
+  /api/conversations/{id}:
+    get:
+      tags: [Conversations]
+      summary: Load full conversation with messages
+      parameters:
+        - $ref: "#/components/parameters/IdPath"
+      responses:
+        "200":
+          description: Full conversation
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Conversation"
+        "404":
+          $ref: "#/components/responses/Error"
+    put:
+      tags: [Conversations]
+      summary: Update conversation metadata
+      parameters:
+        - $ref: "#/components/parameters/IdPath"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                title:
+                  type: string
+                tags:
+                  type: array
+                  items:
+                    type: string
+      responses:
+        "200":
+          $ref: "#/components/responses/Success"
+
+  /api/conversations/search:
+    get:
+      tags: [Conversations]
+      summary: Full-text search across conversations
+      parameters:
+        - name: q
+          in: query
+          required: true
+          schema:
+            type: string
+            minLength: 2
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+            maximum: 50
+      responses:
+        "200":
+          description: Search results
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  results:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        conversationId:
+                          type: string
+                        title:
+                          type: string
+                        updatedAt:
+                          type: string
+                        messageCount:
+                          type: integer
+                        matches:
+                          type: array
+                          items:
+                            type: object
+                            properties:
+                              role:
+                                type: string
+                                enum: [user, assistant]
+                              excerpt:
+                                type: string
+
+  # ── Documents ────────────────────────────────────────────────────
+  /api/documents:
+    get:
+      tags: [Documents]
+      summary: List all uploaded documents
+      responses:
+        "200":
+          description: Document list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  documents:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Document"
+                  count:
+                    type: integer
+    delete:
+      tags: [Documents]
+      summary: Delete a document
+      parameters:
+        - name: id
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          $ref: "#/components/responses/Success"
+
+  /api/documents/{id}:
+    get:
+      tags: [Documents]
+      summary: Get document details with chunk info
+      parameters:
+        - $ref: "#/components/parameters/IdPath"
+      responses:
+        "200":
+          description: Document with embeddings info
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  document:
+                    $ref: "#/components/schemas/Document"
+                  chunks:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id:
+                          type: string
+                        preview:
+                          type: string
+                        model:
+                          type: string
+                        createdAt:
+                          type: string
+                  embeddingCount:
+                    type: integer
+    patch:
+      tags: [Documents]
+      summary: Rename a document
+      parameters:
+        - $ref: "#/components/parameters/IdPath"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name:
+                  type: string
+      responses:
+        "200":
+          $ref: "#/components/responses/Success"
+    delete:
+      tags: [Documents]
+      summary: Delete a specific document
+      parameters:
+        - $ref: "#/components/parameters/IdPath"
+      responses:
+        "200":
+          $ref: "#/components/responses/Success"
+
+  /api/documents/{id}/copy:
+    post:
+      tags: [Documents]
+      summary: Duplicate a document
+      parameters:
+        - $ref: "#/components/parameters/IdPath"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                  description: Optional custom name for the copy
+      responses:
+        "200":
+          description: Copied document
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  document:
+                    $ref: "#/components/schemas/Document"
+
+  /api/documents/upload:
+    post:
+      tags: [Documents]
+      summary: Upload, parse, chunk, and embed a document
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file]
+              properties:
+                file:
+                  type: string
+                  format: binary
+                model:
+                  type: string
+                  default: nomic-embed-text
+                host:
+                  type: string
+                chunkSize:
+                  type: integer
+                chunkOverlap:
+                  type: integer
+      responses:
+        "200":
+          $ref: "#/components/responses/Success"
+
+  /api/documents/search:
+    post:
+      tags: [Documents]
+      summary: Semantic search across documents (RAG)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [query]
+              properties:
+                query:
+                  type: string
+                  minLength: 2
+                topK:
+                  type: integer
+                threshold:
+                  type: number
+                documentIds:
+                  type: array
+                  items:
+                    type: string
+                types:
+                  type: array
+                  items:
+                    type: string
+                model:
+                  type: string
+                  default: nomic-embed-text
+                host:
+                  type: string
+      responses:
+        "200":
+          description: Search results
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  results:
+                    type: array
+                    items:
+                      type: object
+                  count:
+                    type: integer
+                  query:
+                    type: string
+
+  # ── Notes ────────────────────────────────────────────────────────
+  /api/notes:
+    get:
+      tags: [Notes]
+      summary: List all notes or get a single note by ID
+      parameters:
+        - $ref: "#/components/parameters/BasePath"
+        - name: id
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Notes list or single note
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - type: array
+                    items:
+                      $ref: "#/components/schemas/Note"
+                  - $ref: "#/components/schemas/Note"
+    post:
+      tags: [Notes]
+      summary: Create or update a note
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/NoteInput"
+      responses:
+        "200":
+          description: Saved note
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Note"
+    delete:
+      tags: [Notes]
+      summary: Delete a note
+      parameters:
+        - $ref: "#/components/parameters/BasePath"
+        - name: id
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          $ref: "#/components/responses/Success"
+
+  /api/notes/search:
+    get:
+      tags: [Notes]
+      summary: Basic text search across notes
+      parameters:
+        - $ref: "#/components/parameters/BasePath"
+        - name: query
+          in: query
+          required: true
+          schema:
+            type: string
+            minLength: 2
+      responses:
+        "200":
+          description: Search results
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  results:
+                    type: array
+                    items:
+                      type: object
+    post:
+      tags: [Notes]
+      summary: Semantic search across notes
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [query]
+              properties:
+                query:
+                  type: string
+                basePath:
+                  type: string
+                model:
+                  type: string
+                host:
+                  type: string
+                topK:
+                  type: integer
+                threshold:
+                  type: number
+      responses:
+        "200":
+          description: Semantic search results
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  results:
+                    type: array
+                    items:
+                      type: object
+
+  /api/notes/embed:
+    post:
+      tags: [Notes]
+      summary: Generate embeddings for notes
+      description: Streams progress as NDJSON while embedding notes.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                basePath:
+                  type: string
+                model:
+                  type: string
+                  default: nomic-embed-text
+                host:
+                  type: string
+                noteIds:
+                  type: array
+                  items:
+                    type: string
+                force:
+                  type: boolean
+      responses:
+        "200":
+          description: NDJSON stream of embedding progress
+          content:
+            application/x-ndjson: {}
+
+  /api/notes/embed-test:
+    post:
+      tags: [Notes]
+      summary: Test embedding model availability
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                model:
+                  type: string
+                host:
+                  type: string
+      responses:
+        "200":
+          $ref: "#/components/responses/Success"
+
+  /api/notes/ai:
+    post:
+      tags: [Notes]
+      summary: AI-powered note completion or summarization
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                basePath:
+                  type: string
+                noteId:
+                  type: string
+                content:
+                  type: string
+                action:
+                  type: string
+                  enum: [complete, summarize]
+                model:
+                  type: string
+                provider:
+                  type: string
+                host:
+                  type: string
+                prompt:
+                  type: string
+                useWebSearch:
+                  type: boolean
+                searchQuery:
+                  type: string
+                searxngUrl:
+                  type: string
+                externalContext:
+                  type: string
+      responses:
+        "200":
+          description: Streaming AI response
+          content:
+            text/event-stream: {}
+
+  /api/notes/semantic-links:
+    get:
+      tags: [Notes]
+      summary: Get semantic similarity links between notes
+      parameters:
+        - $ref: "#/components/parameters/BasePath"
+        - name: threshold
+          in: query
+          schema:
+            type: number
+            default: 0.7
+      responses:
+        "200":
+          description: Semantic links
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  links:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        source:
+                          type: string
+                        target:
+                          type: string
+                        similarity:
+                          type: number
+
+  # ── Gallery (ComfyUI) ───────────────────────────────────────────
+  /api/comfyui/gallery:
+    get:
+      tags: [Gallery]
+      summary: List gallery images with pagination
+      parameters:
+        - name: outputPath
+          in: query
+          schema:
+            type: string
+        - name: comfyUIPath
+          in: query
+          schema:
+            type: string
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 50
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            default: 0
+        - name: sortBy
+          in: query
+          schema:
+            type: string
+            enum: [modifiedAt, createdAt, filename]
+            default: modifiedAt
+        - name: sortOrder
+          in: query
+          schema:
+            type: string
+            enum: [asc, desc]
+            default: desc
+      responses:
+        "200":
+          description: Paginated gallery listing
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  images:
+                    type: array
+                    items:
+                      type: object
+                  total:
+                    type: integer
+
+  /api/comfyui/gallery/{id}:
+    get:
+      tags: [Gallery]
+      summary: Serve a gallery image by base64url-encoded ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: outputPath
+          in: query
+          schema:
+            type: string
+        - name: comfyUIPath
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Image binary
+          content:
+            image/*: {}
+
+  /api/comfyui/gallery/delete:
+    delete:
+      tags: [Gallery]
+      summary: Delete a gallery image
+      parameters:
+        - name: id
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: outputPath
+          in: query
+          schema:
+            type: string
+        - name: comfyUIPath
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          $ref: "#/components/responses/Success"
+
+  /api/comfyui/gallery/copy-to-input:
+    post:
+      tags: [Gallery]
+      summary: Copy a gallery image to ComfyUI input folder
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [imageId, comfyUIPath]
+              properties:
+                imageId:
+                  type: string
+                outputPath:
+                  type: string
+                comfyUIPath:
+                  type: string
+      responses:
+        "200":
+          $ref: "#/components/responses/Success"
+
+  /api/comfyui/gallery/metadata:
+    get:
+      tags: [Gallery]
+      summary: Read PNG metadata (ComfyUI prompt/workflow)
+      parameters:
+        - name: id
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: outputPath
+          in: query
+          schema:
+            type: string
+        - name: comfyUIPath
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: PNG metadata
+          content:
+            application/json:
+              schema:
+                type: object
+
+  /api/comfyui/gallery/upload:
+    post:
+      tags: [Gallery]
+      summary: Upload images/videos to gallery output folder
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [files]
+              properties:
+                files:
+                  type: array
+                  items:
+                    type: string
+                    format: binary
+                outputPath:
+                  type: string
+                comfyUIPath:
+                  type: string
+      responses:
+        "200":
+          $ref: "#/components/responses/Success"
+
+  /api/comfyui/status:
+    get:
+      tags: [Gallery]
+      summary: Check if ComfyUI is running
+      parameters:
+        - name: port
+          in: query
+          schema:
+            type: string
+            default: "8188"
+        - name: host
+          in: query
+          schema:
+            type: string
+            default: localhost
+      responses:
+        "200":
+          description: ComfyUI status
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  running:
+                    type: boolean
+                  port:
+                    type: integer
+                  host:
+                    type: string
+
+  /api/comfyui/launch:
+    post:
+      tags: [Gallery]
+      summary: Launch ComfyUI process
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [comfyUIPath]
+              properties:
+                comfyUIPath:
+                  type: string
+      responses:
+        "200":
+          $ref: "#/components/responses/Success"
+
+  /api/comfyui/templates:
+    get:
+      tags: [Gallery]
+      summary: List workflow templates
+      responses:
+        "200":
+          description: Template list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  templates:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/WorkflowTemplate"
+    post:
+      tags: [Gallery]
+      summary: Create a new workflow template
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, workflow]
+              properties:
+                name:
+                  type: string
+                description:
+                  type: string
+                workflow:
+                  type: object
+      responses:
+        "200":
+          description: Created template
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  template:
+                    $ref: "#/components/schemas/WorkflowTemplate"
+
+  /api/comfyui/templates/{id}:
+    get:
+      tags: [Gallery]
+      summary: Load a single workflow template
+      parameters:
+        - $ref: "#/components/parameters/IdPath"
+      responses:
+        "200":
+          description: Template detail
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  template:
+                    $ref: "#/components/schemas/WorkflowTemplate"
+    delete:
+      tags: [Gallery]
+      summary: Delete a workflow template
+      parameters:
+        - $ref: "#/components/parameters/IdPath"
+      responses:
+        "200":
+          $ref: "#/components/responses/Success"
+
+  # ── Files ────────────────────────────────────────────────────────
+  /api/filebrowser:
+    get:
+      tags: [Files]
+      summary: Get browseable root directories
+      responses:
+        "200":
+          description: Root list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  roots:
+                    type: array
+                    items:
+                      type: object
+
+  /api/filebrowser/list:
+    get:
+      tags: [Files]
+      summary: List directory contents
+      parameters:
+        - $ref: "#/components/parameters/RootId"
+        - name: path
+          in: query
+          schema:
+            type: string
+            default: ""
+        - name: includeChildCount
+          in: query
+          schema:
+            type: string
+            enum: ["true", "false"]
+      responses:
+        "200":
+          description: Directory listing
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  entries:
+                    type: array
+                    items:
+                      type: object
+                  currentPath:
+                    type: string
+                  rootId:
+                    type: string
+
+  /api/filebrowser/read:
+    get:
+      tags: [Files]
+      summary: Read file content as text
+      parameters:
+        - $ref: "#/components/parameters/RootId"
+        - $ref: "#/components/parameters/FilePath"
+      responses:
+        "200":
+          description: File content
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  content:
+                    type: string
+
+  /api/filebrowser/write:
+    post:
+      tags: [Files]
+      summary: Write content to a file
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [rootId, path]
+              properties:
+                rootId:
+                  type: string
+                path:
+                  type: string
+                content:
+                  type: string
+                  default: ""
+                encoding:
+                  type: string
+                  enum: [utf-8, base64]
+      responses:
+        "200":
+          $ref: "#/components/responses/Success"
+
+  /api/filebrowser/create:
+    post:
+      tags: [Files]
+      summary: Create a file or directory
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [rootId, name]
+              properties:
+                rootId:
+                  type: string
+                path:
+                  type: string
+                  default: ""
+                name:
+                  type: string
+                type:
+                  type: string
+                  enum: [file, directory]
+                  default: file
+                content:
+                  type: string
+      responses:
+        "200":
+          $ref: "#/components/responses/Success"
+
+  /api/filebrowser/delete:
+    delete:
+      tags: [Files]
+      summary: Delete a file (workspace only)
+      parameters:
+        - $ref: "#/components/parameters/RootId"
+        - $ref: "#/components/parameters/FilePath"
+      responses:
+        "200":
+          $ref: "#/components/responses/Success"
+
+  /api/filebrowser/rename:
+    post:
+      tags: [Files]
+      summary: Rename a file or directory
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [rootId, path, newName]
+              properties:
+                rootId:
+                  type: string
+                path:
+                  type: string
+                newName:
+                  type: string
+      responses:
+        "200":
+          $ref: "#/components/responses/Success"
+
+  /api/filebrowser/move:
+    post:
+      tags: [Files]
+      summary: Move a file or directory
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [rootId, path, targetPath]
+              properties:
+                rootId:
+                  type: string
+                path:
+                  type: string
+                targetPath:
+                  type: string
+      responses:
+        "200":
+          $ref: "#/components/responses/Success"
+
+  /api/filebrowser/upload:
+    post:
+      tags: [Files]
+      summary: Upload files (max 20 MB each)
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [rootId, files]
+              properties:
+                rootId:
+                  type: string
+                path:
+                  type: string
+                files:
+                  type: array
+                  items:
+                    type: string
+                    format: binary
+      responses:
+        "200":
+          description: Upload results
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  uploaded:
+                    type: array
+                    items:
+                      type: object
+                  rejected:
+                    type: array
+                    items:
+                      type: object
+                  total:
+                    type: integer
+
+  /api/filebrowser/download:
+    get:
+      tags: [Files]
+      summary: Download a file
+      parameters:
+        - $ref: "#/components/parameters/RootId"
+        - $ref: "#/components/parameters/FilePath"
+      responses:
+        "200":
+          description: File download
+          content:
+            application/octet-stream: {}
+
+  /api/filebrowser/image:
+    get:
+      tags: [Files]
+      summary: Serve an image file
+      parameters:
+        - $ref: "#/components/parameters/RootId"
+        - $ref: "#/components/parameters/FilePath"
+      responses:
+        "200":
+          description: Image binary
+          content:
+            image/*: {}
+
+  /api/filebrowser/audio:
+    get:
+      tags: [Files]
+      summary: Serve an audio file with Range support
+      parameters:
+        - $ref: "#/components/parameters/RootId"
+        - $ref: "#/components/parameters/FilePath"
+      responses:
+        "200":
+          description: Audio stream
+          content:
+            audio/*: {}
+        "206":
+          description: Partial content (Range request)
+
+  /api/filebrowser/pdf:
+    get:
+      tags: [Files]
+      summary: Serve a PDF file
+      parameters:
+        - $ref: "#/components/parameters/RootId"
+        - $ref: "#/components/parameters/FilePath"
+      responses:
+        "200":
+          description: PDF binary
+          content:
+            application/pdf: {}
+
+  /api/folder-picker:
+    post:
+      tags: [Files]
+      summary: Open native folder picker dialog
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                initialPath:
+                  type: string
+                title:
+                  type: string
+                  default: Ordner auswählen
+      responses:
+        "200":
+          description: Selected folder path
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  path:
+                    type: string
+
+  # ── Audio ────────────────────────────────────────────────────────
+  /api/audio/{filename}:
+    get:
+      tags: [Audio]
+      summary: Serve cached audio file with Range support
+      parameters:
+        - name: filename
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Audio stream
+          content:
+            audio/*: {}
+        "206":
+          description: Partial content
+
+  /api/audio-files:
+    get:
+      tags: [Audio]
+      summary: List cached audio files
+      responses:
+        "200":
+          description: Audio file list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  files:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        filename:
+                          type: string
+                        size:
+                          type: integer
+                        createdAt:
+                          type: string
+                          format: date-time
+
+  /api/audio-files/upload:
+    post:
+      tags: [Audio]
+      summary: Upload an audio file for ACE-Step processing
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file]
+              properties:
+                file:
+                  type: string
+                  format: binary
+                  description: Audio file (wav, mp3, flac, ogg, m4a). Max 100 MB.
+      responses:
+        "200":
+          description: Upload result
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  filePath:
+                    type: string
+                  filename:
+                    type: string
+                  size:
+                    type: integer
+
+  /api/audio-files/save-to-workspace:
+    post:
+      tags: [Audio]
+      summary: Copy audio file to workspace directory
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [filename]
+              properties:
+                filename:
+                  type: string
+      responses:
+        "200":
+          $ref: "#/components/responses/Success"
+
+  /api/ace-step/generate:
+    post:
+      tags: [Audio]
+      summary: Start async music generation (ACE-Step)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AceStepGenerateRequest"
+      responses:
+        "200":
+          description: Task started
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  taskId:
+                    type: string
+                  status:
+                    type: string
+
+  /api/ace-step/generate-sync:
+    post:
+      tags: [Audio]
+      summary: Synchronous music generation with local file caching
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AceStepGenerateRequest"
+      responses:
+        "200":
+          description: Generated audio URLs
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  audioUrls:
+                    type: array
+                    items:
+                      type: string
+
+  /api/ace-step/status/{taskId}:
+    post:
+      tags: [Audio]
+      summary: Check ACE-Step generation task status
+      parameters:
+        - name: taskId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Task status
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  results:
+                    type: object
+
+  /api/ace-step/health:
+    post:
+      tags: [Audio]
+      summary: Check ACE-Step service health
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                url:
+                  type: string
+      responses:
+        "200":
+          description: Health status
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  status:
+                    type: string
+
+  /api/ace-step/launch:
+    post:
+      tags: [Audio]
+      summary: Launch ACE-Step process
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [aceStepPath]
+              properties:
+                aceStepPath:
+                  type: string
+      responses:
+        "200":
+          $ref: "#/components/responses/Success"
+
+  /api/qwen-tts/generate:
+    post:
+      tags: [Audio]
+      summary: Generate speech with Qwen TTS
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [text]
+              properties:
+                text:
+                  type: string
+                language:
+                  type: string
+                  default: German
+                mode:
+                  type: string
+                  enum: [custom, clone]
+                  default: custom
+                modelSize:
+                  type: string
+                  default: "1.7B"
+                referenceAudio:
+                  type: string
+                  description: Required for clone mode
+                referenceText:
+                  type: string
+                  description: Required for clone mode
+      responses:
+        "200":
+          $ref: "#/components/responses/Success"
+
+  /api/qwen-tts/health:
+    post:
+      tags: [Audio]
+      summary: Check Qwen TTS service availability
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                url:
+                  type: string
+      responses:
+        "200":
+          description: Availability status
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  available:
+                    type: boolean
+
+  /api/qwen-tts/upload:
+    post:
+      tags: [Audio]
+      summary: Upload voice reference audio for cloning
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file]
+              properties:
+                file:
+                  type: string
+                  format: binary
+                  description: Audio file (wav, mp3, flac, ogg, webm). Max 50 MB.
+      responses:
+        "200":
+          description: Upload result
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  filePath:
+                    type: string
+
+  /api/qwen-tts/transcribe:
+    post:
+      tags: [Audio]
+      summary: Transcribe a reference audio file
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [filePath]
+              properties:
+                filePath:
+                  type: string
+      responses:
+        "200":
+          description: Transcription result
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  text:
+                    type: string
+
+  # ── Search ───────────────────────────────────────────────────────
+  /api/search:
+    get:
+      tags: [Search]
+      summary: Simple SearXNG web search
+      parameters:
+        - name: q
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: searxngUrl
+          in: query
+          schema:
+            type: string
+        - name: language
+          in: query
+          schema:
+            type: string
+            default: de-DE
+        - name: maxResults
+          in: query
+          schema:
+            type: integer
+            default: 8
+      responses:
+        "200":
+          description: Search results
+          content:
+            application/json:
+              schema:
+                type: object
+    post:
+      tags: [Search]
+      summary: AI-powered web search
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [question]
+              properties:
+                question:
+                  type: string
+                options:
+                  type: object
+                  properties:
+                    ollamaHost:
+                      type: string
+                    model:
+                      type: string
+                      default: llama3
+                    searxngUrl:
+                      type: string
+                    maxResults:
+                      type: integer
+                      default: 8
+                    language:
+                      type: string
+                      default: de-DE
+                    optimizeQuery:
+                      type: boolean
+                      default: true
+                    selectBestResult:
+                      type: boolean
+                      default: true
+                    fetchContent:
+                      type: boolean
+                      default: true
+      responses:
+        "200":
+          description: AI-enriched search results
+          content:
+            application/json:
+              schema:
+                type: object
+    put:
+      tags: [Search]
+      summary: Fetch page content from URL
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [url]
+              properties:
+                url:
+                  type: string
+                  format: uri
+                maxLength:
+                  type: integer
+      responses:
+        "200":
+          description: Page content
+          content:
+            application/json:
+              schema:
+                type: object
+    patch:
+      tags: [Search]
+      summary: Optimize a search query using AI
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [question]
+              properties:
+                question:
+                  type: string
+                ollamaHost:
+                  type: string
+                model:
+                  type: string
+      responses:
+        "200":
+          description: Optimized query
+          content:
+            application/json:
+              schema:
+                type: object
+
+  /api/search/optimize:
+    post:
+      tags: [Search]
+      summary: AI-optimize search result snippets
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [snippets, preset]
+              properties:
+                snippets:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      title:
+                        type: string
+                      url:
+                        type: string
+                      content:
+                        type: string
+                preset:
+                  type: string
+                  enum: [bullets, detailed, steps, risks, compare]
+                customPrompt:
+                  type: string
+                model:
+                  type: string
+                host:
+                  type: string
+                numCtx:
+                  type: integer
+      responses:
+        "200":
+          description: Optimized summary (streaming)
+          content:
+            application/x-ndjson: {}
+
+  # ── System ───────────────────────────────────────────────────────
+  /api/health:
+    get:
+      tags: [System]
+      summary: Health check for all services
+      parameters:
+        - name: ollamaHost
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Service health
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    enum: [healthy, degraded]
+                  timestamp:
+                    type: string
+                    format: date-time
+                  uptime:
+                    type: number
+                  services:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        name:
+                          type: string
+                        status:
+                          type: string
+                          enum: [ok, error, unavailable]
+                        latencyMs:
+                          type: integer
+                        version:
+                          type: string
+
+  /api/settings:
+    get:
+      tags: [System]
+      summary: Get application settings
+      responses:
+        "200":
+          description: Current settings
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  settings:
+                    $ref: "#/components/schemas/Settings"
+    post:
+      tags: [System]
+      summary: Update application settings
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Settings"
+      responses:
+        "200":
+          $ref: "#/components/responses/Success"
+    delete:
+      tags: [System]
+      summary: Reset settings to defaults
+      responses:
+        "200":
+          $ref: "#/components/responses/Success"
+
+  /api/models:
+    get:
+      tags: [System]
+      summary: List available models across providers
+      parameters:
+        - name: provider
+          in: query
+          schema:
+            type: string
+            enum: [ollama, openai, anthropic, google]
+      responses:
+        "200":
+          description: Model list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  providers:
+                    type: array
+                    items:
+                      type: string
+                  models:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        name:
+                          type: string
+                        size:
+                          type: number
+                        provider:
+                          type: string
+
+  /api/system-stats:
+    get:
+      tags: [System]
+      summary: Get system stats (CPU, RAM, GPU, Ollama models)
+      parameters:
+        - name: ollamaHost
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: System statistics
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  cpu:
+                    type: object
+                  memory:
+                    type: object
+                  gpu:
+                    type: object
+                  ollama:
+                    type: object
+
+  /api/ollama/pull:
+    get:
+      tags: [System]
+      summary: List popular models available for pulling
+      responses:
+        "200":
+          description: Model catalog
+          content:
+            application/json:
+              schema:
+                type: object
+    post:
+      tags: [System]
+      summary: Pull an Ollama model (streaming progress)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [model]
+              properties:
+                model:
+                  type: string
+                host:
+                  type: string
+      responses:
+        "200":
+          description: NDJSON pull progress stream
+          content:
+            application/x-ndjson: {}
+
+  /api/memory:
+    get:
+      tags: [System]
+      summary: List or search memories
+      parameters:
+        - name: q
+          in: query
+          schema:
+            type: string
+          description: Optional search query
+      responses:
+        "200":
+          description: Memory list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  memories:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Memory"
+    post:
+      tags: [System]
+      summary: Save a memory entry
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [key, value, category]
+              properties:
+                key:
+                  type: string
+                value:
+                  type: string
+                category:
+                  type: string
+                tags:
+                  type: array
+                  items:
+                    type: string
+                source:
+                  type: string
+      responses:
+        "200":
+          $ref: "#/components/responses/Success"
+    delete:
+      tags: [System]
+      summary: Delete a memory entry
+      parameters:
+        - name: id
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          $ref: "#/components/responses/Success"
+
+  /api/memory/relevant:
+    get:
+      tags: [System]
+      summary: Get context-relevant memories
+      parameters:
+        - name: message
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 10
+            maximum: 50
+      responses:
+        "200":
+          description: Relevant memories
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  memories:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Memory"
+
+  /api/migrate:
+    post:
+      tags: [System]
+      summary: Migrate localStorage data to filesystem
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                conversations:
+                  type: array
+                  items:
+                    type: object
+                settings:
+                  type: object
+                favorites:
+                  type: array
+                  items:
+                    type: string
+                graphSettings:
+                  type: object
+      responses:
+        "200":
+          $ref: "#/components/responses/Success"
+
+  /api/preferences/favorites:
+    get:
+      tags: [System]
+      summary: Load favorites
+      responses:
+        "200":
+          description: Favorites list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  favorites:
+                    type: array
+                    items:
+                      type: string
+    post:
+      tags: [System]
+      summary: Save favorites
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [favorites]
+              properties:
+                favorites:
+                  type: array
+                  items:
+                    type: string
+      responses:
+        "200":
+          $ref: "#/components/responses/Success"
+
+  /api/preferences/graph:
+    get:
+      tags: [System]
+      summary: Load graph visualization settings
+      responses:
+        "200":
+          description: Graph settings
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  settings:
+                    type: object
+    post:
+      tags: [System]
+      summary: Save graph visualization settings
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [settings]
+              properties:
+                settings:
+                  type: object
+      responses:
+        "200":
+          $ref: "#/components/responses/Success"
+
+  /api/gpu/kill-process:
+    post:
+      tags: [System]
+      summary: Kill a GPU process by PID
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [pid]
+              properties:
+                pid:
+                  type: integer
+                processName:
+                  type: string
+      responses:
+        "200":
+          $ref: "#/components/responses/Success"
+
+  /api/image-editor/ai-describe:
+    post:
+      tags: [Gallery]
+      summary: Describe an image using a vision model
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [image]
+              properties:
+                image:
+                  type: string
+                  description: Base64-encoded image
+      responses:
+        "200":
+          description: Image description
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  description:
+                    type: string
+
+  /api/image-editor/ai-edit:
+    post:
+      tags: [Gallery]
+      summary: AI-edit an image via ComfyUI
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [image, prompt]
+              properties:
+                image:
+                  type: string
+                  description: Base64-encoded image
+                prompt:
+                  type: string
+                denoise:
+                  type: number
+                  default: 0.6
+                workflowId:
+                  type: string
+      responses:
+        "200":
+          $ref: "#/components/responses/Success"
+
+  /api/pdf/license:
+    get:
+      tags: [System]
+      summary: Get PDF.js license information
+      responses:
+        "200":
+          description: License text
+          content:
+            application/json:
+              schema:
+                type: object
+
+components:
+  parameters:
+    IdPath:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: string
+    RootId:
+      name: rootId
+      in: query
+      required: true
+      schema:
+        type: string
+    FilePath:
+      name: path
+      in: query
+      required: true
+      schema:
+        type: string
+    BasePath:
+      name: basePath
+      in: query
+      schema:
+        type: string
+      description: Notes directory path (or via x-notes-path header / LOCAL_NOTES_PATH env)
+
+  responses:
+    Success:
+      description: Success
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              success:
+                type: boolean
+                const: true
+    Error:
+      description: Error
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              success:
+                type: boolean
+                const: false
+              error:
+                type: string
+
+  schemas:
+    AgentChatRequest:
+      type: object
+      required: [message]
+      properties:
+        message:
+          type: string
+        model:
+          type: string
+        enabledTools:
+          type: array
+          items:
+            type: string
+        maxIterations:
+          type: integer
+        conversationHistory:
+          type: array
+          items:
+            type: object
+            properties:
+              role:
+                type: string
+              content:
+                type: string
+        host:
+          type: string
+        presetId:
+          type: string
+        enablePlanning:
+          type: boolean
+        chatOptions:
+          type: object
+        provider:
+          type: string
+          enum: [ollama, openai, anthropic, google]
+
+    WorkflowRequest:
+      type: object
+      required: [message]
+      properties:
+        message:
+          type: string
+        model:
+          type: string
+        enabledTools:
+          type: array
+          items:
+            type: string
+        maxStepIterations:
+          type: integer
+        maxTotalIterations:
+          type: integer
+        provider:
+          type: string
+        initialPlan:
+          type: object
+          properties:
+            goal:
+              type: string
+            steps:
+              type: array
+              items:
+                type: object
+                properties:
+                  id:
+                    type: string
+                  description:
+                    type: string
+                  expectedTools:
+                    type: array
+                    items:
+                      type: string
+
+    ConversationSummary:
+      type: object
+      properties:
+        id:
+          type: string
+        title:
+          type: string
+        updatedAt:
+          type: string
+          format: date-time
+        messageCount:
+          type: integer
+        tags:
+          type: array
+          items:
+            type: string
+
+    Conversation:
+      type: object
+      required: [id, title, messages]
+      properties:
+        id:
+          type: string
+        title:
+          type: string
+        messages:
+          type: array
+          items:
+            type: object
+            properties:
+              role:
+                type: string
+                enum: [user, assistant, system]
+              content:
+                oneOf:
+                  - type: string
+                  - type: array
+        tags:
+          type: array
+          items:
+            type: string
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    Document:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        type:
+          type: string
+        size:
+          type: integer
+        uploadedAt:
+          type: string
+          format: date-time
+        status:
+          type: string
+
+    Note:
+      type: object
+      properties:
+        id:
+          type: string
+        title:
+          type: string
+        content:
+          type: string
+        tags:
+          type: array
+          items:
+            type: string
+        links:
+          type: array
+          items:
+            type: string
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    NoteInput:
+      type: object
+      required: [title]
+      properties:
+        id:
+          type: string
+        title:
+          type: string
+        content:
+          type: string
+        tags:
+          type: array
+          items:
+            type: string
+        basePath:
+          type: string
+
+    Memory:
+      type: object
+      properties:
+        id:
+          type: string
+        key:
+          type: string
+        value:
+          type: string
+        category:
+          type: string
+        tags:
+          type: array
+          items:
+            type: string
+        source:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+
+    WorkflowTemplate:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        description:
+          type: string
+        workflow:
+          type: object
+        createdAt:
+          type: string
+          format: date-time
+
+    AceStepGenerateRequest:
+      type: object
+      properties:
+        task_type:
+          type: string
+          enum: [text2music, caption, description]
+        caption:
+          type: string
+        lyrics:
+          type: string
+        description:
+          type: string
+        duration:
+          type: number
+        bpm:
+          type: number
+        batch:
+          type: integer
+
+    Settings:
+      type: object
+      properties:
+        comfyUIPath:
+          type: string
+        comfyUIPort:
+          type: integer
+          default: 8188
+        comfyUIAutoStart:
+          type: boolean
+        comfyUIOutputPath:
+          type: string
+        ollamaHost:
+          type: string
+          default: "http://localhost:11434"
+        sidebarWidth:
+          type: integer
+          default: 400
+        theme:
+          type: string
+          enum: [light, dark, system]
+          default: dark
+        autoSave:
+          type: boolean
+          default: true
+        streamingEnabled:
+          type: boolean
+          default: true
+        notesPath:
+          type: string
+        notesEmbeddingModel:
+          type: string
+          default: nomic-embed-text
+        notesAllowAI:
+          type: boolean
+          default: true
+        agentWorkspacePath:
+          type: string
+        aceStepUrl:
+          type: string
+          default: "http://localhost:8001"
+        aceStepPath:
+          type: string
+        aceStepAutoStart:
+          type: boolean
+        qwenTTSUrl:
+          type: string
+          default: "http://localhost:7861"
