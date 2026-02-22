@@ -44,6 +44,12 @@ Repository: `https://github.com/McMuff86/locai.git`
 | `/search` | Global search across documents and notes |
 | `/settings` | Application settings |
 | `/terminal` | Web terminal (xterm.js + node-pty) |
+| `/api/ace-step/health` | ACE-Step health check |
+| `/api/ace-step/generate` | ACE-Step music generation |
+| `/api/ace-step/status/[taskId]` | ACE-Step generation status |
+| `/api/qwen-tts/health` | Qwen3-TTS health check |
+| `/api/qwen-tts/generate` | Qwen3-TTS speech generation |
+| `/api/audio/[filename]` | Serve cached audio files |
 
 ---
 
@@ -168,6 +174,10 @@ Provider is selected per-request via `"provider": "anthropic"` etc. in API calls
 | `src/lib/notes/embeddings.ts` | Note embedding generation |
 | `src/lib/flow/engine.ts` | Flow graph compiler |
 | `src/server/terminal-handler.ts` | Terminal PTY attachment |
+| `src/lib/agents/tools/generateMusic.ts` | ACE-Step music generation tool |
+| `src/lib/agents/tools/textToSpeech.ts` | Qwen3-TTS text-to-speech tool |
+| `src/lib/aceStep/` | ACE-Step client library |
+| `src/lib/qwenTTS/` | Qwen3-TTS client library |
 
 ---
 

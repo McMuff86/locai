@@ -10,18 +10,22 @@ import path from 'path';
 import { AceStepClient } from '../../aceStep';
 import { RegisteredTool, ToolResult } from '../types';
 
+/** Directory for caching downloaded audio files locally. */
 const AUDIO_CACHE_DIR = path.join(homedir(), '.locai', 'audio');
 
+/** Ensures the audio cache directory exists, creating it recursively if needed. */
 function ensureAudioCacheDir(): void {
   mkdirSync(AUDIO_CACHE_DIR, { recursive: true });
 }
 
+/** Generates a unique filename for a cached audio file using timestamp and random suffix. */
 function generateFilename(): string {
   const timestamp = Date.now();
   const random = Math.random().toString(36).slice(2, 10);
   return `${timestamp}-${random}.wav`;
 }
 
+/** Retrieves the ACE-Step service URL from app settings, falling back to localhost:8001. */
 async function getAceStepUrl(): Promise<string> {
   try {
     const res = await fetch('http://localhost:3000/api/settings');
@@ -35,6 +39,10 @@ async function getAceStepUrl(): Promise<string> {
   return 'http://localhost:8001';
 }
 
+/**
+ * Agent tool for generating music via the local ACE-Step service.
+ * Supports caption-based and lyrics-based generation with configurable duration, BPM, and batch size.
+ */
 const generateMusicTool: RegisteredTool = {
   definition: {
     name: 'generate_music',

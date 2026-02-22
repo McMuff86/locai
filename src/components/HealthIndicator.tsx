@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { cn } from '@/lib/utils';
 
+/** Props for the HealthIndicator component. */
 interface HealthIndicatorProps {
   endpoint: string;
   label: string;
@@ -17,6 +18,10 @@ const STATE_CONFIG: Record<HealthState, { dot: string; text: string }> = {
   unreachable: { dot: 'bg-red-500', text: 'Nicht erreichbar' },
 };
 
+/**
+ * Displays a colored dot and status text indicating whether a service is reachable.
+ * Polls the given health endpoint on mount and at a configurable interval.
+ */
 export function HealthIndicator({ endpoint, label, pollInterval = 15000 }: HealthIndicatorProps) {
   const [state, setState] = useState<HealthState>('checking');
 

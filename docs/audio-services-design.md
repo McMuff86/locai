@@ -1,6 +1,6 @@
 # Architecture Design: Audio Services (ACE-Step + Qwen3-TTS)
 
-> **Status:** Draft  
+> **Status:** Implemented  
 > **Branch:** `nightly/22-02-audio-services`  
 > **Date:** 2026-02-22
 

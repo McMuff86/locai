@@ -4,6 +4,7 @@ import React, { useRef, useState, useEffect, useCallback } from 'react';
 import { Play, Pause, Download, Volume2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
+/** Props for the AudioPlayer component. */
 interface AudioPlayerProps {
   src: string;
   title?: string;
@@ -11,6 +12,7 @@ interface AudioPlayerProps {
   compact?: boolean;
 }
 
+/** Formats a duration in seconds to `m:ss` display format. */
 function formatTime(seconds: number): string {
   if (!isFinite(seconds) || seconds < 0) return '0:00';
   const m = Math.floor(seconds / 60);
@@ -18,6 +20,10 @@ function formatTime(seconds: number): string {
   return `${m}:${s.toString().padStart(2, '0')}`;
 }
 
+/**
+ * Inline audio player with play/pause, seekable progress bar, time display, and optional download.
+ * Supports a compact variant for embedding within chat messages.
+ */
 export function AudioPlayer({ src, title, downloadable = false, compact = false }: AudioPlayerProps) {
   const audioRef = useRef<HTMLAudioElement>(null);
   const [playing, setPlaying] = useState(false);

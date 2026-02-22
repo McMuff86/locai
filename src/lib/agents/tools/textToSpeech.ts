@@ -12,18 +12,22 @@ import { QwenTTSClient } from '../../qwenTTS';
 import type { Language, Speaker } from '../../qwenTTS';
 import { RegisteredTool, ToolResult } from '../types';
 
+/** Directory for caching downloaded audio files locally. */
 const AUDIO_CACHE_DIR = path.join(homedir(), '.locai', 'audio');
 
+/** Ensures the audio cache directory exists, creating it recursively if needed. */
 function ensureAudioCacheDir(): void {
   mkdirSync(AUDIO_CACHE_DIR, { recursive: true });
 }
 
+/** Generates a unique filename for a cached audio file using timestamp and random suffix. */
 function generateFilename(): string {
   const timestamp = Date.now();
   const random = Math.random().toString(36).slice(2, 10);
   return `${timestamp}-${random}.wav`;
 }
 
+/** Retrieves the Qwen3-TTS service URL from app settings, falling back to localhost:7861. */
 async function getQwenTTSUrl(): Promise<string> {
   try {
     const res = await fetch('http://localhost:3000/api/settings');
@@ -37,6 +41,10 @@ async function getQwenTTSUrl(): Promise<string> {
   return 'http://localhost:7861';
 }
 
+/**
+ * Agent tool for text-to-speech via the local Qwen3-TTS service.
+ * Supports three modes: voice cloning from reference audio, custom predefined speakers, and voice design from description.
+ */
 const textToSpeechTool: RegisteredTool = {
   definition: {
     name: 'text_to_speech',
