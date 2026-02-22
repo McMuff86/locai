@@ -23,6 +23,7 @@ import {
   X,
   ZoomIn,
   ZoomOut,
+  Music,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -35,6 +36,7 @@ import { MIN_WINDOW_SIZE } from '@/hooks/useFileCanvas';
 import dynamic from 'next/dynamic';
 import type { FilePreviewType } from '@/lib/filebrowser/types';
 import { ImageEditor } from './ImageEditor';
+import { WaveformPlayer } from '@/components/audio/WaveformPlayer';
 
 const PDFViewer = dynamic(
   () => import('./PDFViewer').then(mod => ({ default: mod.PDFViewer })),
@@ -71,6 +73,9 @@ function getFileIcon(extension: string) {
     return <FileText className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />;
   }
   if (extension === '.pdf') return <FileText className="h-3.5 w-3.5 text-red-500 flex-shrink-0" />;
+  if (['.mp3', '.wav', '.flac', '.ogg', '.aac', '.m4a', '.wma', '.opus'].includes(extension)) {
+    return <Music className="h-3.5 w-3.5 text-purple-500 flex-shrink-0" />;
+  }
   return <File className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />;
 }
 
@@ -854,6 +859,19 @@ function WindowContent({
             relativePath={relativePath}
             fileName={fileName}
           />
+        </div>
+      )}
+
+      {/* ── Audio player ────────────────────────────────────────── */}
+      {type === 'audio' && (
+        <div className="flex-1 min-h-0 flex items-center p-4">
+          <div className="w-full">
+            <WaveformPlayer
+              src={`/api/filebrowser/audio?${new URLSearchParams({ rootId, path: relativePath })}`}
+              title={fileName}
+              downloadable={false}
+            />
+          </div>
         </div>
       )}
 

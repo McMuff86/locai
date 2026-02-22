@@ -21,6 +21,7 @@ import { MarkdownRenderer } from '@/components/chat/MarkdownRenderer';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { oneDark } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import type { FilePreviewType } from '@/lib/filebrowser/types';
+import { WaveformPlayer } from '@/components/audio/WaveformPlayer';
 
 const syntaxTheme = oneDark as { [key: string]: CSSProperties };
 const OPEN_FILE_IN_AGENT_SESSION_KEY = 'openFileInAgent';
@@ -454,6 +455,27 @@ function PreviewContent({
             src={imageUrl}
             alt={relativePath}
             className="max-w-full max-h-[70vh] object-contain rounded-lg"
+          />
+        </div>
+      );
+    }
+
+    case 'audio': {
+      if (!rootId || !relativePath) {
+        return (
+          <p className="text-sm text-muted-foreground p-4">
+            Audiovorschau nicht verfügbar (fehlende Pfadangaben).
+          </p>
+        );
+      }
+      const audioParams = new URLSearchParams({ rootId, path: relativePath });
+      const audioUrl = `/api/filebrowser/audio?${audioParams}`;
+      return (
+        <div className="py-4 px-2">
+          <WaveformPlayer
+            src={audioUrl}
+            title={relativePath.split('/').pop() || 'Audio'}
+            downloadable={false}
           />
         </div>
       );

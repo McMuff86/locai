@@ -15,6 +15,7 @@ import {
   MoreHorizontal,
   Eye,
   FolderOpen,
+  Music,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
@@ -52,6 +53,9 @@ function getFileIcon(entry: FileEntry) {
   }
   if (['.md', '.txt', '.csv', '.log'].includes(ext)) {
     return <FileText className="h-4 w-4 text-muted-foreground" />;
+  }
+  if (['.mp3', '.wav', '.flac', '.ogg', '.aac', '.m4a', '.wma', '.opus'].includes(ext)) {
+    return <Music className="h-4 w-4 text-purple-500" />;
   }
   return <File className="h-4 w-4 text-muted-foreground" />;
 }

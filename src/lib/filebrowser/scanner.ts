@@ -20,6 +20,7 @@ export interface ListDirectoryOptions {
 }
 
 const IMAGE_EXTENSIONS = new Set(['.svg', '.png', '.jpg', '.jpeg', '.gif', '.webp', '.avif', '.ico']);
+const AUDIO_EXTENSIONS = new Set(['.mp3', '.wav', '.flac', '.ogg', '.aac', '.m4a', '.wma', '.opus']);
 
 export function getPreviewType(ext: string): FilePreviewType {
   if (ext === '.md') return 'markdown';
@@ -27,6 +28,7 @@ export function getPreviewType(ext: string): FilePreviewType {
   if (ext === '.txt' || ext === '.csv' || ext === '.log') return 'text';
   if (IMAGE_EXTENSIONS.has(ext)) return 'image';
   if (ext === '.pdf') return 'pdf';
+  if (AUDIO_EXTENSIONS.has(ext)) return 'audio';
   if (TEXT_EXTENSIONS.has(ext)) return 'code';
   return 'binary';
 }
@@ -277,6 +279,17 @@ export async function readFileContent(rootId: string, relativePath: string): Pro
 
   // PDFs are served separately via /api/filebrowser/pdf
   if (previewType === 'pdf') {
+    return {
+      content: '',
+      truncated: false,
+      size: stat.size,
+      previewType,
+      language: 'text',
+    };
+  }
+
+  // Audio files are served separately via /api/filebrowser/audio
+  if (previewType === 'audio') {
     return {
       content: '',
       truncated: false,
