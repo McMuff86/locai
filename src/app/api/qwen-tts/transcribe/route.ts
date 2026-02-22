@@ -8,6 +8,15 @@ export const dynamic = 'force-dynamic';
 
 const REFERENCES_DIR = path.join(homedir(), '.locai', 'audio', 'references');
 
+/**
+ * POST /api/qwen-tts/transcribe
+ *
+ * Transcribes a previously uploaded reference audio file via the Qwen3-TTS
+ * service. Expects `{ filePath }` in the JSON body pointing to a file inside
+ * `~/.locai/audio/references/`.
+ *
+ * @returns `{ text }` — the transcribed text.
+ */
 export async function POST(request: Request) {
   const denied = assertLocalRequest(request);
   if (denied) return denied;

@@ -11,6 +11,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 
+/** Props for the {@link SaveMenu} component. */
 interface SaveMenuProps {
   src: string;
   filename?: string;
@@ -19,6 +20,10 @@ interface SaveMenuProps {
   variant?: 'icon' | 'label';
 }
 
+/**
+ * Dropdown menu offering "Save as…" (browser download) and
+ * "Save to workspace" (persists the file server-side via API).
+ */
 export function SaveMenu({ src, filename, compact = false, variant = 'icon' }: SaveMenuProps) {
   const [saved, setSaved] = useState(false);
   const [saving, setSaving] = useState(false);

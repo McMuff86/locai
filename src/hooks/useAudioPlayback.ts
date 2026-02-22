@@ -2,6 +2,7 @@
 
 import { useRef, useState, useEffect, useCallback } from 'react';
 
+/** Return type for the {@link useAudioPlayback} hook. */
 export interface UseAudioPlaybackReturn {
   audioRef: React.RefObject<HTMLAudioElement | null>;
   playing: boolean;
@@ -15,6 +16,13 @@ export interface UseAudioPlaybackReturn {
   toggleLoop: () => void;
 }
 
+/**
+ * React hook that manages HTML audio element playback state.
+ * Provides play/pause toggle, seek, playback rate control, and looping.
+ *
+ * @param src - URL of the audio source to play.
+ * @returns Playback state and control functions.
+ */
 export function useAudioPlayback(src: string): UseAudioPlaybackReturn {
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const [playing, setPlaying] = useState(false);

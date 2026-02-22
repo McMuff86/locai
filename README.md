@@ -15,6 +15,7 @@ LocAI runs chat, agent workflows, documents (RAG), notes with knowledge graphs, 
 | Knowledge Graph | `/notes/graph` | 2D/3D force-directed graph of note connections |
 | Gallery | `/gallery` | ComfyUI image gallery with metadata, favorites, lightbox |
 | Image Editor | — | Built into file canvas: crop, resize, rotate, draw, shapes, text, filters, AI describe/edit |
+| SVG Viewer/Editor | — | Built into file canvas: preview and edit SVG files with syntax highlighting |
 | Audio | `/chat` | Generate music (ACE-Step) and text-to-speech (Qwen3-TTS) via agent tools |
 | Web Terminal | `/terminal` | xterm.js terminal with full PTY (PowerShell / Bash) |
 | Search | `/search` | Global search across documents and notes |

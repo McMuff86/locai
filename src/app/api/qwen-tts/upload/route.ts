@@ -29,6 +29,15 @@ const MIME_TO_EXT: Record<string, string> = {
   'audio/webm': 'webm',
 };
 
+/**
+ * POST /api/qwen-tts/upload
+ *
+ * Accepts a multipart `file` field containing an audio file and saves it to
+ * the local references directory (`~/.locai/audio/references/`).
+ * Used for uploading voice-cloning reference audio.
+ *
+ * @returns `{ filePath }` on success.
+ */
 export async function POST(request: Request) {
   const denied = assertLocalRequest(request);
   if (denied) return denied;

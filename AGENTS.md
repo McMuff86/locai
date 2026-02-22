@@ -49,6 +49,8 @@ Repository: `https://github.com/McMuff86/locai.git`
 | `/api/ace-step/status/[taskId]` | ACE-Step generation status |
 | `/api/qwen-tts/health` | Qwen3-TTS health check |
 | `/api/qwen-tts/generate` | Qwen3-TTS speech generation |
+| `/api/qwen-tts/upload` | Upload audio reference file for voice cloning |
+| `/api/qwen-tts/transcribe` | Transcribe an uploaded reference audio file |
 | `/api/audio/[filename]` | Serve cached audio files |
 
 ---
@@ -104,7 +106,7 @@ src/
 - **Provider-agnostic LLM**: All chat/agent/workflow code uses a `ChatProvider` interface. Provider is selected per-request. Ollama is the default.
 - **IndexedDB for persistence**: Conversations, documents, notes, flow templates stored client-side via `idb`.
 - **Flow compiler**: Visual graph → `WorkflowPlan` → executed by existing workflow engine. Linear execution for now.
-- **File canvas**: Desktop-like windowed file viewer with drag, resize, zoom-to-cursor. Pure CSS transforms (no library).
+- **File canvas**: Desktop-like windowed file viewer with drag, resize, zoom-to-cursor. Pure CSS transforms (no library). Supports SVG preview/edit type.
 - **Server Components by default**: Only `"use client"` where browser APIs or state are needed.
 
 ---
@@ -178,6 +180,9 @@ Provider is selected per-request via `"provider": "anthropic"` etc. in API calls
 | `src/lib/agents/tools/textToSpeech.ts` | Qwen3-TTS text-to-speech tool |
 | `src/lib/aceStep/` | ACE-Step client library |
 | `src/lib/qwenTTS/` | Qwen3-TTS client library |
+| `src/hooks/useAudioPlayback.ts` | React hook for audio playback controls (play, seek, rate, loop) |
+| `src/lib/audio-utils.ts` | Audio utility functions (time formatting, filename extraction) |
+| `src/components/audio/SaveMenu.tsx` | Dropdown menu for saving/downloading audio files |
 
 ---
 
