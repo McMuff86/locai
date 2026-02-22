@@ -53,7 +53,7 @@ const PDFViewer = dynamic(
 // ── Constants ─────────────────────────────────────────────────────────────────
 
 const syntaxTheme = oneDark as { [key: string]: CSSProperties };
-const EDITABLE_TYPES: FilePreviewType[] = ['text', 'code', 'json', 'markdown'];
+const EDITABLE_TYPES: FilePreviewType[] = ['text', 'code', 'json', 'markdown', 'svg'];
 const DEFAULT_FONT_SIZE = 13;
 const MIN_FONT_SIZE = 8;
 const MAX_FONT_SIZE = 24;
@@ -122,6 +122,7 @@ export function FileWindow({
   const [editedContent, setEditedContent] = useState('');
   const [isSaving, setIsSaving] = useState(false);
   const [markdownTab, setMarkdownTab] = useState<'edit' | 'preview'>('preview');
+  const [svgTab, setSvgTab] = useState<'code' | 'preview'>('preview');
 
   // ── Editor feature state ─────────────────────────────────────────
   const [wordWrap, setWordWrap] = useState(true);
@@ -287,6 +288,7 @@ export function FileWindow({
       setFileContent((prev) => (prev ? { ...prev, content: editedContent } : null));
       setIsEditMode(false);
       if (fileContent?.type === 'markdown') setMarkdownTab('preview');
+      if (fileContent?.type === 'svg') setSvgTab('preview');
       toast({
         title: 'Gespeichert',
         description: `"${win.file.name}" wurde gespeichert.`,
@@ -402,6 +404,32 @@ export function FileWindow({
               onMouseDown={(e) => e.stopPropagation()}
               style={{ userSelect: 'none' }}
             >
+              {/* SVG code/preview tabs */}
+              {fileContent.type === 'svg' && (
+                <div className="flex items-center gap-0.5 mr-1 rounded-md bg-muted/40 p-0.5">
+                  <button
+                    onClick={() => setSvgTab('code')}
+                    className={`px-2 py-0.5 rounded text-[11px] font-medium transition-colors ${
+                      svgTab === 'code'
+                        ? 'bg-background text-foreground shadow-sm'
+                        : 'text-muted-foreground hover:text-foreground'
+                    }`}
+                  >
+                    Code
+                  </button>
+                  <button
+                    onClick={() => setSvgTab('preview')}
+                    className={`px-2 py-0.5 rounded text-[11px] font-medium transition-colors ${
+                      svgTab === 'preview'
+                        ? 'bg-background text-foreground shadow-sm'
+                        : 'text-muted-foreground hover:text-foreground'
+                    }`}
+                  >
+                    Vorschau
+                  </button>
+                </div>
+              )}
+
               {/* Markdown edit/preview tabs */}
               {fileContent.type === 'markdown' && isEditMode && (
                 <div className="flex items-center gap-0.5 mr-1 rounded-md bg-muted/40 p-0.5">
@@ -490,6 +518,7 @@ export function FileWindow({
                     onClick={() => {
                       setEditedContent(fileContent.content);
                       setMarkdownTab('edit');
+                      setSvgTab('code');
                       setIsEditMode(true);
                     }}
                   >
@@ -508,6 +537,7 @@ export function FileWindow({
                         setIsEditMode(false);
                         setEditedContent(fileContent?.content ?? '');
                         if (fileContent?.type === 'markdown') setMarkdownTab('preview');
+                        if (fileContent?.type === 'svg') setSvgTab('preview');
                       }}
                       disabled={isSaving}
                     >
@@ -583,6 +613,7 @@ export function FileWindow({
                 fontSize={fontSize}
                 onFontSizeChange={setFontSize}
                 imageEditMode={imageEditMode}
+                svgTab={svgTab}
               />
             )}
           </div>
@@ -621,6 +652,7 @@ interface WindowContentProps {
   fontSize: number;
   onFontSizeChange: (size: number) => void;
   imageEditMode: boolean;
+  svgTab: 'code' | 'preview';
 }
 
 function WindowContent({
@@ -637,6 +669,7 @@ function WindowContent({
   fontSize,
   onFontSizeChange,
   imageEditMode,
+  svgTab,
 }: WindowContentProps) {
   const { content, type, language, truncated } = fileContent;
 
@@ -734,7 +767,7 @@ function WindowContent({
       )}
 
       {/* ── Edit Mode: line numbers + textarea + status bar ──────── */}
-      {isEditMode && (type !== 'markdown' || markdownTab === 'edit') && (
+      {isEditMode && (type !== 'markdown' || markdownTab === 'edit') && (type !== 'svg' || svgTab === 'code') && (
         <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
           {/* Line numbers + Textarea row */}
           <div className="flex-1 flex min-h-0 overflow-hidden">
@@ -822,6 +855,54 @@ function WindowContent({
       {type === 'markdown' && isEditMode && markdownTab === 'preview' && (
         <ScrollArea className="flex-1 min-h-0 px-4 py-3">
           <MarkdownRenderer content={editedContent} />
+        </ScrollArea>
+      )}
+
+      {/* ── SVG preview (edit mode, preview tab) ─────────────── */}
+      {type === 'svg' && isEditMode && svgTab === 'preview' && (
+        <ScrollArea className="flex-1 min-h-0 p-3">
+          <div className="flex items-center justify-center">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={`data:image/svg+xml;charset=utf-8,${encodeURIComponent(editedContent)}`}
+              alt="SVG Preview"
+              className="max-w-full object-contain rounded-lg"
+            />
+          </div>
+        </ScrollArea>
+      )}
+
+      {/* ── SVG read-only: code view ──────────────────────────── */}
+      {type === 'svg' && !isEditMode && svgTab === 'code' && (
+        <ScrollArea className="flex-1 min-h-0 p-3">
+          <SyntaxHighlighter
+            style={syntaxTheme}
+            language="xml"
+            PreTag="div"
+            customStyle={{
+              margin: 0,
+              padding: '0.75rem',
+              fontSize: '0.75rem',
+              borderRadius: '0.5rem',
+              background: 'hsl(var(--muted) / 0.5)',
+            }}
+          >
+            {content}
+          </SyntaxHighlighter>
+        </ScrollArea>
+      )}
+
+      {/* ── SVG read-only: preview ────────────────────────────── */}
+      {type === 'svg' && !isEditMode && svgTab === 'preview' && (
+        <ScrollArea className="flex-1 min-h-0 p-3">
+          <div className="flex items-center justify-center">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={`data:image/svg+xml;charset=utf-8,${encodeURIComponent(content)}`}
+              alt="SVG Preview"
+              className="max-w-full object-contain rounded-lg"
+            />
+          </div>
         </ScrollArea>
       )}
 

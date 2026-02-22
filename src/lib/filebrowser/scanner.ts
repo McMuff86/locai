@@ -19,12 +19,13 @@ export interface ListDirectoryOptions {
   includeChildCount?: boolean;
 }
 
-const IMAGE_EXTENSIONS = new Set(['.svg', '.png', '.jpg', '.jpeg', '.gif', '.webp', '.avif', '.ico']);
+const IMAGE_EXTENSIONS = new Set(['.png', '.jpg', '.jpeg', '.gif', '.webp', '.avif', '.ico']);
 const AUDIO_EXTENSIONS = new Set(['.mp3', '.wav', '.flac', '.ogg', '.aac', '.m4a', '.wma', '.opus']);
 
 export function getPreviewType(ext: string): FilePreviewType {
   if (ext === '.md') return 'markdown';
   if (ext === '.json') return 'json';
+  if (ext === '.svg') return 'svg';
   if (ext === '.txt' || ext === '.csv' || ext === '.log') return 'text';
   if (IMAGE_EXTENSIONS.has(ext)) return 'image';
   if (ext === '.pdf') return 'pdf';
