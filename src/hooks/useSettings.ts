@@ -41,6 +41,10 @@ export interface AppSettings {
   userAvatarUrl: string;
   aiAvatarType: 'icon' | 'image';
   aiAvatarUrl: string;
+
+  // Audio Services
+  aceStepUrl: string;
+  qwenTTSUrl: string;
 }
 
 const DEFAULT_SETTINGS: AppSettings = {
@@ -65,6 +69,8 @@ const DEFAULT_SETTINGS: AppSettings = {
   userAvatarUrl: '',
   aiAvatarType: 'icon',
   aiAvatarUrl: '',
+  aceStepUrl: 'http://localhost:8001',
+  qwenTTSUrl: 'http://localhost:7861',
 };
 
 export interface UseSettingsReturn {

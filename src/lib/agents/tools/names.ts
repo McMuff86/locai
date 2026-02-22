@@ -20,6 +20,8 @@ export const BUILTIN_TOOL_NAMES = [
   'generate_image',
   'read_pdf',
   'read_excel',
+  'generate_music',
+  'text_to_speech',
 ] as const;
 
 export type BuiltinToolName = (typeof BUILTIN_TOOL_NAMES)[number];
