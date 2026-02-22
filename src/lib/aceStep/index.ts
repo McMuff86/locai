@@ -1,5 +1,5 @@
-export { AceStepClient } from "./client.js";
-export { AceStepError, AceStepTimeoutError, AceStepGenerationError } from "./errors.js";
+export { AceStepClient } from "./client";
+export { AceStepError, AceStepTimeoutError, AceStepGenerationError } from "./errors";
 export type {
   AceStepConfig,
   TaskType,

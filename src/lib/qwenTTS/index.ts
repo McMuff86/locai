@@ -1,5 +1,5 @@
-export { QwenTTSClient, LANGUAGES, SPEAKERS, MODEL_SIZES } from "./client.js";
-export { QwenTTSError, QwenTTSConnectionError, QwenTTSGenerationError } from "./errors.js";
+export { QwenTTSClient, LANGUAGES, SPEAKERS, MODEL_SIZES } from "./client";
+export { QwenTTSError, QwenTTSConnectionError, QwenTTSGenerationError } from "./errors";
 export type {
   QwenTTSConfig,
   Language,
@@ -11,4 +11,4 @@ export type {
   TTSResult,
   TranscribeResult,
   GradioFileRef,
-} from "./types.js";
+} from "./types";

@@ -9,11 +9,11 @@ import type {
   TTSResult,
   TranscribeResult,
   GradioFileRef,
-} from "./types.js";
+} from "./types";
 import {
   QwenTTSConnectionError,
   QwenTTSGenerationError,
-} from "./errors.js";
+} from "./errors";
 
 const DEFAULT_CONFIG: QwenTTSConfig = {
   baseUrl: "http://127.0.0.1:7861",

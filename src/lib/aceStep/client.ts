@@ -9,8 +9,8 @@ import type {
   TaskInfo,
   TaskResult,
   TaskStatus,
-} from "./types.js";
-import { AceStepError, AceStepGenerationError, AceStepTimeoutError } from "./errors.js";
+} from "./types";
+import { AceStepError, AceStepGenerationError, AceStepTimeoutError } from "./errors";
 
 const DEFAULT_BASE_URL = "http://localhost:8001";
 const DEFAULT_TIMEOUT = 300_000;
