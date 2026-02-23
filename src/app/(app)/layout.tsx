@@ -20,6 +20,7 @@ import {
   Workflow,
   Terminal,
   Music,
+  Brain,
 } from 'lucide-react';
 import Link from 'next/link';
 import NextImage from 'next/image';
@@ -43,6 +44,7 @@ const navSections = [
       { href: '/audio',     label: 'Audio',     icon: Music },
       { href: '/notes',     label: 'Notizen',   icon: FileText },
       { href: '/terminal',  label: 'Terminal',  icon: Terminal },
+      { href: '/memories',  label: 'Memories',  icon: Brain },
     ],
   },
   {
