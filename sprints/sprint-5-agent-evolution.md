@@ -28,25 +28,25 @@
 ## 🔴 Prio 1: Multi-Step Agent Workflows
 
 ### ARCH-1: Agent Workflow Engine (Architect)
-- [ ] Architektur für Multi-Step Workflows definieren
+- [x] Architektur für Multi-Step Workflows definieren *(ADR-001, PR #16)*
   - Agent plant → führt Schritte aus → reflektiert → next step
   - Workflow-State-Machine (idle → planning → executing → reflecting → done)
   - Max iterations, timeout, cancellation
-- [ ] API-Contract für Workflow-Streaming definieren
-- [ ] Entscheidung: Workflow-Persistenz (Resume nach Browser-Refresh?)
+- [x] API-Contract für Workflow-Streaming definieren *(ADR-001)*
+- [x] Entscheidung: Workflow-Persistenz (Resume nach Browser-Refresh?) *(PR #48 — persistence + resume + REST cancel)*
 
 ### FEAT-1: Agent Workflow Implementation (Coder)
-- [ ] Workflow-Engine in `lib/agents/workflow.ts`
-- [ ] Planning-Step verbessern (strukturierter Plan mit Schritten)
-- [ ] Reflection-Step nach Tool-Ausführung (Agent bewertet eigenes Ergebnis)
-- [ ] Workflow-History (welche Steps wurden ausgeführt, mit Ergebnis)
-- [ ] Agent kann eigenen Plan anpassen basierend auf Zwischenergebnis
+- [x] Workflow-Engine in `lib/agents/workflow.ts` *(PR #18)*
+- [x] Planning-Step verbessern (strukturierter Plan mit Schritten) *(PR #18)*
+- [x] Reflection-Step nach Tool-Ausführung (Agent bewertet eigenes Ergebnis) *(PR #18)*
+- [x] Workflow-History (welche Steps wurden ausgeführt, mit Ergebnis) *(PR #18)*
+- [x] Agent kann eigenen Plan anpassen basierend auf Zwischenergebnis *(PR #18)*
 
 ### UI-1: Workflow Visualization (UI/UX)
-- [ ] Step-by-Step Progress Indicator
-- [ ] Collapsible Workflow Timeline
-- [ ] Tool-Call Cards mit Status-Icons (⏳ running, ✅ done, ❌ failed)
-- [ ] Smooth Animationen für neue Steps (Framer Motion)
+- [x] Step-by-Step Progress Indicator *(PR #18)*
+- [x] Collapsible Workflow Timeline *(PR #18)*
+- [x] Tool-Call Cards mit Status-Icons (⏳ running, ✅ done, ❌ failed) *(PR #33)*
+- [x] Smooth Animationen für neue Steps (Framer Motion) *(PR #18)*
 
 ### TEST-1: Workflow Tests (Tester)
 - [ ] Unit Tests für Workflow State Machine
@@ -59,10 +59,10 @@
 ## 🟡 Prio 2: RAG Upgrade
 
 ### ARCH-2: RAG Architecture Review (Architect)
-- [ ] Chunk-Strategie überdenken (500 chars → semantic chunking?)
-- [ ] Hybrid Search: BM25 + Cosine Similarity
-- [ ] Re-Ranking Strategy (Cross-Encoder lokal?)
-- [ ] Context Window Management (wie viel RAG-Context pro Query?)
+- [x] Chunk-Strategie überdenken (500 chars → semantic chunking?) *(ADR-002)*
+- [x] Hybrid Search: BM25 + Cosine Similarity *(ADR-002)*
+- [x] Re-Ranking Strategy (Cross-Encoder lokal?) *(ADR-002)*
+- [x] Context Window Management (wie viel RAG-Context pro Query?) *(ADR-002)*
 
 ### FEAT-2: RAG Improvements (Coder)
 - [ ] Drag & Drop Upload (Dateien in Chat-Area droppen)
@@ -81,25 +81,25 @@
 ## 🟡 Prio 3: Premium UI Polish
 
 ### UI-3: Global Theme & Layout Upgrade (UI/UX)
-- [ ] **Typography Upgrade:** Inter/Geist Font, bessere Hierarchie
-- [ ] **Color System:** Konsistentes Zinc/Neutral + Accent Color (Cyan oder Violet)
-- [ ] **Spacing & Rhythm:** 4px Grid System durchziehen
-- [ ] **Glass Morphism:** Subtle blur-Effekte auf Panels/Dialogs
-- [ ] **Micro-Interactions:** Button hover states, focus rings, transitions
+- [x] **Typography Upgrade:** Inter/Geist Font, bessere Hierarchie *(Design System Spec v1.0, PR #17)*
+- [x] **Color System:** Konsistentes Zinc/Neutral + Accent Color (Cyan oder Violet) *(PR #17, PR #21)*
+- [x] **Spacing & Rhythm:** 4px Grid System durchziehen *(PR #17)*
+- [x] **Glass Morphism:** Subtle blur-Effekte auf Panels/Dialogs *(PR #23)*
+- [x] **Micro-Interactions:** Button hover states, focus rings, transitions *(PR #35)*
 - [ ] **Loading States:** Skeleton Shimmer Upgrade (statt einfacher Pulse)
 - [ ] **Empty States:** Illustrationen/Icons statt nur Text
 - [ ] **Toast Redesign:** Slide-in von rechts mit Progress-Bar
 
 ### UI-4: Chat Experience (UI/UX)
-- [ ] Message-Bubbles Redesign (subtle shadows, better spacing)
-- [ ] Code-Block Upgrade (Filename Tab, Copy + Run Buttons)
+- [x] Message-Bubbles Redesign (subtle shadows, better spacing) *(PR #22, #23)*
+- [x] Code-Block Upgrade (Filename Tab, Copy + Run Buttons) *(PR #23)*
 - [ ] Typing Indicator Animation
 - [ ] Smooth Scroll-to-Bottom mit Button
-- [ ] Agent Tool-Calls: Card-Design mit Expand/Collapse
+- [x] Agent Tool-Calls: Card-Design mit Expand/Collapse *(PR #33)*
 
 ### UI-5: Navigation & Sidebar (UI/UX)
-- [ ] Sidebar Collapse Animation (nicht abrupt)
-- [ ] Active Route Indicator (Glow/Underline)
+- [x] Sidebar Collapse Animation (nicht abrupt) *(PR #23)*
+- [x] Active Route Indicator (Glow/Underline) *(PR #22)*
 - [ ] Conversation List: Hover Preview (erste Zeile)
 - [ ] Keyboard Navigation (↑↓ durch Conversations)
 
@@ -108,10 +108,10 @@
 ## 🟢 Prio 4: FileBrowser Ausbau
 
 ### FEAT-3: FileBrowser Features (Coder)
-- [ ] File Create/Edit direkt im Browser
-- [ ] Rename (Route existiert schon)
-- [ ] Move/Copy (Route existiert schon)
-- [ ] Multi-Select + Batch Operations
+- [x] File Create/Edit direkt im Browser *(Canvas Editor PR #25, #26)*
+- [x] Rename (Route existiert schon) *(PR #56)*
+- [x] Move/Copy (Route existiert schon) *(PR #56)*
+- [x] Multi-Select + Batch Operations *(PR #57 — resizable sidebar, action menu)*
 - [ ] "Open in Chat" Button (File als Context in Chat laden)
 
 ---
@@ -119,12 +119,12 @@
 ## 🟢 Prio 5: Developer Experience
 
 ### DOCS-1: Dokumentation (Docs Agent)
-- [ ] CLAUDE.md aktualisieren mit Sprint 5 Changes
-- [ ] CONTEXT-HANDOFF.md Pattern dokumentieren
-- [ ] API-Docs: OpenAPI/Swagger Spec für alle Routes
+- [x] CLAUDE.md aktualisieren mit Sprint 5 Changes *(PR #15, mehrere Updates)*
+- [x] CONTEXT-HANDOFF.md Pattern dokumentieren *(PR #14)*
+- [x] API-Docs: OpenAPI/Swagger Spec für alle Routes *(docs/API.md + docs/openapi.yaml — 2619 Zeilen!)*
 - [ ] Inline Code Comments: komplexe Logik in executor.ts, workflow.ts
-- [ ] Architecture Decision Records (ADRs) für Workflow Engine + RAG Strategy
-- [ ] README.md erstellen (aktuell fehlt eine!)
+- [x] Architecture Decision Records (ADRs) für Workflow Engine + RAG Strategy *(ADR-001 + ADR-002, PR #16)*
+- [x] README.md erstellen (aktuell fehlt eine!) *(PR #15)*
 
 ---
 
