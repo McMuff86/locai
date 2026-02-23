@@ -468,10 +468,10 @@ export function createPdfProcessingWorkflow(): VisualWorkflow {
       runtime: { status: 'idle' },
       config: {
         model: 'qwen3:30b-a3b',
-        prompt: 'Lies die angegebene PDF-Datei mit dem read_pdf Tool und gib den vollstaendigen Inhalt zurueck.',
-        systemPrompt: 'Du bist ein Dokumenten-Assistent. Lies PDF-Dateien praezise mit dem read_pdf Tool und gib den Inhalt vollstaendig zurueck.',
+        prompt: 'Lies die angegebene PDF-Datei mit dem read_pdf Tool. Rufe das Tool auf und gib den extrahierten Inhalt als Antwort zurueck.',
+        systemPrompt: 'Du bist ein Dokumenten-Assistent. WICHTIG: Du MUSST das read_pdf Tool aufrufen um die Datei zu lesen. Gib danach den vollstaendigen extrahierten Inhalt als Antwort zurueck. Erfinde keinen Inhalt.',
         tools: ['read_pdf'],
-        successCriteria: 'PDF-Inhalt wurde erfolgreich extrahiert',
+        successCriteria: 'PDF-Inhalt wurde erfolgreich mit read_pdf extrahiert',
       },
     },
   };
@@ -504,9 +504,9 @@ export function createPdfProcessingWorkflow(): VisualWorkflow {
       runtime: { status: 'idle' },
       config: {
         model: 'qwen3:30b-a3b',
-        prompt: 'Fuehre die Analyse gemaess den Anweisungen durch. Strukturiere die Ausgabe klar und uebersichtlich.',
-        systemPrompt: 'Du bist ein Experte fuer Dokumentenanalyse. Erstelle praezise, gut strukturierte Zusammenfassungen.',
-        tools: [],
+        prompt: 'Fuehre die Analyse gemaess den Anweisungen durch. Strukturiere die Ausgabe klar und uebersichtlich auf Deutsch.',
+        systemPrompt: 'Du bist ein Experte fuer Dokumentenanalyse. Erstelle praezise, gut strukturierte Zusammenfassungen auf Deutsch. Antworte direkt mit dem Ergebnis ohne Einleitung.',
+        tools: ['write_file'],
         successCriteria: 'Strukturierte Zusammenfassung wurde erstellt',
       },
     },
