@@ -152,3 +152,10 @@
 
 1. Fehlende Tests: Integrationstest für Multi-Step File Operation + UI Snapshot Tests.
 2. Optional: Chunk-Vorschau in Document Details über `chunkCount` hinaus ausbauen.
+
+### REFACTOR: Per-Node Workflow Settings durchreichen
+- [ ] Temperature + maxIterations aus AgentNodeConfig im Flow-Compiler auslesen
+- [ ] `compileVisualWorkflowToPlan()` erweitern: per-Step `temperature` und `maxIterations` in compiled Plan einbauen
+- [ ] Workflow-API (`/api/chat/agent/workflow`) per-Step Config an `executeAgentLoop()` durchreichen statt globale Defaults
+- [ ] UI: Temperature + Max Iterations Felder sind bereits im ConfigPanel (commit 4a8b049), müssen nur noch wired werden
+- **Kontext:** Aktuell gelten globale Defaults (temp 0.3, maxIterations 5, stepTimeout 600s) für alle Agent-Nodes gleich. Ziel: jeder Agent-Node kann eigene Werte haben (z.B. Read-Agent mit temp 0.1 + 2 Iterations, Analyze-Agent mit temp 0.7 + 5 Iterations).
