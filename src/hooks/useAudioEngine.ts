@@ -18,6 +18,8 @@ export function useAudioEngine() {
   const rafRef = useRef<number>(0);
   const loadedUrlRef = useRef<string | null>(null);
   const playPendingRef = useRef(false);
+  const startWallRef = useRef(0);
+  const startOffsetRef = useRef(0);
 
   const store = useStudioStore();
   const storeRef = useRef(store);
@@ -134,14 +136,14 @@ export function useAudioEngine() {
       return;
     }
 
-    const startWall = performance.now();
-    const startOffset = storeRef.current.currentTime;
-    const rate = storeRef.current.playbackRate;
-    const dur = storeRef.current.duration;
+    startWallRef.current = performance.now();
+    startOffsetRef.current = storeRef.current.currentTime;
 
     const update = () => {
-      const elapsed = ((performance.now() - startWall) / 1000) * rate;
-      let t = startOffset + elapsed;
+      const rate = storeRef.current.playbackRate;
+      const dur = storeRef.current.duration;
+      const elapsed = ((performance.now() - startWallRef.current) / 1000) * rate;
+      let t = startOffsetRef.current + elapsed;
 
       // Handle loop
       if (storeRef.current.loopEnabled && storeRef.current.loopEnd > storeRef.current.loopStart) {
@@ -155,8 +157,11 @@ export function useAudioEngine() {
             engine.player.stop();
             engine.player.start(undefined, ls);
           }
-          // Reset wall clock reference — we'll re-enter this effect via setPlaying
+          // Reset rAF reference point
+          startWallRef.current = performance.now();
+          startOffsetRef.current = ls;
           storeRef.current.setCurrentTime(ls);
+          rafRef.current = requestAnimationFrame(update);
           return;
         }
       }
@@ -225,6 +230,11 @@ export function useAudioEngine() {
   const seek = useCallback((time: number) => {
     const engine = engineRef.current;
     storeRef.current.setCurrentTime(time);
+
+    // Reset rAF reference point so time display stays in sync
+    startWallRef.current = performance.now();
+    startOffsetRef.current = time;
+
     if (engine && engine.player.loaded && storeRef.current.playing) {
       engine.player.stop();
       engine.player.start(undefined, time);
