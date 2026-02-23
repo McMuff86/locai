@@ -94,7 +94,12 @@ export function DocumentManager() {
 
       {/* Upload Zone */}
       <div className="flex-shrink-0">
-        <DocumentUpload ref={uploadRef} onUpload={uploadDocument} isUploading={isUploading} />
+        <DocumentUpload 
+          ref={uploadRef} 
+          onUpload={uploadDocument} 
+          isUploading={isUploading}
+          multiFile={true}
+        />
       </div>
 
       {/* Indexing Progress Bar */}

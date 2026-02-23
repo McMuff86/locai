@@ -15,7 +15,6 @@
 import { executeAgentLoop, AgentLoopParams } from './executor';
 import { ToolRegistry } from './registry';
 import type { ChatProvider, ChatMessage } from '../providers/types';
-import { OllamaProvider } from '../providers/ollama-provider';
 import {
   WorkflowStatus,
   WorkflowPlan,
@@ -46,6 +45,8 @@ export interface WorkflowEngineOptions {
   model: string;
   /** Tool registry */
   registry: ToolRegistry;
+  /** Chat provider to use */
+  provider: ChatProvider;
   /** Workflow configuration (merged with WORKFLOW_DEFAULTS) */
   config?: Partial<WorkflowConfig>;
   /** Conversation ID for state tracking */
@@ -54,8 +55,6 @@ export interface WorkflowEngineOptions {
   initialPlan?: WorkflowPlan;
   /** Ollama host override (deprecated — use provider) */
   host?: string;
-  /** Chat provider to use (default: OllamaProvider) */
-  provider?: ChatProvider;
 }
 
 // ---------------------------------------------------------------------------
@@ -251,13 +250,14 @@ export class WorkflowEngine {
       messages,
       model,
       registry,
+      provider,
       config: configOverrides = {},
       conversationId,
     } = options;
 
     this.registry = registry;
     this.messages = messages;
-    this.provider = options.provider ?? new OllamaProvider(options.host);
+    this.provider = provider;
     this.abortController = new AbortController();
 
     // Merge config with defaults

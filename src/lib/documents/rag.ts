@@ -149,7 +149,7 @@ export async function buildRAGContext(
   query: string,
   topK?: number,
   options?: SearchOptions,
-): Promise<RAGContext> {
+): Promise<RAGContext & { searchResults: DocumentSearchResult[] }> {
   const results = await searchDocuments(query, {
     ...options,
     topK: topK ?? options?.topK ?? DEFAULT_TOP_K,
@@ -168,6 +168,7 @@ export async function buildRAGContext(
     sources: Array.from(sourceMap.values()),
     query,
     totalMatches: results.length,
+    searchResults: results,
   };
 }
 
@@ -187,6 +188,7 @@ export async function buildRAGContext(
 export function injectRAGContext(
   messages: Message[],
   context: RAGContext,
+  searchResults?: DocumentSearchResult[],
 ): Message[] {
   if (context.chunks.length === 0) return messages;
 
@@ -203,8 +205,17 @@ export function injectRAGContext(
     const chunk = context.chunks[i];
     const source = context.sources.find((s) => s.id === chunk.documentId);
     const sourceName = source?.name || 'Unbekannt';
+    const chunkRef = `${chunk.documentId}#${chunk.index}`;
+    
+    // Get actual similarity score from search results
+    const searchResult = searchResults?.find(r => 
+      r.chunk.id === chunk.id && r.chunk.documentId === chunk.documentId
+    );
+    const score = searchResult?.score ?? 0;
+    const scorePercent = (score * 100).toFixed(1);
 
-    contextParts.push(`### Auszug ${i + 1} (aus: ${sourceName})`);
+    // Structured reference for UI parsing
+    contextParts.push(`### [QUELLE-${i + 1}: ${sourceName} | chunk:${chunkRef} | score:${scorePercent}%]`);
     contextParts.push('');
     contextParts.push(chunk.content);
     contextParts.push('');
