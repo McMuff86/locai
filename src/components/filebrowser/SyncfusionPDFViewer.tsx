@@ -2,8 +2,9 @@
 
 import { useEffect, useRef, useState } from "react";
 import { Loader2 } from "lucide-react";
+import { registerSyncfusionLicense } from "@/lib/syncfusion";
 
-// Import Syncfusion dark theme CSS
+// CSS must load after license registration module
 import "@syncfusion/ej2-base/styles/tailwind-dark.css";
 import "@syncfusion/ej2-pdfviewer/styles/tailwind-dark.css";
 
@@ -23,6 +24,9 @@ export function SyncfusionPDFViewer({
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  // Register license ASAP before any Syncfusion component renders
+  registerSyncfusionLicense(licenseKey);
+
   useEffect(() => {
     let destroyed = false;
 
@@ -36,7 +40,6 @@ export function SyncfusionPDFViewer({
           const reader = new FileReader();
           reader.onload = () => {
             const result = reader.result as string;
-            // Extract base64 part after data:...;base64,
             const base64Data = result.split(",")[1];
             resolve(base64Data);
           };
@@ -46,11 +49,8 @@ export function SyncfusionPDFViewer({
 
         if (destroyed || !containerRef.current) return;
 
-        // 2. Dynamic imports
-        const [{ registerLicense }, pdfViewerModule] = await Promise.all([
-          import("@syncfusion/ej2-base"),
-          import("@syncfusion/ej2-pdfviewer"),
-        ]);
+        // 2. Dynamic import PDF viewer module
+        const pdfViewerModule = await import("@syncfusion/ej2-pdfviewer");
 
         const {
           PdfViewer,
@@ -67,10 +67,7 @@ export function SyncfusionPDFViewer({
 
         if (destroyed || !containerRef.current) return;
 
-        // 3. Register license
-        registerLicense(licenseKey);
-
-        // 4. Inject modules
+        // 3. Inject modules
         PdfViewer.Inject(
           Toolbar,
           Magnification,
@@ -83,7 +80,7 @@ export function SyncfusionPDFViewer({
           FormDesigner
         );
 
-        // 5. Create viewer
+        // 4. Create viewer
         const viewer = new PdfViewer({
           enableToolbar: true,
           enableNavigation: true,
@@ -113,7 +110,7 @@ export function SyncfusionPDFViewer({
         viewerRef.current = viewer;
         viewer.appendTo(containerRef.current);
 
-        // 6. Load from base64
+        // 5. Load from base64
         viewer.load(`data:application/pdf;base64,${base64}`, "");
       } catch (err) {
         if (!destroyed) {
