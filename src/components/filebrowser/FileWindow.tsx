@@ -17,6 +17,7 @@ import {
   File,
   Loader2,
   Maximize2,
+  MessageSquare,
   Minimize2,
   Minus,
   Pencil,
@@ -27,6 +28,7 @@ import {
   ZoomOut,
   Music,
 } from 'lucide-react';
+import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useToast } from '@/components/ui/use-toast';
@@ -139,6 +141,7 @@ export function FileWindow({
   const [copied, setCopied] = useState(false);
 
   const { toast } = useToast();
+  const router = useRouter();
 
   // ── Drag (title bar) ─────────────────────────────────────────────
   const isDraggingRef = useRef(false);
@@ -320,6 +323,22 @@ export function FileWindow({
       // ignore
     }
   }, [editedContent, fileContent?.content, isEditMode]);
+
+  // ── Open in Chat ──────────────────────────────────────────────────
+  const CHAT_ELIGIBLE_EXTENSIONS = ['.txt', '.md', '.pdf', '.json', '.csv', '.log', '.ts', '.tsx', '.js', '.jsx', '.py', '.html', '.css', '.sh', '.go', '.rs', '.java', '.c', '.cpp', '.rb', '.php'];
+  const canOpenInChat = CHAT_ELIGIBLE_EXTENSIONS.includes(win.file.extension);
+
+  const handleOpenInChat = useCallback(() => {
+    const payload = {
+      rootId: win.rootId,
+      relativePath: win.file.relativePath,
+      filename: win.file.name,
+      previewSnippet: (fileContent?.content ?? '').slice(0, 4000),
+      previewTruncated: (fileContent?.content ?? '').length > 4000 || (fileContent?.truncated ?? false),
+    };
+    sessionStorage.setItem('openFileInAgent', JSON.stringify(payload));
+    router.push('/chat?openFileInAgent=1');
+  }, [win.rootId, win.file.relativePath, win.file.name, fileContent, router]);
 
   // ── Derived ───────────────────────────────────────────────────────
   const isWorkspace = win.rootId === 'workspace';
@@ -592,6 +611,18 @@ export function FileWindow({
                 )}
 
                 <div className="w-px h-4 bg-border/30 mx-0.5" />
+
+                {canOpenInChat && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-6 px-1.5 text-[11px] rounded-md hover:text-cyan-400"
+                    onClick={handleOpenInChat}
+                    title="Im Chat öffnen"
+                  >
+                    <MessageSquare className="h-3 w-3" />
+                  </Button>
+                )}
 
                 <Button
                   variant="ghost"
