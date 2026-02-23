@@ -238,3 +238,29 @@ export async function getRelevantMemories(
 export function formatMemories(memories: MemoryEntry[]): string {
   return memories.map(m => `- [${m.category}] ${m.key}: ${m.value}`).join('\n');
 }
+
+// ---------------------------------------------------------------------------
+// MEM-4: Save memory with embedding support (used by Workflow Engine)
+// ---------------------------------------------------------------------------
+export async function saveMemoryWithEmbedding(
+  params: {
+    key: string;
+    value: string;
+    category: MemoryCategory;
+    type?: string;
+    tags?: string[];
+    metadata?: Record<string, unknown>;
+  },
+  basePath?: string,
+): Promise<MemoryEntry> {
+  return saveMemory(
+    {
+      key: params.key,
+      value: params.value,
+      category: params.category,
+      tags: params.tags,
+      source: params.type ?? 'agent',
+    },
+    basePath,
+  );
+}
