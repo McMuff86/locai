@@ -44,4 +44,4 @@ next-env.d.ts
 README_AIAGENT.md
 
 # pdfjs worker (copied via postinstall)
-public/pdf.worker.mjs
+public/pdf.worker.mjspublic/ej2-pdfviewer-lib/

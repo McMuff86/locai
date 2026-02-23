@@ -1,13 +1,32 @@
 "use client";
 
-// Register license BEFORE any Syncfusion imports
 import "@/lib/syncfusion";
 
-import { useEffect, useRef, useState } from "react";
-import { Loader2 } from "lucide-react";
-
 import "@syncfusion/ej2-base/styles/tailwind-dark.css";
+import "@syncfusion/ej2-buttons/styles/tailwind-dark.css";
+import "@syncfusion/ej2-dropdowns/styles/tailwind-dark.css";
+import "@syncfusion/ej2-inputs/styles/tailwind-dark.css";
+import "@syncfusion/ej2-navigations/styles/tailwind-dark.css";
+import "@syncfusion/ej2-popups/styles/tailwind-dark.css";
+import "@syncfusion/ej2-splitbuttons/styles/tailwind-dark.css";
 import "@syncfusion/ej2-pdfviewer/styles/tailwind-dark.css";
+
+import {
+  PdfViewerComponent,
+  Toolbar,
+  Magnification,
+  Navigation,
+  LinkAnnotation,
+  BookmarkView,
+  ThumbnailView,
+  Print,
+  TextSelection,
+  Annotation,
+  TextSearch,
+  FormFields,
+  FormDesigner,
+  Inject,
+} from "@syncfusion/ej2-react-pdfviewer";
 
 interface SyncfusionPDFViewerProps {
   pdfUrl: string;
@@ -16,140 +35,42 @@ interface SyncfusionPDFViewerProps {
 
 export function SyncfusionPDFViewer({
   pdfUrl,
-  fileName,
 }: SyncfusionPDFViewerProps) {
-  const containerRef = useRef<HTMLDivElement>(null);
-  const viewerRef = useRef<unknown>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const absolutePdfUrl =
+    typeof window !== "undefined"
+      ? new URL(pdfUrl, window.location.origin).toString()
+      : pdfUrl;
 
-  useEffect(() => {
-    let destroyed = false;
-
-    async function init() {
-      try {
-        if (destroyed || !containerRef.current) return;
-
-        // Build absolute URL
-        const absolutePdfUrl = new URL(pdfUrl, window.location.origin).toString();
-
-        const {
-          PdfViewer,
-          Toolbar,
-          Magnification,
-          Navigation,
-          Annotation,
-          TextSelection,
-          TextSearch,
-          Print,
-          FormFields,
-          FormDesigner,
-          LinkAnnotation,
-          BookmarkView,
-          ThumbnailView,
-          PageOrganizer,
-        } = await import("@syncfusion/ej2-pdfviewer");
-
-        if (destroyed || !containerRef.current) return;
-
-        PdfViewer.Inject(
-          Toolbar,
-          Magnification,
-          Navigation,
-          Annotation,
-          TextSelection,
-          TextSearch,
-          Print,
-          FormFields,
-          FormDesigner,
-          LinkAnnotation,
-          BookmarkView,
-          ThumbnailView,
-          PageOrganizer
-        );
-
-        const viewer = new PdfViewer({
-          enableToolbar: true,
-          enableNavigation: true,
-          enableMagnification: true,
-          enableAnnotation: true,
-          enableTextSelection: true,
-          enableTextSearch: true,
-          enablePrint: true,
-          enableFormFields: true,
-          enableBookmark: true,
-          enableThumbnail: true,
-          height: "100%",
-          width: "100%",
-          // Standalone mode: resourceUrl WITHOUT serviceUrl
-          resourceUrl: `https://cdn.syncfusion.com/ej2/32.2.3/dist/ej2-pdfviewer-lib`,
-          documentLoad: () => {
-            if (!destroyed) setIsLoading(false);
-          },
-          documentLoadFailed: (args: {
-            errorStatusCode?: number;
-            errorMessage?: string;
-          }) => {
-            if (!destroyed) {
-              setError(args.errorMessage || "PDF konnte nicht geladen werden");
-              setIsLoading(false);
-            }
-          },
-        });
-
-        // Set documentPath BEFORE appendTo
-        viewer.documentPath = absolutePdfUrl;
-        viewerRef.current = viewer;
-        viewer.appendTo(containerRef.current);
-      } catch (err) {
-        if (!destroyed) {
-          setError(
-            err instanceof Error
-              ? err.message
-              : "Syncfusion PDF Viewer konnte nicht initialisiert werden"
-          );
-          setIsLoading(false);
-        }
-      }
-    }
-
-    init();
-
-    return () => {
-      destroyed = true;
-      if (viewerRef.current) {
-        try {
-          (viewerRef.current as { destroy(): void }).destroy();
-        } catch {
-          // ignore
-        }
-        viewerRef.current = null;
-      }
-    };
-  }, [pdfUrl]);
-
-  if (error) {
-    return (
-      <div className="flex items-center gap-2 p-4 text-sm text-destructive">
-        <p className="font-medium">PDF-Viewer Fehler:</p>
-        <p className="text-muted-foreground">{error}</p>
-      </div>
-    );
-  }
+  const resourceUrl =
+    typeof window !== "undefined"
+      ? `${window.location.origin}/ej2-pdfviewer-lib`
+      : "/ej2-pdfviewer-lib";
 
   return (
-    <div className="relative h-full w-full">
-      {isLoading && (
-        <div className="absolute inset-0 flex items-center justify-center bg-background/50 z-10">
-          <div className="flex flex-col items-center gap-2">
-            <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-            <span className="text-xs text-muted-foreground">
-              {fileName} wird geladen…
-            </span>
-          </div>
-        </div>
-      )}
-      <div ref={containerRef} className="h-full w-full" />
+    <div className="h-full w-full">
+      <PdfViewerComponent
+        id="pdfViewer"
+        documentPath={absolutePdfUrl}
+        resourceUrl={resourceUrl}
+        style={{ height: "100%", width: "100%" }}
+      >
+        <Inject
+          services={[
+            Toolbar,
+            Magnification,
+            Navigation,
+            Annotation,
+            LinkAnnotation,
+            BookmarkView,
+            ThumbnailView,
+            Print,
+            TextSelection,
+            TextSearch,
+            FormFields,
+            FormDesigner,
+          ]}
+        />
+      </PdfViewerComponent>
     </div>
   );
 }
