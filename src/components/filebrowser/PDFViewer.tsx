@@ -1,18 +1,12 @@
 "use client";
 
-import { useEffect, useRef, useState } from 'react';
-import { Loader2 } from 'lucide-react';
-import dynamic from 'next/dynamic';
-
-interface PDFEngine {
-  init(options: Record<string, unknown>): Promise<void>;
-  loadDocument(url: string): Promise<void>;
-  destroy(): void;
-}
+import { useEffect, useState } from "react";
+import { Loader2 } from "lucide-react";
+import dynamic from "next/dynamic";
 
 const PDFViewerFallback = dynamic(
   () =>
-    import('./PDFViewerFallback').then((mod) => ({
+    import("./PDFViewerFallback").then((mod) => ({
       default: mod.PDFViewerFallback,
     })),
   {
@@ -22,7 +16,22 @@ const PDFViewerFallback = dynamic(
         <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
       </div>
     ),
-  },
+  }
+);
+
+const SyncfusionPDFViewer = dynamic(
+  () =>
+    import("./SyncfusionPDFViewer").then((mod) => ({
+      default: mod.SyncfusionPDFViewer,
+    })),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="flex items-center justify-center h-full">
+        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+      </div>
+    ),
+  }
 );
 
 interface PDFViewerProps {
@@ -32,135 +41,46 @@ interface PDFViewerProps {
   fileName: string;
 }
 
-type ViewerMode = 'loading' | 'syncfusion' | 'fallback';
-
 export function PDFViewer({ pdfUrl, fileName }: PDFViewerProps) {
-  const containerRef = useRef<HTMLDivElement>(null);
-  const engineRef = useRef<PDFEngine | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [mode, setMode] = useState<ViewerMode>('loading');
+  const [licenseKey, setLicenseKey] = useState<string | null>(null);
+  const [checked, setChecked] = useState(false);
 
   useEffect(() => {
-    let destroyed = false;
-
-    async function initViewer() {
+    async function checkLicense() {
       try {
-        // 1. Fetch license key from server
-        const licenseRes = await fetch('/api/pdf/license');
-        const licenseData = (await licenseRes.json()) as {
+        const res = await fetch("/api/pdf/license");
+        const data = (await res.json()) as {
           success: boolean;
           licenseKey?: string;
-          error?: string;
         };
-
-        // No license key → use pdfjs fallback
-        if (!licenseRes.ok || !licenseData.success) {
-          if (!destroyed) {
-            setMode('fallback');
-            setIsLoading(false);
-          }
-          return;
+        if (res.ok && data.success && data.licenseKey) {
+          setLicenseKey(data.licenseKey);
         }
-
-        if (destroyed || !containerRef.current) return;
-
-        setMode('syncfusion');
-
-        // 2. Dynamic import pdf-core (client-only, needs DOM)
-        // eslint-disable-next-line @typescript-eslint/no-require-imports
-        const pdfCore = await (Function('return import("@mcmuff86/pdf-core")')() as Promise<{
-          createPDFEngine: (type: string) => PDFEngine;
-          registerSyncfusionLicense: (key: string | undefined) => void;
-        }>);
-        const { createPDFEngine, registerSyncfusionLicense } = pdfCore;
-
-        if (destroyed) return;
-
-        // 3. Register license & create engine
-        registerSyncfusionLicense(licenseData.licenseKey);
-        const engine = createPDFEngine('syncfusion');
-        engineRef.current = engine;
-
-        // 4. Initialize with container
-        await engine.init({
-          container: containerRef.current,
-          licenseKey: licenseData.licenseKey,
-          showToolbar: true,
-          enableAnnotations: true,
-          enableTextSelection: true,
-        });
-
-        if (destroyed) {
-          engine.destroy();
-          engineRef.current = null;
-          return;
-        }
-
-        // 5. Load document via URL
-        await engine.loadDocument(pdfUrl);
-
-        if (destroyed) {
-          engine.destroy();
-          engineRef.current = null;
-          return;
-        }
-
-        setIsLoading(false);
-      } catch (err) {
-        if (!destroyed) {
-          setError(
-            err instanceof Error
-              ? err.message
-              : 'PDF konnte nicht geladen werden',
-          );
-          setIsLoading(false);
-        }
+      } catch {
+        // No license → fallback
       }
+      setChecked(true);
     }
+    checkLicense();
+  }, []);
 
-    initViewer();
-
-    return () => {
-      destroyed = true;
-      if (engineRef.current) {
-        try {
-          engineRef.current.destroy();
-        } catch {
-          // ignore cleanup errors
-        }
-        engineRef.current = null;
-      }
-    };
-  }, [pdfUrl]);
-
-  // Fallback mode — render pdfjs-based viewer
-  if (mode === 'fallback') {
-    return <PDFViewerFallback pdfUrl={pdfUrl} fileName={fileName} />;
-  }
-
-  if (error) {
+  if (!checked) {
     return (
-      <div className="flex items-center gap-2 p-4 text-sm text-destructive">
-        <p className="font-medium">PDF-Viewer Fehler:</p>
-        <p className="text-muted-foreground">{error}</p>
+      <div className="flex items-center justify-center h-full">
+        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
       </div>
     );
   }
 
-  return (
-    <div className="relative h-full w-full">
-      {isLoading && (
-        <div className="absolute inset-0 flex items-center justify-center bg-background/50 z-10">
-          <div className="flex flex-col items-center gap-2">
-            <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-            <span className="text-xs text-muted-foreground">
-              {fileName} wird geladen…
-            </span>
-          </div>
-        </div>
-      )}
-      <div ref={containerRef} className="h-full w-full" />
-    </div>
-  );
+  if (licenseKey) {
+    return (
+      <SyncfusionPDFViewer
+        pdfUrl={pdfUrl}
+        fileName={fileName}
+        licenseKey={licenseKey}
+      />
+    );
+  }
+
+  return <PDFViewerFallback pdfUrl={pdfUrl} fileName={fileName} />;
 }
