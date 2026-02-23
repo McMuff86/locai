@@ -17,6 +17,7 @@ export function useAudioEngine() {
   const engineRef = useRef<AudioEngine | null>(null);
   const rafRef = useRef<number>(0);
   const loadedUrlRef = useRef<string | null>(null);
+  const playPendingRef = useRef(false);
 
   const store = useStudioStore();
   const storeRef = useRef(store);
@@ -58,6 +59,20 @@ export function useAudioEngine() {
     return engineRef.current;
   }, []);
 
+  // Start playback helper
+  const startPlayback = useCallback(async () => {
+    const engine = engineRef.current;
+    if (!engine || !engine.player.loaded) return;
+
+    if (Tone.getContext().state !== 'running') {
+      await Tone.start();
+    }
+    if (engine.player.state !== 'started') {
+      const offset = storeRef.current.currentTime;
+      engine.player.start(undefined, offset);
+    }
+  }, []);
+
   // Load track when activeTrack changes
   useEffect(() => {
     const track = store.activeTrack;
@@ -66,43 +81,51 @@ export function useAudioEngine() {
 
     const engine = getEngine();
     loadedUrlRef.current = track.url;
+    playPendingRef.current = false;
 
     // Stop current playback
     if (engine.player.state === 'started') {
       engine.player.stop();
     }
 
+    storeRef.current.setTrackLoading(true);
+
     engine.player.load(track.url).then(() => {
       const dur = engine.player.buffer.duration;
       storeRef.current.setDuration(dur);
       storeRef.current.setCurrentTime(0);
-    }).catch(() => {
-      // load failed silently
+      storeRef.current.setTrackLoading(false);
+
+      // If user already pressed play while loading, start now
+      if (playPendingRef.current || storeRef.current.playing) {
+        playPendingRef.current = false;
+        startPlayback();
+      }
+    }).catch((err) => {
+      const message = err instanceof Error ? err.message : 'Track konnte nicht geladen werden';
+      storeRef.current.setTrackError(message);
+      loadedUrlRef.current = null;
     });
-  }, [store.activeTrack, getEngine]);
+  }, [store.activeTrack, getEngine, startPlayback]);
 
   // Sync playback state
   useEffect(() => {
     const engine = engineRef.current;
-    if (!engine || !engine.player.loaded) return;
 
     if (store.playing) {
-      const ensureStarted = async () => {
-        if (Tone.getContext().state !== 'running') {
-          await Tone.start();
-        }
-        if (engine.player.state !== 'started') {
-          const offset = storeRef.current.currentTime;
-          engine.player.start(undefined, offset);
-        }
-      };
-      ensureStarted();
+      if (!engine || !engine.player.loaded) {
+        // Track still loading — mark as pending
+        playPendingRef.current = true;
+        return;
+      }
+      startPlayback();
     } else {
-      if (engine.player.state === 'started') {
+      playPendingRef.current = false;
+      if (engine && engine.player.state === 'started') {
         engine.player.stop();
       }
     }
-  }, [store.playing]);
+  }, [store.playing, startPlayback]);
 
   // Update currentTime via rAF while playing
   useEffect(() => {

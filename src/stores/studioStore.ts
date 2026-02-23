@@ -17,6 +17,8 @@ const DEFAULT_EQ_BANDS: EqBand[] = [
 interface StudioState {
   // Track
   activeTrack: { url: string; title: string } | null;
+  trackLoading: boolean;
+  trackError: string | null;
 
   // Transport
   playing: boolean;
@@ -45,6 +47,8 @@ interface StudioState {
 
   // Actions
   loadTrack: (url: string, title: string) => void;
+  setTrackLoading: (l: boolean) => void;
+  setTrackError: (e: string | null) => void;
   setPlaying: (p: boolean) => void;
   setCurrentTime: (t: number) => void;
   setDuration: (d: number) => void;
@@ -62,6 +66,8 @@ interface StudioState {
 
 const initialState = {
   activeTrack: null,
+  trackLoading: false,
+  trackError: null as string | null,
   playing: false,
   currentTime: 0,
   duration: 0,
@@ -84,8 +90,12 @@ export const useStudioStore = create<StudioState>((set) => ({
     set({
       ...initialState,
       activeTrack: { url, title },
+      trackLoading: true,
+      trackError: null,
     }),
 
+  setTrackLoading: (trackLoading) => set({ trackLoading }),
+  setTrackError: (trackError) => set({ trackError, trackLoading: false }),
   setPlaying: (playing) => set({ playing }),
   setCurrentTime: (currentTime) => set({ currentTime }),
   setDuration: (duration) => set({ duration }),
