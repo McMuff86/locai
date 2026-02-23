@@ -1,3 +1,44 @@
+# LocAI Context Handoff – Sprint 5 Final: Tests & Engine Config
+
+**Last updated:** 2026-02-23
+**Branch:** `sprint5/test-integration-final`
+**Build:** OK – all tests green
+
+## Sprint 5 Final Changes
+
+### Workflow Engine Configuration
+- `maxIterations`: 5 per step (allows multiple tool calls + responses per step)
+- `stepTimeout`: 600s (`stepTimeoutMs: 600_000`)
+- Configured in `WORKFLOW_DEFAULTS` in `src/lib/agents/workflowTypes.ts`
+
+### Flow Builder: ConfigPanel Enhancements
+- **Temperature** slider added to agent node configuration
+- **MaxIterations** control added to agent node configuration
+- Both propagate through flow compiler into workflow engine execution
+
+### PDF/Excel Templates Optimized
+- Templates now return short confirmations instead of repeating full content back
+- Reduces token usage and improves response speed for document operations
+
+### FileWindow Maximize Button
+- Added maximize/restore button (green dot, macOS style) to FileWindow title bar
+- Toggles between current size/position and full-canvas maximized state
+
+### Syncfusion PDF Viewer Integration
+- Integrated Syncfusion PDF Viewer component for in-app PDF rendering
+- Replaces basic iframe/embed fallback for PDF files in FileWindow
+
+### Integration Tests
+- New `workflowIntegration.test.ts`: Multi-step file operation workflow (read → process → write)
+  - Tests tool call execution via in-memory filesystem mocks
+  - Verifies file content is actually written through the workflow pipeline
+  - Tests error handling for missing files
+- Fixed 2 previously-skipped edge case tests in `workflowEdgeCases.test.ts`:
+  - **Empty steps array**: `parsePlan()` returns valid plan with 0 steps; engine accepts it without triggering fallback
+  - **State queries during execution**: Replaced timing-dependent `setInterval` polling with deterministic event-type observation
+
+---
+
 # LocAI Context Handoff – UI Polish: Image Editor, File Browser, Notes
 
 **Last updated:** 2026-02-20

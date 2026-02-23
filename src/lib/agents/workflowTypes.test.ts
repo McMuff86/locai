@@ -502,7 +502,7 @@ describe('WorkflowTypes - Data Structure Validation', () => {
       expect(WORKFLOW_DEFAULTS.maxSteps).toBe(8);
       expect(WORKFLOW_DEFAULTS.maxRePlans).toBe(2);
       expect(WORKFLOW_DEFAULTS.timeoutMs).toBe(600_000); // 10 minutes
-      expect(WORKFLOW_DEFAULTS.stepTimeoutMs).toBe(240_000); // 4 minutes
+      expect(WORKFLOW_DEFAULTS.stepTimeoutMs).toBe(600_000); // 10 minutes
       expect(WORKFLOW_DEFAULTS.enableReflection).toBe(true); // Default ON per Adi's decision
       expect(WORKFLOW_DEFAULTS.enablePlanning).toBe(true);
     });
