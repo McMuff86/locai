@@ -6,7 +6,6 @@ import "@/lib/syncfusion";
 import { useEffect, useRef, useState } from "react";
 import { Loader2 } from "lucide-react";
 
-// CSS after license registration
 import "@syncfusion/ej2-base/styles/tailwind-dark.css";
 import "@syncfusion/ej2-pdfviewer/styles/tailwind-dark.css";
 
@@ -31,11 +30,8 @@ export function SyncfusionPDFViewer({
       try {
         if (destroyed || !containerRef.current) return;
 
-        // 1. Build absolute URL for the PDF
+        // Build absolute URL
         const absolutePdfUrl = new URL(pdfUrl, window.location.origin).toString();
-
-        // 2. Dynamic import PDF viewer module
-        const pdfViewerModule = await import("@syncfusion/ej2-pdfviewer");
 
         const {
           PdfViewer,
@@ -48,11 +44,14 @@ export function SyncfusionPDFViewer({
           Print,
           FormFields,
           FormDesigner,
-        } = pdfViewerModule;
+          LinkAnnotation,
+          BookmarkView,
+          ThumbnailView,
+          PageOrganizer,
+        } = await import("@syncfusion/ej2-pdfviewer");
 
         if (destroyed || !containerRef.current) return;
 
-        // 3. Inject modules
         PdfViewer.Inject(
           Toolbar,
           Magnification,
@@ -62,12 +61,14 @@ export function SyncfusionPDFViewer({
           TextSearch,
           Print,
           FormFields,
-          FormDesigner
+          FormDesigner,
+          LinkAnnotation,
+          BookmarkView,
+          ThumbnailView,
+          PageOrganizer
         );
 
-        // 4. Create viewer with document URL
         const viewer = new PdfViewer({
-          documentPath: absolutePdfUrl,
           enableToolbar: true,
           enableNavigation: true,
           enableMagnification: true,
@@ -76,9 +77,12 @@ export function SyncfusionPDFViewer({
           enableTextSearch: true,
           enablePrint: true,
           enableFormFields: true,
+          enableBookmark: true,
+          enableThumbnail: true,
           height: "100%",
           width: "100%",
-          resourceUrl: `https://cdn.syncfusion.com/ej2/32.2.5/dist/ej2-pdfviewer-lib`,
+          // Standalone mode: resourceUrl WITHOUT serviceUrl
+          resourceUrl: `https://cdn.syncfusion.com/ej2/32.2.3/dist/ej2-pdfviewer-lib`,
           documentLoad: () => {
             if (!destroyed) setIsLoading(false);
           },
@@ -93,6 +97,8 @@ export function SyncfusionPDFViewer({
           },
         });
 
+        // Set documentPath BEFORE appendTo
+        viewer.documentPath = absolutePdfUrl;
         viewerRef.current = viewer;
         viewer.appendTo(containerRef.current);
       } catch (err) {
