@@ -124,6 +124,56 @@
 
 ---
 
+## 🟡 Prio 7: Studio & Audio
+
+### STUDIO-1: Studio Verbesserung
+- [ ] Studio UI aufräumen und polishen
+- [ ] Bessere Projekt-Verwaltung (Ordner, Tags)
+- [ ] Waveform-Visualisierung verbessern
+
+### STUDIO-2: Music Generation Verbesserung
+- [ ] ACE-Step Integration optimieren (Prompts, Styles, Qualität)
+- [ ] Preset-System für Genres/Stile
+- [ ] Batch-Generation (mehrere Varianten auf einmal)
+- [ ] Progress-Anzeige während Generierung
+
+### STUDIO-3: Voice Clone fertig implementieren
+- [ ] Voice Clone Pipeline end-to-end
+- [ ] Upload eigene Voice Samples
+- [ ] TTS mit geklonter Stimme
+- [ ] Voice Library (gespeicherte Stimmen verwalten)
+
+---
+
+## 🔴 Prio 8: UI/UX Verbesserung
+
+### UX-5: Generelles UI/UX Polish
+- [ ] Konsistente Animationen (Framer Motion überall)
+- [ ] Loading States für alle async Operationen
+- [ ] Error States mit hilfreichen Meldungen
+- [ ] Toast/Notification System vereinheitlichen
+- [ ] Keyboard Shortcuts (Cmd+K, Cmd+N, etc.)
+- [ ] Dark/Light Theme Konsistenz prüfen
+
+### UX-6: Navigation & Layout
+- [ ] Sidebar optimieren (Collapsible, Badges)
+- [ ] Breadcrumbs wo sinnvoll
+- [ ] Quick-Switch zwischen Bereichen
+
+---
+
+## 🟡 Prio 9: Performance
+
+### PERF-1: Performance Optimierung
+- [ ] Bundle Size analysieren und reduzieren
+- [ ] Lazy Loading für schwere Komponenten (PDF Viewer, Studio)
+- [ ] API Response Caching wo sinnvoll
+- [ ] Ollama Connection Pooling / Keep-Alive
+- [ ] Memory Leaks identifizieren und fixen
+- [ ] Lighthouse Score messen und optimieren
+
+---
+
 ## Definition of Done
 
 - [ ] Alle Tests grün (`npm run preflight`)
