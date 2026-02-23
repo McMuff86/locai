@@ -7,7 +7,7 @@
 import path from 'path';
 import { promises as fs } from 'fs';
 import { v4 as uuidv4 } from 'uuid';
-import { MemoryEntry, MemoryStore, MemoryLogEvent, MemoryCategory } from './types';
+import { MemoryEntry, MemoryStore, MemoryLogEvent, MemoryCategory, MemoryType } from './types';
 import { MAX_MEMORY_ENTRIES, MEMORY_SCHEMA_VERSION, MEMORY_FILE, MEMORY_LOG_FILE } from './constants';
 
 // ---------------------------------------------------------------------------
@@ -222,14 +222,47 @@ export async function searchMemories(
 
 /**
  * Get relevant memories for a user message (for auto-injection).
- * Returns memories sorted by relevance score.
+ * Uses semantic search if embeddings are available, falls back to keyword search.
+ * Respects a ~2000 token budget and 0.7 confidence threshold.
  */
 export async function getRelevantMemories(
   message: string,
   limit: number = 10,
   basePath?: string,
 ): Promise<MemoryEntry[]> {
-  return searchMemories(message, limit, basePath);
+  // Try semantic search first
+  try {
+    const semanticResults = await semanticSearch(message, limit, 0.7, basePath);
+    if (semanticResults.length > 0) {
+      return applyTokenBudget(semanticResults, 2000);
+    }
+  } catch {
+    // Fall back to keyword search
+  }
+  const results = await searchMemories(message, limit, basePath);
+  return applyTokenBudget(results, 2000);
+}
+
+/**
+ * Estimate token count (~4 chars per token).
+ */
+function estimateTokens(text: string): number {
+  return Math.ceil(text.length / 4);
+}
+
+/**
+ * Trim memories to fit within a token budget.
+ */
+function applyTokenBudget(memories: MemoryEntry[], maxTokens: number): MemoryEntry[] {
+  const result: MemoryEntry[] = [];
+  let tokens = 0;
+  for (const m of memories) {
+    const entryTokens = estimateTokens(`- [${m.category}] ${m.key}: ${m.value}`);
+    if (tokens + entryTokens > maxTokens) break;
+    tokens += entryTokens;
+    result.push(m);
+  }
+  return result;
 }
 
 /**
@@ -237,4 +270,187 @@ export async function getRelevantMemories(
  */
 export function formatMemories(memories: MemoryEntry[]): string {
   return memories.map(m => `- [${m.category}] ${m.key}: ${m.value}`).join('\n');
+}
+
+// ---------------------------------------------------------------------------
+// Embedding helpers (Ollama nomic-embed-text)
+// ---------------------------------------------------------------------------
+
+const EMBED_MODEL = 'nomic-embed-text';
+
+async function getOllamaHost(): Promise<string> {
+  return process.env.OLLAMA_HOST || 'http://localhost:11434';
+}
+
+async function generateEmbedding(text: string): Promise<number[]> {
+  const host = await getOllamaHost();
+  const resp = await fetch(`${host}/api/embed`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ model: EMBED_MODEL, input: text }),
+  });
+  if (!resp.ok) {
+    throw new Error(`Embedding request failed: ${resp.status}`);
+  }
+  const data = await resp.json();
+  if (data.embeddings && Array.isArray(data.embeddings) && data.embeddings.length > 0) {
+    return data.embeddings[0];
+  }
+  if (data.embedding && Array.isArray(data.embedding)) {
+    return data.embedding;
+  }
+  throw new Error('No embedding returned from Ollama');
+}
+
+function cosineSimilarity(a: number[], b: number[]): number {
+  if (a.length !== b.length) return 0;
+  let dot = 0, normA = 0, normB = 0;
+  for (let i = 0; i < a.length; i++) {
+    dot += a[i] * b[i];
+    normA += a[i] * a[i];
+    normB += b[i] * b[i];
+  }
+  const denom = Math.sqrt(normA) * Math.sqrt(normB);
+  return denom === 0 ? 0 : dot / denom;
+}
+
+// ---------------------------------------------------------------------------
+// Semantic search
+// ---------------------------------------------------------------------------
+
+export async function semanticSearch(
+  query: string,
+  limit: number = 10,
+  threshold: number = 0.7,
+  basePath?: string,
+): Promise<MemoryEntry[]> {
+  const queryEmbedding = await generateEmbedding(query);
+  const store = await loadMemoryStore(basePath);
+  const now = new Date().toISOString();
+
+  const scored = store.entries
+    .filter(e => e.embedding && e.embedding.length > 0)
+    .map(entry => ({
+      entry,
+      score: cosineSimilarity(queryEmbedding, entry.embedding!),
+    }))
+    .filter(s => s.score >= threshold)
+    .sort((a, b) => b.score - a.score)
+    .slice(0, limit);
+
+  // Update lastAccessedAt for retrieved memories
+  if (scored.length > 0) {
+    const accessedIds = new Set(scored.map(s => s.entry.id));
+    for (const entry of store.entries) {
+      if (accessedIds.has(entry.id)) {
+        entry.lastAccessedAt = now;
+      }
+    }
+    await saveMemoryStore(store, basePath);
+  }
+
+  return scored.map(s => s.entry);
+}
+
+// ---------------------------------------------------------------------------
+// Enhanced save with embedding
+// ---------------------------------------------------------------------------
+
+export async function saveMemoryWithEmbedding(
+  params: {
+    key: string;
+    value: string;
+    category: MemoryCategory;
+    type?: MemoryType;
+    tags?: string[];
+    source?: string;
+    metadata?: Record<string, unknown>;
+  },
+  basePath?: string,
+): Promise<MemoryEntry> {
+  let embedding: number[] | undefined;
+  try {
+    embedding = await generateEmbedding(`${params.key}: ${params.value}`);
+  } catch {
+    // Embedding generation is best-effort
+  }
+
+  const entry = await saveMemory(params, basePath);
+
+  if (embedding || params.type || params.metadata) {
+    const store = await loadMemoryStore(basePath);
+    const idx = store.entries.findIndex(e => e.id === entry.id);
+    if (idx >= 0) {
+      if (embedding) store.entries[idx].embedding = embedding;
+      if (params.type) store.entries[idx].type = params.type;
+      if (params.metadata) store.entries[idx].metadata = params.metadata as MemoryEntry['metadata'];
+      store.entries[idx].lastAccessedAt = new Date().toISOString();
+      await saveMemoryStore(store, basePath);
+      return store.entries[idx];
+    }
+  }
+
+  return entry;
+}
+
+// ---------------------------------------------------------------------------
+// Prune: archive old memories (>30 days without access)
+// ---------------------------------------------------------------------------
+
+const PRUNE_DAYS = 30;
+
+export interface PruneResult {
+  archived: number;
+  remaining: number;
+  archivedIds: string[];
+}
+
+export async function pruneMemories(basePath?: string): Promise<PruneResult> {
+  const dir = basePath || defaultBasePath();
+  const store = await loadMemoryStore(dir);
+  const now = Date.now();
+  const cutoff = now - PRUNE_DAYS * 24 * 60 * 60 * 1000;
+
+  const toArchive: MemoryEntry[] = [];
+  const toKeep: MemoryEntry[] = [];
+
+  for (const entry of store.entries) {
+    const lastAccess = entry.lastAccessedAt
+      ? new Date(entry.lastAccessedAt).getTime()
+      : new Date(entry.updatedAt).getTime();
+
+    if (lastAccess < cutoff) {
+      toArchive.push(entry);
+    } else {
+      toKeep.push(entry);
+    }
+  }
+
+  if (toArchive.length === 0) {
+    return { archived: 0, remaining: store.entries.length, archivedIds: [] };
+  }
+
+  const archivePath = path.join(dir, 'archive.jsonl');
+  await ensureDir(dir);
+  const archiveLines = toArchive.map(e => JSON.stringify(e)).join('\n') + '\n';
+  await fs.appendFile(archivePath, archiveLines, 'utf-8');
+
+  store.entries = toKeep;
+  await saveMemoryStore(store, dir);
+
+  const timestamp = new Date().toISOString();
+  for (const entry of toArchive) {
+    await appendLog({
+      timestamp,
+      action: 'prune',
+      entryId: entry.id,
+      key: entry.key,
+    }, dir);
+  }
+
+  return {
+    archived: toArchive.length,
+    remaining: toKeep.length,
+    archivedIds: toArchive.map(e => e.id),
+  };
 }
