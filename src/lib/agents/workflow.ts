@@ -1164,7 +1164,7 @@ export class WorkflowEngine {
       model: this.config.model,
       registry: this.registry,
       options: {
-        maxIterations: 3, // Allow tool call + response + optional follow-up per step
+        maxIterations: 5, // Allow multiple tool calls + responses per step
         enabledTools: this.config.enabledTools,
         signal: stepAbort.signal,
         chatOptions: { temperature: 0.3 },

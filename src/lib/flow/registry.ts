@@ -468,8 +468,8 @@ export function createPdfProcessingWorkflow(): VisualWorkflow {
       runtime: { status: 'idle' },
       config: {
         model: 'qwen3:30b-a3b',
-        prompt: 'Lies die angegebene PDF-Datei mit dem read_pdf Tool. Rufe das Tool auf und gib den extrahierten Inhalt als Antwort zurueck.',
-        systemPrompt: 'Du bist ein Dokumenten-Assistent. WICHTIG: Du MUSST das read_pdf Tool aufrufen um die Datei zu lesen. Gib danach den vollstaendigen extrahierten Inhalt als Antwort zurueck. Erfinde keinen Inhalt.',
+        prompt: 'Lies die angegebene PDF-Datei mit dem read_pdf Tool. Rufe das Tool auf und bestaetige kurz was du gelesen hast (Seitenanzahl, Dokumenttyp). Gib NICHT den gesamten Inhalt nochmal aus.',
+        systemPrompt: 'Du bist ein Dokumenten-Assistent. WICHTIG: Rufe read_pdf auf um die Datei zu lesen. Antworte danach NUR mit einer kurzen Bestaetigung (z.B. "PDF gelesen: 12 Seiten, Verzeichnis der SIA-Publikationen"). Gib den Inhalt NICHT nochmal aus - er wird automatisch an den naechsten Schritt weitergegeben.',
         tools: ['read_pdf'],
         successCriteria: 'PDF-Inhalt wurde erfolgreich mit read_pdf extrahiert',
       },
@@ -577,8 +577,8 @@ export function createExcelProcessingWorkflow(): VisualWorkflow {
       runtime: { status: 'idle' },
       config: {
         model: 'qwen3:30b-a3b',
-        prompt: 'Lies die angegebene Excel-Datei mit dem read_excel Tool und gib den vollstaendigen Inhalt aller Sheets zurueck.',
-        systemPrompt: 'Du bist ein Daten-Assistent. Lies Excel-Dateien praezise mit dem read_excel Tool und gib den Inhalt vollstaendig zurueck.',
+        prompt: 'Lies die angegebene Excel-Datei mit dem read_excel Tool. Bestaetige kurz was du gelesen hast (Sheets, Zeilenanzahl). Gib NICHT den gesamten Inhalt nochmal aus.',
+        systemPrompt: 'Du bist ein Daten-Assistent. Rufe read_excel auf. Antworte danach NUR mit einer kurzen Bestaetigung (z.B. "Excel gelesen: 3 Sheets, 150 Zeilen"). Der Inhalt wird automatisch an den naechsten Schritt weitergegeben.',
         tools: ['read_excel'],
         successCriteria: 'Excel-Inhalt wurde erfolgreich extrahiert',
       },

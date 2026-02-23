@@ -477,7 +477,7 @@ export const WORKFLOW_DEFAULTS: Omit<WorkflowConfig, 'model' | 'enabledTools' | 
   maxSteps: 8,
   maxRePlans: 2,
   timeoutMs: 600_000,
-  stepTimeoutMs: 240_000,
+  stepTimeoutMs: 600_000,
   enableReflection: true,  // Default ON
   enablePlanning: true,
 } as const;
