@@ -186,6 +186,31 @@ Provider is selected per-request via `"provider": "anthropic"` etc. in API calls
 
 ---
 
+## Sprint 5+6 Patterns & Conventions
+
+### Workflow Engine
+- Defaults in `WORKFLOW_DEFAULTS` (`src/lib/agents/workflowTypes.ts`): `maxIterations: 5`, `stepTimeoutMs: 600_000`
+- Per-node config (temperature, maxIterations) flows through: ConfigPanel → flowStore → flow compiler → workflow API → `executeAgentLoop()`
+- Templates should return short confirmations, not repeat full content (token efficiency)
+
+### Memory System (Sprint 6)
+- Location: `src/lib/memory/`
+- 3 types: Conversation, Agent (workflow results), User Preferences
+- Auto-inject via semantic search (score > 0.7, max 2000 tokens)
+- Memory as RAG collection using existing embedding infrastructure
+
+### Flow Builder Conventions
+- Node types: `input`, `agent`, `template`, `output` — only `agent`/`template` compile into runtime steps
+- Wire types: `string`, `json`, `any`, `stream` — validated via `isValidConnection()`
+- Flow compiler (`src/lib/flow/engine.ts`): graph → topological sort → `WorkflowPlan`
+- Runtime badges on nodes: `idle` → `processing` → `done` / `error`
+
+### Test Patterns
+- Reference: `workflowIntegration.test.ts` — multi-step file operation with in-memory filesystem mocks
+- Edge cases: `workflowEdgeCases.test.ts` — use deterministic event observation, not timing-dependent polling
+- All tests must pass via `npm run preflight` before commit
+- Current: 266 tests across 22 test files
+
 ## Do's and Don'ts
 
 **Do:**

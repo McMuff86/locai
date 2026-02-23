@@ -8,9 +8,10 @@ LocAI runs chat, agent workflows, documents (RAG), notes with knowledge graphs, 
 
 | Area | Route | Description |
 |---|---|---|
-| Chat | `/chat` | Streaming chat with agent mode, tool execution, web search, RAG |
-| Flow Builder | `/flow` | Visual drag-and-drop workflow editor with node types, wire typing, run history |
-| Documents | `/documents` | File browser + desktop-like file canvas with windowed viewers/editors |
+| Chat | `/chat` | Streaming chat with agent mode, tool execution, web search, RAG, open-in-chat for files |
+| Flow Builder | `/flow` | Visual drag-and-drop workflow editor with wire typing, Cmd+K palette, run history, 7 templates |
+| Documents | `/documents` | File browser + desktop-like file canvas with windowed viewers/editors, drag & drop upload |
+| PDF Viewer | — | Syncfusion PDF Viewer integrated into file canvas (annotations, in-app rendering) |
 | Notes | `/notes` | Markdown notes with AI actions and semantic search |
 | Knowledge Graph | `/notes/graph` | 2D/3D force-directed graph of note connections |
 | Gallery | `/gallery` | ComfyUI image gallery with metadata, favorites, lightbox |
@@ -20,6 +21,12 @@ LocAI runs chat, agent workflows, documents (RAG), notes with knowledge graphs, 
 | Web Terminal | `/terminal` | xterm.js terminal with full PTY (PowerShell / Bash) |
 | Search | `/search` | Global search across documents and notes |
 | Settings | `/settings` | Model selection, provider config, preferences |
+
+### Agent Workflow Engine
+- Multi-step agent workflows with planning → executing → reflecting loop
+- Configurable per-step: `maxIterations` (default 5), `stepTimeout` (default 600s), temperature
+- Flow compiler: visual graph → `WorkflowPlan` → workflow engine execution
+- 266 tests, all green (including integration tests for multi-step file operations)
 
 ## LLM Providers
 

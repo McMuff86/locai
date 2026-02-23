@@ -1,41 +1,65 @@
-# LocAI Context Handoff – Sprint 5 Final: Tests & Engine Config
+# LocAI Context Handoff
 
 **Last updated:** 2026-02-23
-**Branch:** `sprint5/test-integration-final`
-**Build:** OK – all tests green
+**Build:** OK – 266 tests, all green
 
-## Sprint 5 Final Changes
+---
 
-### Workflow Engine Configuration
-- `maxIterations`: 5 per step (allows multiple tool calls + responses per step)
-- `stepTimeout`: 600s (`stepTimeoutMs: 600_000`)
-- Configured in `WORKFLOW_DEFAULTS` in `src/lib/agents/workflowTypes.ts`
+## Sprint 5 – Agent Evolution & Premium Polish (COMPLETED)
 
-### Flow Builder: ConfigPanel Enhancements
-- **Temperature** slider added to agent node configuration
-- **MaxIterations** control added to agent node configuration
-- Both propagate through flow compiler into workflow engine execution
+**Zeitraum:** 18.02 – 23.02.2026
+**Status:** ✅ Abgeschlossen
 
-### PDF/Excel Templates Optimized
-- Templates now return short confirmations instead of repeating full content back
-- Reduces token usage and improves response speed for document operations
+### Finale Ergebnisse
+- **266 Tests**, alle grün (`npm run preflight` pass)
+- **Workflow Engine** konfiguriert: `maxIterations: 5`, `stepTimeout: 600s`
+- **PDF Flow** erfolgreich end-to-end getestet mit `qwen3:30b-a3b`
+- **Open in Chat** Feature implementiert (Datei als Context in Chat laden)
+- **Syncfusion PDF Viewer** integriert (ersetzt iframe/embed Fallback)
+- **FileWindow Maximize Button** (grüner Dot, macOS-Stil)
+- **Integration Tests**: `workflowIntegration.test.ts` (Multi-Step File Ops), Edge Cases gefixt
+- **Flow Builder MVP**: Drag & Drop, Wire Typing, Cmd+K Palette, Run History, Compiler Tests
+- **Image Editor**: Crop, Resize, Rotate, Draw, Shapes, Text, Filters, AI Describe/Edit
+- **RAG Upgrade**: Drag & Drop Upload, Source Citations, Auto-Index
+- **Premium UI Polish**: Glass Morphism, Micro-Interactions, Typography, Skeleton Shimmer
 
-### FileWindow Maximize Button
-- Added maximize/restore button (green dot, macOS style) to FileWindow title bar
-- Toggles between current size/position and full-canvas maximized state
+### Offene Restarbeit (→ Sprint 6)
+- Per-Node Workflow Settings durchreichen (Temperature/maxIterations pro Agent-Node)
+- Chunk-Vorschau in Document Details
+- UI Snapshot Tests
 
-### Syncfusion PDF Viewer Integration
-- Integrated Syncfusion PDF Viewer component for in-app PDF rendering
-- Replaces basic iframe/embed fallback for PDF files in FileWindow
+---
 
-### Integration Tests
-- New `workflowIntegration.test.ts`: Multi-step file operation workflow (read → process → write)
-  - Tests tool call execution via in-memory filesystem mocks
-  - Verifies file content is actually written through the workflow pipeline
-  - Tests error handling for missing files
-- Fixed 2 previously-skipped edge case tests in `workflowEdgeCases.test.ts`:
-  - **Empty steps array**: `parsePlan()` returns valid plan with 0 steps; engine accepts it without triggering fallback
-  - **State queries during execution**: Replaced timing-dependent `setInterval` polling with deterministic event-type observation
+## Sprint 6 – Production Ready & Flow Power (ACTIVE)
+
+**Zeitraum:** 01.03 – 14.03.2026
+**Branch:** `main` (Feature-Branches: `sprint6/*`)
+
+### Ziele
+
+#### 🔴 Prio 1: Workflow Engine Hardening
+- Per-Node Settings durchreichen (Temperature, maxIterations pro Step)
+- `write_file` Overwrite Default
+- Step-Tool-Isolation (enabledTools per Step)
+- Flow Builder Streaming (Live-Output im Output-Node)
+- Template Testing mit lokalen Modellen
+
+#### 🔴 Prio 2: Memory System
+- **3 Memory-Typen:** Conversation, Agent (Workflow-Ergebnisse), User Preferences
+- **Auto-Inject:** Semantic Search über Memory-Collection, Confidence Threshold > 0.7, Token Budget 2000
+- **Memory UI:** Durchsuchen/Bearbeiten/Löschen, Badge im Chat, Timeline
+- **Workflow Memory:** Automatische Speicherung von Run-Ergebnissen + Learnings
+
+#### 🟡 Prio 3: Per-Node Provider (Multi-Provider Flows)
+- Ein Flow kann verschiedene Provider pro Agent-Node nutzen (z.B. Ollama lokal + Claude für Analyse)
+- OpenAI Provider Integration
+- Provider Health Dashboard
+
+#### 🟡 Prio 4: Flow History & UX
+- Gespeicherte Workflow-Runs durchblättern + vergleichen
+- Re-Run Button
+- Duplicate/Export/Import Flows
+- PDF Viewer Annotation Save
 
 ---
 
