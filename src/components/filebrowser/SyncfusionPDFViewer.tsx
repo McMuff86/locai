@@ -29,20 +29,18 @@ export function SyncfusionPDFViewer({
 
     async function init() {
       try {
-        // 1. Fetch PDF as base64
+        // 1. Fetch PDF as ArrayBuffer
         const pdfResponse = await fetch(pdfUrl);
         if (!pdfResponse.ok) throw new Error("PDF konnte nicht geladen werden");
-        const pdfBlob = await pdfResponse.blob();
-        const base64 = await new Promise<string>((resolve, reject) => {
-          const reader = new FileReader();
-          reader.onload = () => {
-            const result = reader.result as string;
-            const base64Data = result.split(",")[1];
-            resolve(base64Data);
-          };
-          reader.onerror = reject;
-          reader.readAsDataURL(pdfBlob);
-        });
+        const pdfBuffer = await pdfResponse.arrayBuffer();
+        const pdfBytes = new Uint8Array(pdfBuffer);
+        
+        // Convert to base64 string
+        let binary = "";
+        for (let i = 0; i < pdfBytes.length; i++) {
+          binary += String.fromCharCode(pdfBytes[i]);
+        }
+        const base64 = btoa(binary);
 
         if (destroyed || !containerRef.current) return;
 
@@ -77,8 +75,9 @@ export function SyncfusionPDFViewer({
           FormDesigner
         );
 
-        // 4. Create viewer
+        // 4. Create viewer with document loaded via base64
         const viewer = new PdfViewer({
+          documentPath: `data:application/pdf;base64,${base64}`,
           enableToolbar: true,
           enableNavigation: true,
           enableMagnification: true,
@@ -106,9 +105,6 @@ export function SyncfusionPDFViewer({
 
         viewerRef.current = viewer;
         viewer.appendTo(containerRef.current);
-
-        // 5. Load from base64
-        viewer.load(`data:application/pdf;base64,${base64}`, "");
       } catch (err) {
         if (!destroyed) {
           setError(
