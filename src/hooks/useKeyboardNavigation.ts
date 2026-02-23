@@ -14,7 +14,7 @@ interface UseKeyboardNavigationOptions {
   onActivate?: (id: string) => void;
   onEscape?: () => void;
   enabled?: boolean;
-  containerRef?: React.RefObject<HTMLElement>;
+  containerRef?: React.RefObject<HTMLElement | null>;
 }
 
 export function useKeyboardNavigation({

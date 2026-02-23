@@ -189,7 +189,7 @@ export async function POST(request: NextRequest) {
         // Convert to Message format for injection
         const messageFormat = messages.map(m => ({
           id: `temp-${Date.now()}-${Math.random()}`,
-          role: m.role,
+          role: m.role as 'system' | 'user' | 'assistant',
           content: m.content,
           timestamp: new Date(),
         }));
@@ -201,7 +201,7 @@ export async function POST(request: NextRequest) {
         if (systemMessages.length > 0) {
           messages.unshift({
             role: 'system',
-            content: systemMessages[0].content,
+            content: String(systemMessages[0].content),
           });
         }
       }
