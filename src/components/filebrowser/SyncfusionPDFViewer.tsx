@@ -3,6 +3,10 @@
 import { useEffect, useRef, useState } from "react";
 import { Loader2 } from "lucide-react";
 
+// Import Syncfusion dark theme CSS
+import "@syncfusion/ej2-base/styles/tailwind-dark.css";
+import "@syncfusion/ej2-pdfviewer/styles/tailwind-dark.css";
+
 interface SyncfusionPDFViewerProps {
   pdfUrl: string;
   fileName: string;
@@ -24,19 +28,49 @@ export function SyncfusionPDFViewer({
 
     async function init() {
       try {
-        // Dynamic imports to avoid SSR issues
-        const [{ registerLicense }, { PdfViewer, Toolbar, Magnification, Navigation, Annotation, TextSelection, TextSearch, Print, FormFields, FormDesigner }] =
-          await Promise.all([
-            import("@syncfusion/ej2-base"),
-            import("@syncfusion/ej2-pdfviewer"),
-          ]);
+        // 1. Fetch PDF as base64
+        const pdfResponse = await fetch(pdfUrl);
+        if (!pdfResponse.ok) throw new Error("PDF konnte nicht geladen werden");
+        const pdfBlob = await pdfResponse.blob();
+        const base64 = await new Promise<string>((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => {
+            const result = reader.result as string;
+            // Extract base64 part after data:...;base64,
+            const base64Data = result.split(",")[1];
+            resolve(base64Data);
+          };
+          reader.onerror = reject;
+          reader.readAsDataURL(pdfBlob);
+        });
 
         if (destroyed || !containerRef.current) return;
 
-        // Register license
+        // 2. Dynamic imports
+        const [{ registerLicense }, pdfViewerModule] = await Promise.all([
+          import("@syncfusion/ej2-base"),
+          import("@syncfusion/ej2-pdfviewer"),
+        ]);
+
+        const {
+          PdfViewer,
+          Toolbar,
+          Magnification,
+          Navigation,
+          Annotation,
+          TextSelection,
+          TextSearch,
+          Print,
+          FormFields,
+          FormDesigner,
+        } = pdfViewerModule;
+
+        if (destroyed || !containerRef.current) return;
+
+        // 3. Register license
         registerLicense(licenseKey);
 
-        // Inject required modules
+        // 4. Inject modules
         PdfViewer.Inject(
           Toolbar,
           Magnification,
@@ -49,9 +83,8 @@ export function SyncfusionPDFViewer({
           FormDesigner
         );
 
-        // Create viewer instance
+        // 5. Create viewer
         const viewer = new PdfViewer({
-          documentPath: pdfUrl,
           enableToolbar: true,
           enableNavigation: true,
           enableMagnification: true,
@@ -62,12 +95,14 @@ export function SyncfusionPDFViewer({
           enableFormFields: true,
           height: "100%",
           width: "100%",
-          // Use standalone mode (no server required)
           resourceUrl: `https://cdn.syncfusion.com/ej2/32.2.5/dist/ej2-pdfviewer-lib`,
           documentLoad: () => {
             if (!destroyed) setIsLoading(false);
           },
-          documentLoadFailed: (args: { errorStatusCode?: number; errorMessage?: string }) => {
+          documentLoadFailed: (args: {
+            errorStatusCode?: number;
+            errorMessage?: string;
+          }) => {
             if (!destroyed) {
               setError(args.errorMessage || "PDF konnte nicht geladen werden");
               setIsLoading(false);
@@ -76,9 +111,10 @@ export function SyncfusionPDFViewer({
         });
 
         viewerRef.current = viewer;
-
-        // Append to container
         viewer.appendTo(containerRef.current);
+
+        // 6. Load from base64
+        viewer.load(`data:application/pdf;base64,${base64}`, "");
       } catch (err) {
         if (!destroyed) {
           setError(
@@ -99,7 +135,7 @@ export function SyncfusionPDFViewer({
         try {
           (viewerRef.current as { destroy(): void }).destroy();
         } catch {
-          // ignore cleanup errors
+          // ignore
         }
         viewerRef.current = null;
       }
