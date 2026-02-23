@@ -14,6 +14,7 @@ export interface CanvasWindow {
   size: { w: number; h: number };
   zIndex: number;
   isMinimized: boolean;
+  isMaximized: boolean;
 }
 
 export interface CanvasTransform {
@@ -44,6 +45,7 @@ export interface UseFileCanvasReturn {
   updatePosition: (id: string, position: { x: number; y: number }) => void;
   updateSize: (id: string, size: { w: number; h: number }) => void;
   toggleMinimize: (id: string) => void;
+  toggleMaximize: (id: string) => void;
   updateTransform: (transform: CanvasTransform) => void;
 }
 
@@ -102,6 +104,7 @@ export function useFileCanvas(): UseFileCanvasReturn {
               : { ...DEFAULT_WINDOW_SIZE },
           zIndex: newZ,
           isMinimized: false,
+          isMaximized: false,
         };
         return [...currentWindows, newWindow];
       });
@@ -144,6 +147,12 @@ export function useFileCanvas(): UseFileCanvasReturn {
     );
   }, []);
 
+  const toggleMaximize = useCallback((id: string) => {
+    setWindows((ws) =>
+      ws.map((w) => (w.id === id ? { ...w, isMaximized: !w.isMaximized } : w)),
+    );
+  }, []);
+
   const updateTransform = useCallback((newTransform: CanvasTransform) => {
     setTransform(newTransform);
   }, []);
@@ -157,6 +166,7 @@ export function useFileCanvas(): UseFileCanvasReturn {
     updatePosition,
     updateSize,
     toggleMinimize,
+    toggleMaximize,
     updateTransform,
   };
 }

@@ -23,6 +23,7 @@ interface FileCanvasProps {
   onUpdatePosition: (id: string, position: { x: number; y: number }) => void;
   onUpdateSize: (id: string, size: { w: number; h: number }) => void;
   onToggleMinimize: (id: string) => void;
+  onToggleMaximize: (id: string) => void;
 }
 
 // ── Component ─────────────────────────────────────────────────────────────────
@@ -36,6 +37,7 @@ export function FileCanvas({
   onUpdatePosition,
   onUpdateSize,
   onToggleMinimize,
+  onToggleMaximize,
 }: FileCanvasProps) {
   const viewportRef = useRef<HTMLDivElement>(null);
   const worldRef = useRef<HTMLDivElement>(null);
@@ -180,6 +182,7 @@ export function FileCanvas({
             onUpdatePosition={(pos) => onUpdatePosition(win.id, pos)}
             onUpdateSize={(size) => onUpdateSize(win.id, size)}
             onToggleMinimize={() => onToggleMinimize(win.id)}
+            onToggleMaximize={() => onToggleMaximize(win.id)}
           />
         ))}
       </div>

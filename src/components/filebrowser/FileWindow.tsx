@@ -16,6 +16,8 @@ import {
   FileText,
   File,
   Loader2,
+  Maximize2,
+  Minimize2,
   Minus,
   Pencil,
   Save,
@@ -99,6 +101,7 @@ interface FileWindowProps {
   onUpdatePosition: (pos: { x: number; y: number }) => void;
   onUpdateSize: (size: { w: number; h: number }) => void;
   onToggleMinimize: () => void;
+  onToggleMaximize: () => void;
 }
 
 // ── Component ─────────────────────────────────────────────────────────────────
@@ -111,6 +114,7 @@ export function FileWindow({
   onUpdatePosition,
   onUpdateSize,
   onToggleMinimize,
+  onToggleMaximize,
 }: FileWindowProps) {
   // ── Content loading ──────────────────────────────────────────────
   const [fileContent, setFileContent] = useState<FileContent | null>(null);
@@ -338,15 +342,21 @@ export function FileWindow({
   return (
     <div
       data-file-window="true"
-      className="absolute flex flex-col rounded-xl border border-border/40 bg-background/95 backdrop-blur-sm shadow-2xl overflow-hidden ring-1 ring-black/[0.03] dark:ring-white/[0.03]"
+      className={`${win.isMaximized ? 'fixed' : 'absolute'} flex flex-col rounded-xl border border-border/40 bg-background/95 backdrop-blur-sm shadow-2xl overflow-hidden ring-1 ring-black/[0.03] dark:ring-white/[0.03] transition-all duration-300 ease-in-out`}
       style={{
-        left: win.position.x,
-        top: win.position.y,
-        width: win.size.w,
-        height: win.isMinimized ? 38 : win.size.h,
-        zIndex: win.zIndex,
-        minWidth: MIN_WINDOW_SIZE.w,
-        minHeight: win.isMinimized ? 38 : MIN_WINDOW_SIZE.h,
+        ...(win.isMaximized ? {
+          inset: 0,
+          zIndex: 50,
+          borderRadius: 0,
+        } : {
+          left: win.position.x,
+          top: win.position.y,
+          width: win.size.w,
+          height: win.isMinimized ? 38 : win.size.h,
+          zIndex: win.zIndex,
+          minWidth: MIN_WINDOW_SIZE.w,
+          minHeight: win.isMinimized ? 38 : MIN_WINDOW_SIZE.h,
+        }),
         userSelect: 'none',
       }}
       onMouseDown={(e) => {
@@ -383,6 +393,16 @@ export function FileWindow({
             title={win.isMinimized ? 'Wiederherstellen' : 'Minimieren'}
           >
             <Minus className="h-1.5 w-1.5 text-yellow-900 opacity-0 group-hover:opacity-100 transition-opacity" />
+          </button>
+          <button
+            onClick={(e) => { e.stopPropagation(); onToggleMaximize(); }}
+            className="w-3 h-3 rounded-full bg-green-500 hover:bg-green-400 flex items-center justify-center transition-colors group"
+            title={win.isMaximized ? 'Wiederherstellen' : 'Maximieren'}
+          >
+            {win.isMaximized
+              ? <Minimize2 className="h-1.5 w-1.5 text-green-900 opacity-0 group-hover:opacity-100 transition-opacity" />
+              : <Maximize2 className="h-1.5 w-1.5 text-green-900 opacity-0 group-hover:opacity-100 transition-opacity" />
+            }
           </button>
           <button
             onClick={(e) => { e.stopPropagation(); onClose(); }}

@@ -141,6 +141,7 @@ export default function DocumentsPage() {
                   onUpdatePosition={canvas.updatePosition}
                   onUpdateSize={canvas.updateSize}
                   onToggleMinimize={canvas.toggleMinimize}
+                  onToggleMaximize={canvas.toggleMaximize}
                 />
               ) : (
                 <div className="h-full flex items-center justify-center text-sm text-muted-foreground">
