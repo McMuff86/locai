@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useCallback, useImperativeHandle, forwardRef } from 'react';
 import { AudioPlayer } from '@/components/AudioPlayer';
-import { Loader2, Music, Repeat, PaintBucket } from 'lucide-react';
+import { Loader2, Music, Repeat, PaintBucket, Headphones } from 'lucide-react';
 
 interface AudioFile {
   filename: string;
@@ -18,6 +18,7 @@ interface AudioHistoryProps {
   compact?: boolean;
   onSendToRemix?: (audioPath: string, audioName: string) => void;
   onSendToRepaint?: (audioPath: string, audioName: string) => void;
+  onOpenInStudio?: (audioPath: string, audioName: string) => void;
 }
 
 function formatDate(iso: string): string {
@@ -35,7 +36,7 @@ function formatSize(bytes: number): string {
 }
 
 export const AudioHistory = forwardRef<AudioHistoryHandle, AudioHistoryProps>(
-  function AudioHistory({ compact, onSendToRemix, onSendToRepaint }, ref) {
+  function AudioHistory({ compact, onSendToRemix, onSendToRepaint, onOpenInStudio }, ref) {
   const [files, setFiles] = useState<AudioFile[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -103,8 +104,8 @@ export const AudioHistory = forwardRef<AudioHistoryHandle, AudioHistoryProps>(
               compact
               downloadable
             />
-            {/* Remix / Repaint actions */}
-            {(onSendToRemix || onSendToRepaint) && (
+            {/* Remix / Repaint / Studio actions */}
+            {(onSendToRemix || onSendToRepaint || onOpenInStudio) && (
               <div className="flex items-center gap-1 pt-0.5">
                 {onSendToRemix && (
                   <button
@@ -122,6 +123,15 @@ export const AudioHistory = forwardRef<AudioHistoryHandle, AudioHistoryProps>(
                   >
                     <PaintBucket className="h-3 w-3" />
                     Repaint
+                  </button>
+                )}
+                {onOpenInStudio && (
+                  <button
+                    onClick={() => onOpenInStudio(audioSrc, file.filename)}
+                    className="flex items-center gap-1 text-[10px] text-muted-foreground hover:text-foreground transition-colors px-1.5 py-0.5 rounded hover:bg-muted/30"
+                  >
+                    <Headphones className="h-3 w-3" />
+                    Studio
                   </button>
                 )}
               </div>

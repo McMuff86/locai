@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useRef, useState, useEffect, useCallback } from 'react';
-import { Play, Pause, Repeat, PaintBucket } from 'lucide-react';
+import { Play, Pause, Repeat, PaintBucket, Headphones } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { formatTime } from '@/lib/audio-utils';
 import { useAudioPlayback } from '@/hooks/useAudioPlayback';
@@ -15,9 +15,10 @@ interface WaveformPlayerProps {
   downloadable?: boolean;
   onSendToRemix?: (src: string) => void;
   onSendToRepaint?: (src: string) => void;
+  onOpenInStudio?: (src: string) => void;
 }
 
-export function WaveformPlayer({ src, title, downloadable = true, onSendToRemix, onSendToRepaint }: WaveformPlayerProps) {
+export function WaveformPlayer({ src, title, downloadable = true, onSendToRemix, onSendToRepaint, onOpenInStudio }: WaveformPlayerProps) {
   const {
     audioRef,
     playing,
@@ -255,6 +256,16 @@ export function WaveformPlayer({ src, title, downloadable = true, onSendToRemix,
             >
               <PaintBucket className="h-3 w-3" />
               Repaint
+            </button>
+          )}
+          {onOpenInStudio && (
+            <button
+              onClick={() => onOpenInStudio(src)}
+              className="flex items-center gap-1 text-[10px] text-muted-foreground hover:text-foreground transition-colors px-1.5 py-0.5 rounded hover:bg-muted/30"
+              title="Im Studio öffnen"
+            >
+              <Headphones className="h-3 w-3" />
+              Studio
             </button>
           )}
           {downloadable && <SaveMenu src={src} variant="label" />}

@@ -10,9 +10,10 @@ interface ResultCardProps {
   index: number;
   onSendToRemix?: (src: string) => void;
   onSendToRepaint?: (src: string) => void;
+  onOpenInStudio?: (src: string) => void;
 }
 
-export function ResultCard({ url, label, index, onSendToRemix, onSendToRepaint }: ResultCardProps) {
+export function ResultCard({ url, label, index, onSendToRemix, onSendToRepaint, onOpenInStudio }: ResultCardProps) {
   return (
     <motion.div
       initial={{ opacity: 0, y: 12 }}
@@ -26,6 +27,7 @@ export function ResultCard({ url, label, index, onSendToRemix, onSendToRepaint }
         downloadable
         onSendToRemix={onSendToRemix}
         onSendToRepaint={onSendToRepaint}
+        onOpenInStudio={onOpenInStudio}
       />
     </motion.div>
   );

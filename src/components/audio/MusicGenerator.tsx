@@ -15,9 +15,10 @@ import type { useAudioGenerator } from '@/hooks/useAudioGenerator';
 interface MusicGeneratorProps {
   gen: ReturnType<typeof useAudioGenerator>;
   onGenerated?: () => void;
+  onOpenInStudio?: (src: string, title: string) => void;
 }
 
-export function MusicGenerator({ gen, onGenerated }: MusicGeneratorProps) {
+export function MusicGenerator({ gen, onGenerated, onOpenInStudio }: MusicGeneratorProps) {
   const needsReference = gen.mode === 'remix' || gen.mode === 'repaint';
   const showLyrics = gen.mode !== 'simple';
 
@@ -175,6 +176,7 @@ export function MusicGenerator({ gen, onGenerated }: MusicGeneratorProps) {
                 index={i}
                 onSendToRemix={(src) => gen.sendToRemix(src, r.label)}
                 onSendToRepaint={(src) => gen.sendToRepaint(src, r.label)}
+                onOpenInStudio={onOpenInStudio ? (src) => onOpenInStudio(src, r.label) : undefined}
               />
             ))}
           </div>

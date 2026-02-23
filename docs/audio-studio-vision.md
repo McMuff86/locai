@@ -28,18 +28,23 @@
 
 **Verbleibend:** Stabilisierung, UX-Polish, konsistente Fehlerbehandlung.
 
-### Phase 2 — Studio Controls (~ 3-4 Wochen)
+### Phase 2 — Studio Controls ✅
 
-| Feature | Beschreibung | Aufwand |
+| Feature | Status | Komponente |
 |---|---|---|
-| Speed Control | Playback-Rate 0.25x–4x via `playbackRate` | S |
-| Pitch Control | `PitchShifterNode` (AudioWorklet) oder Tonejs `PitchShift` | M |
-| Loop / Region Selection | Click+Drag auf Waveform → Loop-Region, A/B-Punkte | M |
-| Volume / Pan | `GainNode` + `StereoPannerNode` per Track | S |
-| Parametric Equalizer | 3–5 Band EQ mit `BiquadFilterNode`, interaktive Kurve | L |
-| Keyboard Shortcuts | Space=Play/Pause, L=Loop, ←/→=Seek, +/-=Zoom | S |
-
-**Geschätzter Aufwand Phase 2:** ~80–100h
+| Studio Tab | ✅ | `AudioStudio.tsx`, Tab in `audio/page.tsx` |
+| Tone.js Audio Engine | ✅ | `useAudioEngine.ts` (Player → PitchShift → EQ → Panner → Volume → Analyser) |
+| Zustand Store | ✅ | `studioStore.ts` (Transport, Mixer, EQ, Loop, UI State) |
+| Transport Bar | ✅ | `TransportBar.tsx` (Play/Stop, Time, Speed, Pitch, Loop) |
+| Speed Control | ✅ | 0.25x–4x via Tone.js `playbackRate` |
+| Pitch Control | ✅ | Tone.js `PitchShift`, -12 bis +12 Halbtöne |
+| Loop / Region Selection | ✅ | Click+Drag auf Waveform → Loop-Region mit Amber-Overlay |
+| Volume / Pan | ✅ | `StudioControls.tsx`, Tone.js `Volume` + `Panner` |
+| Parametric Equalizer | ✅ | `Equalizer.tsx`, 5-Band interaktive Kurve mit `BiquadFilter` |
+| Frequency Visualizer | ✅ | `FrequencyVisualizer.tsx`, Real-time FFT Bars |
+| Enhanced Waveform | ✅ | `WaveformDisplay.tsx`, 600 Samples, Playhead-Glow, Time Ruler |
+| Keyboard Shortcuts | ✅ | Space, L, ←/→, ↑/↓, M, 0, +/-, [/] |
+| Open in Studio | ✅ | Buttons in `WaveformPlayer`, `AudioHistory`, `ResultCard` |
 
 ### Phase 3 — Mixing & Editing (~ 6-8 Wochen)
 
@@ -233,7 +238,7 @@ interface Track {
 | Phase | Zeitraum | Stunden | Voraussetzung |
 |---|---|---|---|
 | **Phase 1** — Foundation | ✅ Done | — | — |
-| **Phase 2** — Studio Controls | 3–4 Wochen | 80–100h | — |
+| **Phase 2** — Studio Controls | ✅ Done | — | — |
 | **Phase 3** — Mixing & Editing | 6–8 Wochen | 200–260h | Phase 2 |
 | **Phase 4** — AI-Enhanced | 4–6 Wochen | 120–160h | Phase 2, teilw. Phase 3 |
 | **Phase 5** — Advanced | 4–6 Wochen | 160–220h | Phase 3 |
@@ -241,11 +246,10 @@ interface Track {
 
 ### Empfohlene Reihenfolge
 
-Phase 2 ist der logische nächste Schritt — es baut auf dem existierenden `WaveformPlayer` auf und liefert sofort spürbare UX-Verbesserungen. Phase 4 (AI-Enhanced) kann teilweise parallel zu Phase 3 entwickelt werden, da Features wie Prompt-Iteration und A/B-Vergleich unabhängig vom Multi-Track-System sind.
+Phase 3 ist der logische nächste Schritt — Multi-Track Timeline und Mixing bauen auf dem bestehenden Studio-Player auf. Phase 4 (AI-Enhanced) kann teilweise parallel zu Phase 3 entwickelt werden, da Features wie Prompt-Iteration und A/B-Vergleich unabhängig vom Multi-Track-System sind.
 
-### Quick Wins (sofort umsetzbar)
+### Quick Wins (nächste Schritte)
 
-1. **Speed Control** — Eine Zeile Code (`audio.playbackRate = value`), grosser UX-Gewinn
-2. **Volume/Pan** — `GainNode` + `StereoPannerNode`, einfach zu implementieren
-3. **Keyboard Shortcuts** — Event-Listener, kein Audio-Code nötig
-4. **A/B Comparison** — Zwei Player nebeneinander, minimal neue Logik
+1. **A/B Comparison** — Zwei Tracks nebeneinander abspielen + switchen
+2. **BPM Detection** — Automatisch aus Audio-Daten erkennen
+3. **Export** — OfflineAudioContext Rendering → WAV/MP3

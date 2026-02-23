@@ -9,13 +9,22 @@ import { HealthIndicator } from '@/components/HealthIndicator';
 import { MusicGenerator } from '@/components/audio/MusicGenerator';
 import { TextToSpeech } from '@/components/audio/TextToSpeech';
 import { AudioHistory, AudioHistoryHandle } from '@/components/audio/AudioHistory';
+import { AudioStudio } from '@/components/audio-studio/AudioStudio';
+import { useStudioStore } from '@/stores/studioStore';
 import { Button } from '@/components/ui/button';
-import { Loader2, Music, Volume2, Play } from 'lucide-react';
+import { Loader2, Music, Volume2, Play, Headphones } from 'lucide-react';
 
 export default function AudioPage() {
   const { settings, isLoaded } = useSettings();
   const historyRef = useRef<AudioHistoryHandle>(null);
   const gen = useAudioGenerator();
+  const [activeTab, setActiveTab] = useState('music');
+  const loadTrack = useStudioStore((s) => s.loadTrack);
+
+  const handleOpenInStudio = useCallback((src: string, title: string) => {
+    loadTrack(src, title);
+    setActiveTab('studio');
+  }, [loadTrack]);
 
   // ACE-Step health status
   const [aceStepRunning, setAceStepRunning] = useState<boolean | null>(null);
@@ -120,8 +129,8 @@ export default function AudioPage() {
       {/* Content */}
       <div className="flex-1 min-h-0 overflow-y-auto p-4">
         <div className="max-w-6xl mx-auto">
-          <Tabs defaultValue="music">
-            <TabsList className="w-full max-w-xs">
+          <Tabs value={activeTab} onValueChange={setActiveTab}>
+            <TabsList className="w-full max-w-sm">
               <TabsTrigger value="music" className="gap-1.5">
                 <Music className="h-4 w-4" />
                 Musik
@@ -130,13 +139,17 @@ export default function AudioPage() {
                 <Volume2 className="h-4 w-4" />
                 Sprache
               </TabsTrigger>
+              <TabsTrigger value="studio" className="gap-1.5">
+                <Headphones className="h-4 w-4" />
+                Studio
+              </TabsTrigger>
             </TabsList>
 
             <TabsContent value="music" className="mt-4">
               <div className="grid grid-cols-1 xl:grid-cols-[1fr_300px] gap-6">
                 {/* Main generation area */}
                 <div className="bg-card/50 backdrop-blur-sm border border-border/50 rounded-xl p-5">
-                  <MusicGenerator gen={gen} onGenerated={handleGenerated} />
+                  <MusicGenerator gen={gen} onGenerated={handleGenerated} onOpenInStudio={handleOpenInStudio} />
                 </div>
 
                 {/* Right panel: History */}
@@ -150,6 +163,7 @@ export default function AudioPage() {
                       compact
                       onSendToRemix={(src, name) => gen.sendToRemix(src, name)}
                       onSendToRepaint={(src, name) => gen.sendToRepaint(src, name)}
+                      onOpenInStudio={handleOpenInStudio}
                     />
                   </ScrollArea>
                 </div>
@@ -162,6 +176,10 @@ export default function AudioPage() {
                   <TextToSpeech onGenerated={handleGenerated} />
                 </div>
               </div>
+            </TabsContent>
+
+            <TabsContent value="studio" className="mt-4">
+              <AudioStudio />
             </TabsContent>
           </Tabs>
         </div>
