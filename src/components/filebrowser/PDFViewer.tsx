@@ -1,12 +1,14 @@
 "use client";
 
-import '@syncfusion/ej2-base/styles/material.css';
-import '@syncfusion/ej2-pdfviewer/styles/material.css';
-
 import { useEffect, useRef, useState } from 'react';
 import { Loader2 } from 'lucide-react';
 import dynamic from 'next/dynamic';
-import type { PDFEngine } from '@mcmuff86/pdf-core';
+
+interface PDFEngine {
+  init(options: Record<string, unknown>): Promise<void>;
+  loadDocument(url: string): Promise<void>;
+  destroy(): void;
+}
 
 const PDFViewerFallback = dynamic(
   () =>
@@ -66,9 +68,12 @@ export function PDFViewer({ pdfUrl, fileName }: PDFViewerProps) {
         setMode('syncfusion');
 
         // 2. Dynamic import pdf-core (client-only, needs DOM)
-        const { createPDFEngine, registerSyncfusionLicense } = await import(
-          '@mcmuff86/pdf-core'
-        );
+        // eslint-disable-next-line @typescript-eslint/no-require-imports
+        const pdfCore = await (Function('return import("@mcmuff86/pdf-core")')() as Promise<{
+          createPDFEngine: (type: string) => PDFEngine;
+          registerSyncfusionLicense: (key: string | undefined) => void;
+        }>);
+        const { createPDFEngine, registerSyncfusionLicense } = pdfCore;
 
         if (destroyed) return;
 
