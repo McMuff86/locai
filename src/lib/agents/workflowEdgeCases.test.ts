@@ -16,7 +16,7 @@ import type { WorkflowStreamEvent, WorkflowPlan } from './workflowTypes';
 // ---------------------------------------------------------------------------
 
 class EdgeCaseMockProvider implements ChatProvider {
-  readonly type = 'mock' as const;
+  readonly type = 'ollama' as const;
   readonly name = 'EdgeCaseMockProvider';
 
   private responses: (ChatResponse | Error)[] = [];

@@ -15,7 +15,7 @@ import type { ChatProvider, ChatMessage, ChatResponse, ChatOptions } from '../pr
 // ---------------------------------------------------------------------------
 
 class MockChatProvider implements ChatProvider {
-  readonly type = 'mock' as const;
+  readonly type = 'ollama' as const;
   readonly name = 'MockProvider';
 
   private responses: ChatResponse[] = [];

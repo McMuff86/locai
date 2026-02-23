@@ -165,6 +165,8 @@ function ChatPageContent() {
   const {
     ragEnabled,
     toggleRag,
+    setRagEnabled,
+    uploadDocument: uploadRagDocument,
     readyCount: ragReadyCount,
   } = useDocuments({ pollIntervalMs: 0 });
 
@@ -254,6 +256,16 @@ function ChatPageContent() {
   const [pendingOpenFilePrompt, setPendingOpenFilePrompt] = useState<string | null>(null);
   const chatInputRef = useRef<HTMLTextAreaElement>(null);
   const sidebarRef = useRef<HTMLDivElement>(null);
+
+  const handleDocumentUploadInChat = useCallback(
+    async (file: File) => {
+      await uploadRagDocument(file);
+      if (!ragEnabled) {
+        setRagEnabled(true);
+      }
+    },
+    [uploadRagDocument, ragEnabled, setRagEnabled],
+  );
 
   // ── Sidebar resize handlers ───────────────────────────────────
   const startResizing = useCallback((e: React.MouseEvent) => {
@@ -957,6 +969,7 @@ function ChatPageContent() {
                   onToggleWorkflowMode={toggleWorkflowMode}
                   enableReflection={enableReflection}
                   onToggleReflection={toggleReflection}
+                  onDocumentUpload={handleDocumentUploadInChat}
                 />
               </div>
             </>

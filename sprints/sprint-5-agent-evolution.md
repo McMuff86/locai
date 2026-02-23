@@ -5,6 +5,15 @@
 
 ---
 
+## Sync-Status (Abgleich mit 100 Commits)
+
+- **Abgleich durchgeführt:** 23.02.2026 (letzte 100 Commits, `33eb336` bis `37e3d0d`)
+- **Letzte Sprint-relevante Merges:**  
+  `348b0d4` (RAG Improvements), `d0fcd37` (UI Polish Final), `98ddb48` (Workflow DI + Tests), `2add957` (Workflow Tests)
+- **Wichtigster aktueller Blocker:** Fehlende Testabdeckung für Integration (Multi-Step File Operation) und Workflow-UI Snapshots.
+
+---
+
 ## Agent-Rollen
 
 | Agent | Aufgabe | Branch-Prefix |
@@ -49,9 +58,9 @@
 - [x] Smooth Animationen für neue Steps (Framer Motion) *(PR #18)*
 
 ### TEST-1: Workflow Tests (Tester)
-- [ ] Unit Tests für Workflow State Machine
+- [x] Unit Tests für Workflow State Machine *(19f2f01, a3096d7, 2add957, 98ddb48)*
 - [ ] Integration Test: Multi-Step File Operation
-- [ ] Edge Cases: Timeout, Cancel mid-workflow, Tool-Fehler Recovery
+- [x] Edge Cases: Timeout, Cancel mid-workflow, Tool-Fehler Recovery *(workflowEdgeCases.test.ts; 2 Tests aktuell `skip`)*
 - [ ] Snapshot Tests für Workflow UI Components
 
 ---
@@ -65,16 +74,16 @@
 - [x] Context Window Management (wie viel RAG-Context pro Query?) *(ADR-002)*
 
 ### FEAT-2: RAG Improvements (Coder)
-- [ ] Drag & Drop Upload (Dateien in Chat-Area droppen)
-- [ ] Multi-File Upload mit Progress
+- [x] Drag & Drop Upload (Dateien in Chat-Area droppen) *(`onDocumentUpload` in `chat/page.tsx` verdrahtet; 23.02.2026)*
+- [x] Multi-File Upload mit Progress *(DocumentUpload + Queue/Progress UI; 348b0d4)*
 - [ ] Bessere Chunk-Vorschau in Document Details
-- [ ] Chat-Context: zeige welche RAG-Chunks genutzt wurden (Quellen-Anzeige)
-- [ ] Auto-Index: neue Files im Workspace automatisch embedden
+- [x] Chat-Context: zeige welche RAG-Chunks genutzt wurden (Quellen-Anzeige) *(SourceCitation + `ragSources`; 348b0d4)*
+- [x] Auto-Index: neue Files im Workspace automatisch embedden *(WorkspaceIndexer + `/api/documents/workspace`; 348b0d4)*
 
 ### UI-2: RAG UI Polish (UI/UX)
-- [ ] Upload-Animation (Drag-Over Glow Effect)
-- [ ] Source Citations in Chat-Messages (collapsible)
-- [ ] Document Cards Redesign (Thumbnail, Status Badge, Chunk Count)
+- [x] Upload-Animation (Drag-Over Glow Effect) *(DocumentUpload/ChatInput)*
+- [x] Source Citations in Chat-Messages (collapsible) *(SourceCitation.tsx)*
+- [x] Document Cards Redesign (Thumbnail, Status Badge, Chunk Count) *(b1abe09 + 348b0d4)*
 
 ---
 
@@ -86,22 +95,22 @@
 - [x] **Spacing & Rhythm:** 4px Grid System durchziehen *(PR #17)*
 - [x] **Glass Morphism:** Subtle blur-Effekte auf Panels/Dialogs *(PR #23)*
 - [x] **Micro-Interactions:** Button hover states, focus rings, transitions *(PR #35)*
-- [ ] **Loading States:** Skeleton Shimmer Upgrade (statt einfacher Pulse)
-- [ ] **Empty States:** Illustrationen/Icons statt nur Text
-- [ ] **Toast Redesign:** Slide-in von rechts mit Progress-Bar
+- [x] **Loading States:** Skeleton Shimmer Upgrade (statt einfacher Pulse) *(d0fcd37)*
+- [x] **Empty States:** Illustrationen/Icons statt nur Text *(d0fcd37)*
+- [x] **Toast Redesign:** Slide-in von rechts mit Progress-Bar *(d0fcd37)*
 
 ### UI-4: Chat Experience (UI/UX)
 - [x] Message-Bubbles Redesign (subtle shadows, better spacing) *(PR #22, #23)*
 - [x] Code-Block Upgrade (Filename Tab, Copy + Run Buttons) *(PR #23)*
-- [ ] Typing Indicator Animation
-- [ ] Smooth Scroll-to-Bottom mit Button
+- [x] Typing Indicator Animation *(TypingIndicator + ChatContainer; d0fcd37)*
+- [x] Smooth Scroll-to-Bottom mit Button *(ScrollToBottom + ChatContainer; d0fcd37)*
 - [x] Agent Tool-Calls: Card-Design mit Expand/Collapse *(PR #33)*
 
 ### UI-5: Navigation & Sidebar (UI/UX)
 - [x] Sidebar Collapse Animation (nicht abrupt) *(PR #23)*
 - [x] Active Route Indicator (Glow/Underline) *(PR #22)*
-- [ ] Conversation List: Hover Preview (erste Zeile)
-- [ ] Keyboard Navigation (↑↓ durch Conversations)
+- [x] Conversation List: Hover Preview (erste Zeile) *(ConversationPreview + ConversationList; d0fcd37)*
+- [x] Keyboard Navigation (↑↓ durch Conversations) *(useKeyboardNavigation + ConversationList; d0fcd37)*
 
 ---
 
@@ -122,7 +131,7 @@
 - [x] CLAUDE.md aktualisieren mit Sprint 5 Changes *(PR #15, mehrere Updates)*
 - [x] CONTEXT-HANDOFF.md Pattern dokumentieren *(PR #14)*
 - [x] API-Docs: OpenAPI/Swagger Spec für alle Routes *(docs/API.md + docs/openapi.yaml — 2619 Zeilen!)*
-- [ ] Inline Code Comments: komplexe Logik in executor.ts, workflow.ts
+- [x] Inline Code Comments: komplexe Logik in executor.ts, workflow.ts *(mehrere Refactors/Kommentierungen, u.a. 98ddb48/05db537)*
 - [x] Architecture Decision Records (ADRs) für Workflow Engine + RAG Strategy *(ADR-001 + ADR-002, PR #16)*
 - [x] README.md erstellen (aktuell fehlt eine!) *(PR #15)*
 
@@ -132,7 +141,14 @@
 
 - [ ] Alle Tests grün (`npm run preflight`)
 - [ ] CONTEXT-HANDOFF.md aktuell
-- [ ] CLAUDE.md aktualisiert
-- [ ] Keine TypeScript Errors
+- [x] CLAUDE.md aktualisiert
+- [x] Keine TypeScript Errors
 - [ ] UI responsive (Desktop + Tablet)
 - [ ] Dark + Light Theme funktioniert
+
+---
+
+## Offene Restarbeit (Sprint 5)
+
+1. Fehlende Tests: Integrationstest für Multi-Step File Operation + UI Snapshot Tests.
+2. Optional: Chunk-Vorschau in Document Details über `chunkCount` hinaus ausbauen.
