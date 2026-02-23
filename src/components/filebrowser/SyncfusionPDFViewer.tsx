@@ -1,31 +1,28 @@
 "use client";
 
+// Register license BEFORE any Syncfusion imports
+import "@/lib/syncfusion";
+
 import { useEffect, useRef, useState } from "react";
 import { Loader2 } from "lucide-react";
-import { registerSyncfusionLicense } from "@/lib/syncfusion";
 
-// CSS must load after license registration module
+// CSS after license registration
 import "@syncfusion/ej2-base/styles/tailwind-dark.css";
 import "@syncfusion/ej2-pdfviewer/styles/tailwind-dark.css";
 
 interface SyncfusionPDFViewerProps {
   pdfUrl: string;
   fileName: string;
-  licenseKey: string;
 }
 
 export function SyncfusionPDFViewer({
   pdfUrl,
   fileName,
-  licenseKey,
 }: SyncfusionPDFViewerProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const viewerRef = useRef<unknown>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-
-  // Register license ASAP before any Syncfusion component renders
-  registerSyncfusionLicense(licenseKey);
 
   useEffect(() => {
     let destroyed = false;
@@ -137,7 +134,7 @@ export function SyncfusionPDFViewer({
         viewerRef.current = null;
       }
     };
-  }, [pdfUrl, licenseKey]);
+  }, [pdfUrl]);
 
   if (error) {
     return (
