@@ -8,6 +8,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Skeleton } from '@/components/ui/skeleton';
 import { DocumentUpload, type DocumentUploadHandle } from './DocumentUpload';
 import { DocumentCard } from './DocumentCard';
+import { WorkspaceIndexer } from './WorkspaceIndexer';
 import { useDocuments } from '@/hooks/useDocuments';
 import { IndexStatus } from '@/lib/documents/types';
 
@@ -185,6 +186,11 @@ export function DocumentManager() {
             </div>
           </ScrollArea>
         )}
+      </div>
+
+      {/* Workspace Auto-Indexer */}
+      <div className="flex-shrink-0 pt-6 border-t border-border/30">
+        <WorkspaceIndexer />
       </div>
     </div>
   );
