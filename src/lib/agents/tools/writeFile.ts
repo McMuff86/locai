@@ -56,8 +56,8 @@ const writeFileTool: RegisteredTool = {
       'Write content to a file. Relative paths (e.g. "test.txt" or "subfolder/file.md") ' +
       'are saved to the agent workspace (~/.locai/workspace/). ' +
       'Creates parent directories automatically. ' +
-      'In "create" mode (default), fails if the file already exists. ' +
-      'In "overwrite" mode, replaces existing file content.',
+      'In "overwrite" mode (default), replaces existing file content. ' +
+      'In "create" mode, fails if the file already exists.',
     parameters: {
       type: 'object',
       properties: {
@@ -73,9 +73,9 @@ const writeFileTool: RegisteredTool = {
         },
         mode: {
           type: 'string',
-          description: 'Write mode: "create" (fail if exists) or "overwrite" (replace existing). Default: "create"',
+          description: 'Write mode: "overwrite" (replace existing, default) or "create" (fail if exists).',
           enum: ['create', 'overwrite'],
-          default: 'create',
+          default: 'overwrite',
         },
       },
       required: ['path', 'content'],
@@ -91,7 +91,7 @@ const writeFileTool: RegisteredTool = {
     const callId = '';
     const filePath = args.path as string | undefined;
     const content = args.content as string | undefined;
-    const mode = (args.mode as string) || 'create';
+    const mode = (args.mode as string) || 'overwrite';
 
     // --- Parameter validation ---
 

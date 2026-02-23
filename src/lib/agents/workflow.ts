@@ -1159,6 +1159,11 @@ export class WorkflowEngine {
       { role: 'user', content: stepContext },
     ];
 
+    // Per-step system prompt override: prepend as first system message
+    if (planStep.systemPrompt) {
+      stepMessages.unshift({ role: 'system', content: planStep.systemPrompt });
+    }
+
     // Resolve per-step provider (fallback to workflow-level provider)
     let stepProvider = this.provider;
     if (planStep.provider) {
