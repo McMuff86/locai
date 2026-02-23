@@ -22,11 +22,12 @@
 
 | OS | Notes |
 |---|---|
-| **Linux** | Native — works out of the box |
-| **macOS** | Intel & Apple Silicon supported |
-| **Windows** | **WSL2 required** — run LocAI inside a WSL2 distro (Ubuntu recommended) |
+| **Windows** | ✅ Works out of the box (PowerShell / cmd) |
+| **Linux** | ✅ Works out of the box |
+| **macOS** | ✅ Intel & Apple Silicon supported |
+| **WSL2** | ✅ Also works inside WSL2 |
 
-> ⚠️ **Windows users:** Do NOT run LocAI natively in PowerShell/cmd. Use WSL2. The web terminal feature (`node-pty`) requires a Unix environment.
+> 💡 LocAI was originally developed on Windows. All platforms are fully supported.
 
 ### Software
 
