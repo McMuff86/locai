@@ -33,6 +33,8 @@ export interface AgentNodeConfig {
   systemPrompt?: string;
   tools: string[];
   successCriteria?: string;
+  temperature?: number;
+  maxIterations?: number;
 }
 
 export interface TemplateNodeConfig {

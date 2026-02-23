@@ -310,6 +310,37 @@ export function ConfigPanel() {
               />
             </div>
 
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-2">
+                <SectionTitle>Temperature</SectionTitle>
+                <Input
+                  type="number"
+                  min={0}
+                  max={2}
+                  step={0.1}
+                  value={agentData.config.temperature ?? 0.3}
+                  onChange={(event) =>
+                    updateNodeConfig(selectedNode.id, { temperature: parseFloat(event.target.value) || 0.3 })
+                  }
+                  className="h-9 text-xs"
+                />
+              </div>
+              <div className="space-y-2">
+                <SectionTitle>Max Iterations</SectionTitle>
+                <Input
+                  type="number"
+                  min={1}
+                  max={20}
+                  step={1}
+                  value={agentData.config.maxIterations ?? 5}
+                  onChange={(event) =>
+                    updateNodeConfig(selectedNode.id, { maxIterations: parseInt(event.target.value) || 5 })
+                  }
+                  className="h-9 text-xs"
+                />
+              </div>
+            </div>
+
             <div className="space-y-2">
               <SectionTitle>Tools</SectionTitle>
               <div className="grid grid-cols-2 gap-1.5 rounded-md border border-border/60 bg-card/30 p-2">
