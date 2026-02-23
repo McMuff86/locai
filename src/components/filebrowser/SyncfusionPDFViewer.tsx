@@ -29,20 +29,10 @@ export function SyncfusionPDFViewer({
 
     async function init() {
       try {
-        // 1. Fetch PDF as ArrayBuffer
-        const pdfResponse = await fetch(pdfUrl);
-        if (!pdfResponse.ok) throw new Error("PDF konnte nicht geladen werden");
-        const pdfBuffer = await pdfResponse.arrayBuffer();
-        const pdfBytes = new Uint8Array(pdfBuffer);
-        
-        // Convert to base64 string
-        let binary = "";
-        for (let i = 0; i < pdfBytes.length; i++) {
-          binary += String.fromCharCode(pdfBytes[i]);
-        }
-        const base64 = btoa(binary);
-
         if (destroyed || !containerRef.current) return;
+
+        // 1. Build absolute URL for the PDF
+        const absolutePdfUrl = new URL(pdfUrl, window.location.origin).toString();
 
         // 2. Dynamic import PDF viewer module
         const pdfViewerModule = await import("@syncfusion/ej2-pdfviewer");
@@ -75,9 +65,9 @@ export function SyncfusionPDFViewer({
           FormDesigner
         );
 
-        // 4. Create viewer with document loaded via base64
+        // 4. Create viewer with document URL
         const viewer = new PdfViewer({
-          documentPath: `data:application/pdf;base64,${base64}`,
+          documentPath: absolutePdfUrl,
           enableToolbar: true,
           enableNavigation: true,
           enableMagnification: true,
