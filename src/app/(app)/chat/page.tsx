@@ -1,18 +1,14 @@
 "use client";
 
 import React, { useState, useEffect, useCallback, useRef, useMemo, Suspense } from "react";
+import dynamic from "next/dynamic";
 import { useRouter, useSearchParams } from "next/navigation";
 import { v4 as uuidv4 } from "uuid";
 
 // Components
-import { ChatContainer } from "@/components/chat/ChatContainer";
-import { ChatInput } from "@/components/chat/ChatInput";
 import { ChatHeader } from "@/components/chat/ChatHeader";
 import { SetupCard, IMAGE_PROMPT } from "@/components/chat/SetupCard";
 import { ConversationSidebar } from "@/components/chat/sidebar";
-import { TokenCounter } from "@/components/chat/TokenCounter";
-import { GpuFloatWidget } from "@/components/GpuFloatWidget";
-import { ModelPullDialog } from "@/components/ModelPullDialog";
 import { RAGToggle } from "@/components/chat/RAGToggle";
 import { Button } from "@/components/ui/button";
 import { GripVertical } from "lucide-react";
@@ -27,15 +23,46 @@ import { useDocuments } from "@/hooks/useDocuments";
 import { useKeyboardShortcuts, KeyboardShortcut } from "@/hooks/useKeyboardShortcuts";
 import { useSettings } from "@/hooks/useSettings";
 
-// Agent Components
-import { AgentMessage } from "@/components/chat/AgentMessage";
-import { WorkflowProgress } from "@/components/chat/WorkflowProgress";
-
 // Types & Utils
 import { Message } from "@/types/chat";
 import { getModelSystemContent, deleteOllamaModel } from "@/lib/ollama";
 import { useToast } from "@/components/ui/use-toast";
 import { IMAGE_ANALYSIS_PROMPT } from "@/lib/prompt-templates";
+
+const ModelPullDialog = dynamic(
+  () => import("@/components/ModelPullDialog").then((mod) => mod.ModelPullDialog),
+  { loading: () => null },
+);
+
+const ChatContainer = dynamic(
+  () => import("@/components/chat/ChatContainer").then((mod) => mod.ChatContainer),
+  { loading: () => null },
+);
+
+const ChatInput = dynamic(
+  () => import("@/components/chat/ChatInput").then((mod) => mod.ChatInput),
+  { loading: () => null },
+);
+
+const TokenCounter = dynamic(
+  () => import("@/components/chat/TokenCounter").then((mod) => mod.TokenCounter),
+  { loading: () => null },
+);
+
+const GpuFloatWidget = dynamic(
+  () => import("@/components/GpuFloatWidget").then((mod) => mod.GpuFloatWidget),
+  { loading: () => null },
+);
+
+const AgentMessage = dynamic(
+  () => import("@/components/chat/AgentMessage").then((mod) => mod.AgentMessage),
+  { loading: () => null },
+);
+
+const WorkflowProgress = dynamic(
+  () => import("@/components/chat/WorkflowProgress").then((mod) => mod.WorkflowProgress),
+  { loading: () => null },
+);
 
 const OPEN_FILE_IN_AGENT_SESSION_KEY = 'openFileInAgent';
 
@@ -139,7 +166,7 @@ function ChatPageContent() {
     ragEnabled,
     toggleRag,
     readyCount: ragReadyCount,
-  } = useDocuments();
+  } = useDocuments({ pollIntervalMs: 0 });
 
   const {
     agentTurns,
@@ -938,22 +965,24 @@ function ChatPageContent() {
       </div>
       
       {/* ── Model Pull Dialog ────────────────────────────────────── */}
-      <ModelPullDialog
-        isOpen={showModelPull}
-        onClose={() => setShowModelPull(false)}
-        host={settings?.ollamaHost}
-        installedModels={models.map(m => m.name)}
-        installedModelsDetails={models}
-        onModelPulled={(modelName) => {
-          toast({ title: 'Modell installiert', description: `${modelName} wurde erfolgreich heruntergeladen.` });
-          refreshModels();
-        }}
-        onDeleteModel={async (modelName) => {
-          await deleteOllamaModel(modelName, settings?.ollamaHost);
-          toast({ title: 'Modell gelöscht', description: `${modelName} wurde erfolgreich entfernt.` });
-          refreshModels();
-        }}
-      />
+      {showModelPull ? (
+        <ModelPullDialog
+          isOpen={showModelPull}
+          onClose={() => setShowModelPull(false)}
+          host={settings?.ollamaHost}
+          installedModels={models.map(m => m.name)}
+          installedModelsDetails={models}
+          onModelPulled={(modelName) => {
+            toast({ title: 'Modell installiert', description: `${modelName} wurde erfolgreich heruntergeladen.` });
+            refreshModels();
+          }}
+          onDeleteModel={async (modelName) => {
+            await deleteOllamaModel(modelName, settings?.ollamaHost);
+            toast({ title: 'Modell gelöscht', description: `${modelName} wurde erfolgreich entfernt.` });
+            refreshModels();
+          }}
+        />
+      ) : null}
 
       {/* ── GPU Float Widget (replaces RightSidebar) ─────────────── */}
       <GpuFloatWidget

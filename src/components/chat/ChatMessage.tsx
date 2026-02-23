@@ -90,7 +90,7 @@ function formatTimestamp(date: Date): string {
   return d.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
 }
 
-export function ChatMessage({ message, isLastMessage = false }: ChatMessageProps) {
+function ChatMessageComponent({ message }: ChatMessageProps) {
   const isUser = message.role === 'user';
   const { settings } = useSettings();
   const chatLayout = settings?.chatLayout || 'linear';
@@ -284,4 +284,11 @@ export function ChatMessage({ message, isLastMessage = false }: ChatMessageProps
       ) : null}
     </>
   );
-} 
+}
+
+function areEqual(prev: ChatMessageProps, next: ChatMessageProps): boolean {
+  // Message objects are updated immutably in useConversations.
+  return prev.isLastMessage === next.isLastMessage && prev.message === next.message;
+}
+
+export const ChatMessage = React.memo(ChatMessageComponent, areEqual);

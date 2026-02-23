@@ -101,10 +101,11 @@ export function GpuFloatWidget({ isOpen, onToggle, isGenerating = false }: GpuFl
   }, [settings?.ollamaHost]);
 
   useEffect(() => {
+    if (!isOpen) return;
     fetchStats();
     const interval = setInterval(fetchStats, isGenerating ? 1500 : 3000);
     return () => clearInterval(interval);
-  }, [fetchStats, isGenerating]);
+  }, [fetchStats, isGenerating, isOpen]);
 
   // Close on click outside
   useEffect(() => {

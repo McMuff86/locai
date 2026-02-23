@@ -41,6 +41,13 @@ interface UseDocumentsReturn {
   refresh: () => Promise<void>;
 }
 
+interface UseDocumentsOptions {
+  /** Polling interval for status refreshes. Set to 0 to disable polling. */
+  pollIntervalMs?: number;
+  /** Automatically fetch documents on mount. */
+  autoFetch?: boolean;
+}
+
 // ---------------------------------------------------------------------------
 // Hook
 // ---------------------------------------------------------------------------
@@ -56,7 +63,8 @@ interface UseDocumentsReturn {
  *
  * @returns {UseDocumentsReturn} Document state and actions
  */
-export function useDocuments(): UseDocumentsReturn {
+export function useDocuments(options: UseDocumentsOptions = {}): UseDocumentsReturn {
+  const { pollIntervalMs = 5000, autoFetch = true } = options;
   const [documents, setDocuments] = useState<Document[]>([]);
   const [isUploading, setIsUploading] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
@@ -79,15 +87,21 @@ export function useDocuments(): UseDocumentsReturn {
 
   // ── Initial load + polling ─────────────────────────────────────────────
   useEffect(() => {
+    if (!autoFetch) {
+      setIsLoading(false);
+      return;
+    }
+
     fetchDocuments();
 
-    // Poll every 5s to pick up indexing progress
-    pollingRef.current = setInterval(fetchDocuments, 5000);
+    if (pollIntervalMs > 0) {
+      pollingRef.current = setInterval(fetchDocuments, pollIntervalMs);
+    }
 
     return () => {
       if (pollingRef.current) clearInterval(pollingRef.current);
     };
-  }, [fetchDocuments]);
+  }, [autoFetch, fetchDocuments, pollIntervalMs]);
 
   // ── Upload ─────────────────────────────────────────────────────────────
   const uploadDocument = useCallback(async (file: File) => {

@@ -1,13 +1,34 @@
 "use client";
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
+import dynamic from 'next/dynamic';
 import { Files, FolderTree } from 'lucide-react';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
-import { DocumentManager } from '@/components/documents/DocumentManager';
-import { FileBrowser } from '@/components/filebrowser';
-import { FileCanvas } from '@/components/filebrowser/FileCanvas';
+import { FileBrowser } from '@/components/filebrowser/FileBrowser';
 import { useFileCanvas } from '@/hooks/useFileCanvas';
 import type { FileEntry } from '@/lib/filebrowser/types';
+
+const DocumentManager = dynamic(
+  () => import('@/components/documents/DocumentManager').then((mod) => mod.DocumentManager),
+  {
+    loading: () => (
+      <div className="h-full flex items-center justify-center text-sm text-muted-foreground">
+        Lade Dokumente...
+      </div>
+    ),
+  },
+);
+
+const FileCanvas = dynamic(
+  () => import('@/components/filebrowser/FileCanvas').then((mod) => mod.FileCanvas),
+  {
+    loading: () => (
+      <div className="h-full flex items-center justify-center text-sm text-muted-foreground">
+        Lade Canvas...
+      </div>
+    ),
+  },
+);
 
 const SIDEBAR_MIN = 280;
 const SIDEBAR_MAX = 700;
@@ -16,6 +37,7 @@ const SIDEBAR_STORAGE_KEY = 'filebrowser-sidebar-width';
 
 export default function DocumentsPage() {
   const canvas = useFileCanvas();
+  const [activeTab, setActiveTab] = useState<'filebrowser' | 'rag'>('filebrowser');
 
   // ── Resizable sidebar state ──────────────────────────────────
   const [sidebarWidth, setSidebarWidth] = useState(() => {
@@ -75,7 +97,7 @@ export default function DocumentsPage() {
 
   return (
     <div className="flex flex-col h-full p-3 md:p-4 gap-3">
-      <Tabs defaultValue="filebrowser" className="flex flex-col h-full gap-3">
+      <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as 'filebrowser' | 'rag')} className="flex flex-col h-full gap-3">
         <TabsList className="flex-shrink-0 h-10 p-1 bg-muted/40 border border-border/30 rounded-lg">
           <TabsTrigger value="filebrowser" className="gap-1.5 data-[state=active]:shadow-sm">
             <FolderTree className="h-4 w-4" />
@@ -109,23 +131,29 @@ export default function DocumentsPage() {
 
             {/* Right: File Canvas */}
             <div className="flex-1 min-w-0 rounded-xl overflow-hidden border border-border/40 shadow-sm">
-              <FileCanvas
-                windows={canvas.windows}
-                transform={canvas.transform}
-                onTransformChange={canvas.updateTransform}
-                onCloseWindow={canvas.closeWindow}
-                onBringToFront={canvas.bringToFront}
-                onUpdatePosition={canvas.updatePosition}
-                onUpdateSize={canvas.updateSize}
-                onToggleMinimize={canvas.toggleMinimize}
-              />
+              {canvas.windows.length > 0 ? (
+                <FileCanvas
+                  windows={canvas.windows}
+                  transform={canvas.transform}
+                  onTransformChange={canvas.updateTransform}
+                  onCloseWindow={canvas.closeWindow}
+                  onBringToFront={canvas.bringToFront}
+                  onUpdatePosition={canvas.updatePosition}
+                  onUpdateSize={canvas.updateSize}
+                  onToggleMinimize={canvas.toggleMinimize}
+                />
+              ) : (
+                <div className="h-full flex items-center justify-center text-sm text-muted-foreground">
+                  Öffne eine Datei im Browser, um sie im Canvas zu sehen.
+                </div>
+              )}
             </div>
           </div>
         </TabsContent>
 
         {/* ── RAG Documents ────────────────────────────────────── */}
         <TabsContent value="rag" className="flex-1 min-h-0 mt-0">
-          <DocumentManager />
+          {activeTab === 'rag' ? <DocumentManager /> : null}
         </TabsContent>
       </Tabs>
     </div>
