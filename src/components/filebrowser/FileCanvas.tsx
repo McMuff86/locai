@@ -141,6 +141,8 @@ export function FileCanvas({
 
   // ── Computed grid ─────────────────────────────────────────────────
   const { x: panX, y: panY, zoom } = transform;
+  const normalWindows = windows.filter((win) => !win.isMaximized);
+  const maximizedWindows = windows.filter((win) => win.isMaximized);
   const scaledSpacing = GRID_SPACING * zoom;
   // Offset wraps so the grid tiles repeat seamlessly
   const bgOffsetX = ((panX % scaledSpacing) + scaledSpacing) % scaledSpacing;
@@ -172,7 +174,7 @@ export function FileCanvas({
           transformOrigin: '0 0',
         }}
       >
-        {windows.map((win) => (
+        {normalWindows.map((win) => (
           <FileWindow
             key={win.id}
             window={win}
@@ -186,6 +188,25 @@ export function FileCanvas({
           />
         ))}
       </div>
+
+      {/* ── Maximized windows (viewport overlay, not transformed) ─── */}
+      {maximizedWindows.length > 0 && (
+        <div className="absolute inset-0 z-20">
+          {maximizedWindows.map((win) => (
+            <FileWindow
+              key={win.id}
+              window={win}
+              zoom={1}
+              onClose={() => onCloseWindow(win.id)}
+              onBringToFront={() => onBringToFront(win.id)}
+              onUpdatePosition={(pos) => onUpdatePosition(win.id, pos)}
+              onUpdateSize={(size) => onUpdateSize(win.id, size)}
+              onToggleMinimize={() => onToggleMinimize(win.id)}
+              onToggleMaximize={() => onToggleMaximize(win.id)}
+            />
+          ))}
+        </div>
+      )}
 
       {/* ── Empty state ──────────────────────────────────────────── */}
       {windows.length === 0 && (

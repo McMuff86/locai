@@ -245,6 +245,7 @@ export function FileWindow({
       e.preventDefault();
       e.stopPropagation();
       onBringToFront();
+      if (win.isMaximized) return;
       isDraggingRef.current = true;
       dragStartRef.current = {
         mouseX: e.clientX,
@@ -253,7 +254,7 @@ export function FileWindow({
         winY: win.position.y,
       };
     },
-    [onBringToFront, win.position.x, win.position.y],
+    [onBringToFront, win.isMaximized, win.position.x, win.position.y],
   );
 
   // ── Resize handle drag start ─────────────────────────────────────
@@ -342,12 +343,16 @@ export function FileWindow({
   return (
     <div
       data-file-window="true"
-      className={`${win.isMaximized ? 'fixed' : 'absolute'} flex flex-col rounded-xl border border-border/40 bg-background/95 backdrop-blur-sm shadow-2xl overflow-hidden ring-1 ring-black/[0.03] dark:ring-white/[0.03] transition-all duration-300 ease-in-out`}
+      className="absolute pointer-events-auto flex flex-col rounded-xl border border-border/40 bg-background/95 backdrop-blur-sm shadow-2xl overflow-hidden ring-1 ring-black/[0.03] dark:ring-white/[0.03] transition-all duration-300 ease-in-out"
       style={{
         ...(win.isMaximized ? {
-          inset: 0,
-          zIndex: 50,
+          left: 0,
+          top: 0,
+          width: '100%',
+          height: win.isMinimized ? 38 : '100%',
+          zIndex: win.zIndex,
           borderRadius: 0,
+          minHeight: win.isMinimized ? 38 : MIN_WINDOW_SIZE.h,
         } : {
           left: win.position.x,
           top: win.position.y,
@@ -366,7 +371,9 @@ export function FileWindow({
     >
       {/* ── Title bar ───────────────────────────────────────────── */}
       <div
-        className="flex items-center gap-2 px-3 h-[38px] border-b border-border/40 bg-muted/30 flex-shrink-0 cursor-grab active:cursor-grabbing"
+        className={`flex items-center gap-2 px-3 h-[38px] border-b border-border/40 bg-muted/30 flex-shrink-0 ${
+          win.isMaximized ? 'cursor-default' : 'cursor-grab active:cursor-grabbing'
+        }`}
         onMouseDown={handleTitleMouseDown}
       >
         {getFileIcon(win.file.extension)}
@@ -395,7 +402,11 @@ export function FileWindow({
             <Minus className="h-1.5 w-1.5 text-yellow-900 opacity-0 group-hover:opacity-100 transition-opacity" />
           </button>
           <button
-            onClick={(e) => { e.stopPropagation(); onToggleMaximize(); }}
+            onClick={(e) => {
+              e.stopPropagation();
+              onBringToFront();
+              onToggleMaximize();
+            }}
             className="w-3 h-3 rounded-full bg-green-500 hover:bg-green-400 flex items-center justify-center transition-colors group"
             title={win.isMaximized ? 'Wiederherstellen' : 'Maximieren'}
           >
@@ -639,17 +650,19 @@ export function FileWindow({
           </div>
 
           {/* ── Resize handle (bottom-right corner) ─────────────── */}
-          <div
-            className="absolute bottom-0 right-0 w-4 h-4 cursor-se-resize z-10 flex items-end justify-end p-0.5 opacity-20 hover:opacity-50 transition-opacity"
-            onMouseDown={handleResizeMouseDown}
-            onMouseUp={(e) => e.stopPropagation()}
-            title="Größe anpassen"
-          >
-            <svg width="7" height="7" viewBox="0 0 7 7">
-              <path d="M5.5 1L1 5.5" stroke="currentColor" strokeWidth="1" strokeLinecap="round" />
-              <path d="M5.5 3.5L3.5 5.5" stroke="currentColor" strokeWidth="1" strokeLinecap="round" />
-            </svg>
-          </div>
+          {!win.isMaximized && (
+            <div
+              className="absolute bottom-0 right-0 w-4 h-4 cursor-se-resize z-10 flex items-end justify-end p-0.5 opacity-20 hover:opacity-50 transition-opacity"
+              onMouseDown={handleResizeMouseDown}
+              onMouseUp={(e) => e.stopPropagation()}
+              title="Größe anpassen"
+            >
+              <svg width="7" height="7" viewBox="0 0 7 7">
+                <path d="M5.5 1L1 5.5" stroke="currentColor" strokeWidth="1" strokeLinecap="round" />
+                <path d="M5.5 3.5L3.5 5.5" stroke="currentColor" strokeWidth="1" strokeLinecap="round" />
+              </svg>
+            </div>
+          )}
         </div>
       )}
     </div>

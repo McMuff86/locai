@@ -142,16 +142,37 @@ export function useFileCanvas(): UseFileCanvasReturn {
   }, []);
 
   const toggleMinimize = useCallback((id: string) => {
+    const newZ = nextZIndex();
     setWindows((ws) =>
-      ws.map((w) => (w.id === id ? { ...w, isMinimized: !w.isMinimized } : w)),
+      ws.map((w) => {
+        if (w.id !== id) return w;
+        const nextMinimized = !w.isMinimized;
+        return {
+          ...w,
+          isMinimized: nextMinimized,
+          // A minimized window should not stay in maximized mode.
+          isMaximized: nextMinimized ? false : w.isMaximized,
+          zIndex: newZ,
+        };
+      }),
     );
-  }, []);
+  }, [nextZIndex]);
 
   const toggleMaximize = useCallback((id: string) => {
+    const newZ = nextZIndex();
     setWindows((ws) =>
-      ws.map((w) => (w.id === id ? { ...w, isMaximized: !w.isMaximized } : w)),
+      ws.map((w) =>
+        w.id === id
+          ? {
+            ...w,
+            isMaximized: !w.isMaximized,
+            isMinimized: false,
+            zIndex: newZ,
+          }
+          : w,
+      ),
     );
-  }, []);
+  }, [nextZIndex]);
 
   const updateTransform = useCallback((newTransform: CanvasTransform) => {
     setTransform(newTransform);
