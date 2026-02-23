@@ -267,6 +267,16 @@ export function compileVisualWorkflowToPlan(workflow: VisualWorkflow): FlowCompi
         successCriteria: successCriteriaForNode(node),
       };
 
+      // Per-node settings from AgentNodeConfig
+      if (node.data.kind === 'agent') {
+        const cfg = node.data.config;
+        if (cfg.temperature !== undefined) step.temperature = cfg.temperature;
+        if (cfg.maxIterations !== undefined) step.maxIterations = cfg.maxIterations;
+        if (cfg.provider) step.provider = cfg.provider;
+        if (cfg.model?.trim()) step.model = cfg.model.trim();
+        if (cfg.systemPrompt?.trim()) step.systemPrompt = cfg.systemPrompt.trim();
+      }
+
       // Add step type
       if (node.data.kind === 'condition') {
         step.stepType = 'condition';

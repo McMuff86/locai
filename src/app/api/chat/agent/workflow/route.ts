@@ -18,8 +18,10 @@ import { getPresetById } from '@/lib/agents/presets';
 import { resolveWorkspacePath } from '@/lib/settings/store';
 import type { ChatMessage, ProviderType } from '@/lib/providers/types';
 import { createServerProvider, getDefaultServerProvider } from '@/lib/providers/server';
-import type { WorkflowApiRequest, WorkflowPlan } from '@/lib/agents/workflowTypes';
+import type { WorkflowApiRequest, WorkflowPlan, WorkflowState } from '@/lib/agents/workflowTypes';
 import { WORKFLOW_DEFAULTS } from '@/lib/agents/workflowTypes';
+import { saveFlowHistoryEntry } from '@/lib/flow/history';
+import type { FlowHistoryEntry } from '@/lib/flow/history';
 import { apiError } from '../../../_utils/responses';
 
 // ---------------------------------------------------------------------------
@@ -216,6 +218,10 @@ export async function POST(request: NextRequest) {
     activeEngines.set(workflowId, engine);
 
     // Create NDJSON streaming response
+    // Extract flow metadata for history
+    const flowId = body.workflowId || workflowId;
+    const flowName = resolvedInitialPlan?.goal || message.slice(0, 100);
+
     const stream = new ReadableStream({
       async start(controller) {
         const encoder = new TextEncoder();
@@ -236,6 +242,37 @@ export async function POST(request: NextRequest) {
         } finally {
           request.signal.removeEventListener('abort', onAbort);
           activeEngines.delete(workflowId);
+
+          // Save flow history entry
+          try {
+            const finalState = engine.getState();
+            const historyEntry: FlowHistoryEntry = {
+              runId: finalState.id,
+              flowId,
+              flowName,
+              startedAt: finalState.startedAt,
+              completedAt: finalState.completedAt,
+              status: finalState.status,
+              model,
+              provider: providerType || 'ollama',
+              steps: finalState.steps.map((s) => ({
+                stepId: s.planStepId,
+                description: s.description,
+                status: s.status,
+                durationMs: s.durationMs,
+                toolCalls: s.toolCalls.length,
+                error: s.error,
+              })),
+              totalDurationMs: finalState.durationMs,
+              goal: finalState.plan?.goal,
+              finalAnswer: finalState.finalAnswer,
+              error: finalState.errorMessage,
+            };
+            await saveFlowHistoryEntry(historyEntry);
+          } catch {
+            // History saving is best-effort
+          }
+
           controller.close();
         }
       },
