@@ -45,6 +45,16 @@ export interface WorkflowPlanStep {
   dependsOn: string[];
   /** Kriterium für Erfolg dieses Schritts */
   successCriteria: string;
+  /** Per-step temperature override */
+  temperature?: number;
+  /** Per-step max iterations override */
+  maxIterations?: number;
+  /** Per-step provider override */
+  provider?: 'ollama' | 'anthropic' | 'openai' | 'openrouter';
+  /** Per-step model override */
+  model?: string;
+  /** Per-step system prompt */
+  systemPrompt?: string;
   /** Step-Typ für Control-Flow */
   stepType?: 'execute' | 'condition' | 'loop';
   /** Wenn dieser Step in einem Condition-Branch liegt */

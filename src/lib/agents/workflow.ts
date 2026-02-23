@@ -14,7 +14,8 @@
 
 import { executeAgentLoop, AgentLoopParams } from './executor';
 import { ToolRegistry } from './registry';
-import type { ChatProvider, ChatMessage } from '../providers/types';
+import type { ChatProvider, ChatMessage, ProviderType } from '../providers/types';
+import { createServerProvider, getDefaultServerProvider } from '../providers/server';
 import {
   WorkflowStatus,
   WorkflowPlan,
@@ -1158,21 +1159,38 @@ export class WorkflowEngine {
       { role: 'user', content: stepContext },
     ];
 
+    // Resolve per-step provider (fallback to workflow-level provider)
+    let stepProvider = this.provider;
+    if (planStep.provider) {
+      const created = createServerProvider(planStep.provider as ProviderType);
+      if (created) stepProvider = created;
+    }
+
+    // Resolve per-step model (fallback to workflow-level model)
+    const stepModel = planStep.model || this.config.model;
+    const stepTemperature = planStep.temperature ?? 0.3;
+    const stepMaxIterations = planStep.maxIterations ?? 5;
+
+    // Step-tool-isolation: use step's expectedTools if available, else global
+    const stepTools = planStep.expectedTools.length > 0
+      ? planStep.expectedTools
+      : this.config.enabledTools;
+
     // Build AgentLoopParams for ONE iteration pass
     const loopParams: AgentLoopParams = {
       messages: stepMessages,
-      model: this.config.model,
+      model: stepModel,
       registry: this.registry,
       options: {
-        maxIterations: 5, // Allow multiple tool calls + responses per step
-        enabledTools: this.config.enabledTools,
+        maxIterations: stepMaxIterations,
+        enabledTools: stepTools,
         signal: stepAbort.signal,
-        chatOptions: { temperature: 0.3 },
+        chatOptions: { temperature: stepTemperature },
         onLog: (message, level) => {
           this.bufferLog(level, message, planStep.id);
         },
       },
-      provider: this.provider,
+      provider: stepProvider,
     };
 
     let callIndex = 0;
@@ -1498,5 +1516,48 @@ export class WorkflowEngine {
       totalSteps: this.state.steps.length,
       durationMs,
     });
+
+    // MEM-4: Save workflow result as memory
+    await this.saveWorkflowMemory(durationMs);
+  }
+
+  // -------------------------------------------------------------------------
+  // MEM-4: Workflow Memory
+  // -------------------------------------------------------------------------
+
+  private async saveWorkflowMemory(durationMs: number): Promise<void> {
+    try {
+      const { saveMemoryWithEmbedding } = await import('../memory/store');
+      const goal = this.state.plan?.goal || 'Unknown goal';
+      const model = this.config.model || 'unknown';
+      const status = this.state.status;
+      const completedSteps = this.state.steps.filter(s => s.status === 'success').length;
+      const totalSteps = this.state.steps.length;
+      const durationSec = Math.round(durationMs / 1000);
+
+      const summary = this.state.finalAnswer
+        ? this.state.finalAnswer.slice(0, 200)
+        : `${completedSteps}/${totalSteps} steps completed`;
+
+      const value = `Workflow '${goal}' ${status}: ${summary}, Model: ${model}, Duration: ${durationSec}s`;
+
+      await saveMemoryWithEmbedding({
+        key: `workflow_${this.state.id}`,
+        value,
+        category: 'project_context',
+        type: 'agent',
+        tags: ['workflow', status, model],
+        metadata: {
+          workflowId: this.state.id,
+          model,
+          duration: durationMs,
+          status,
+          completedSteps,
+          totalSteps,
+        },
+      });
+    } catch {
+      // Memory saving is best-effort, don't break workflow
+    }
   }
 }
