@@ -176,6 +176,39 @@ export async function POST(request: NextRequest) {
       // Memory injection is best-effort
     }
 
+    // RAG Auto-Inject: load relevant document context and prepend as system context
+    try {
+      const { buildRAGContext, injectRAGContext } = await import('@/lib/documents/rag');
+      const ragContext = await buildRAGContext(message, 3, {
+        threshold: 0.3,
+        host: host || undefined,
+        model: 'nomic-embed-text',
+      });
+      
+      if (ragContext.chunks.length > 0) {
+        // Convert to Message format for injection
+        const messageFormat = messages.map(m => ({
+          id: `temp-${Date.now()}-${Math.random()}`,
+          role: m.role,
+          content: m.content,
+          timestamp: new Date(),
+        }));
+        
+        const enhanced = injectRAGContext(messageFormat, ragContext, ragContext.searchResults);
+        
+        // Convert back to ChatMessage format
+        const systemMessages = enhanced.filter(m => m.role === 'system').slice(-1); // Take only the RAG context
+        if (systemMessages.length > 0) {
+          messages.unshift({
+            role: 'system',
+            content: systemMessages[0].content,
+          });
+        }
+      }
+    } catch {
+      // RAG injection is best-effort
+    }
+
     // Default to temperature 0.3 for more reliable tool calling
     const agentChatOptions = chatOptions ?? { temperature: 0.3 };
 
