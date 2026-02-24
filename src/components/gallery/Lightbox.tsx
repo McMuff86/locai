@@ -95,6 +95,7 @@ export function Lightbox({
       <Button
         variant="ghost"
         size="icon"
+        aria-label="Vorheriges Bild"
         className="absolute left-4 top-1/2 -translate-y-1/2 h-12 w-12 text-white hover:bg-white/10"
         onClick={(e) => {
           e.stopPropagation();
@@ -107,6 +108,7 @@ export function Lightbox({
       <Button
         variant="ghost"
         size="icon"
+        aria-label="Nächstes Bild"
         className="absolute right-4 top-1/2 -translate-y-1/2 h-12 w-12 text-white hover:bg-white/10"
         onClick={(e) => {
           e.stopPropagation();
