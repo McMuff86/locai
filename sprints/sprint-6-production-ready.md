@@ -153,7 +153,7 @@
 - [x] Error States mit hilfreichen Meldungen
 - [x] Toast/Notification System vereinheitlichen
 - [x] Keyboard Shortcuts (Cmd+K, Cmd+N, etc.)
-- [ ] Dark/Light Theme Konsistenz prüfen
+- [x] Dark/Light Theme Konsistenz prüfen
 
 ### UX-6: Navigation & Layout
 - [x] Sidebar optimieren (Collapsible, Badges für Memories + Flows)
@@ -169,8 +169,8 @@
 - [x] Lazy Loading für schwere Komponenten (PDF Viewer, Studio, Image Editor, Knowledge Graph)
 - [x] API Response Caching wo sinnvoll (models 30s cache, health check 30s interval)
 - [x] Ollama Connection Pooling / Keep-Alive
-- [ ] Memory Leaks identifizieren und fixen
-- [ ] Lighthouse Score messen und optimieren
+- [x] Memory Leaks identifizieren und fixen
+- [x] Lighthouse Score messen und optimieren
 
 ---
 
