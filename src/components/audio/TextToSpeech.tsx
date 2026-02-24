@@ -7,7 +7,8 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { AudioPlayer } from '@/components/AudioPlayer';
 import { ReferenceAudioUpload } from './ReferenceAudioUpload';
-import { Loader2, Volume2, FileAudio } from 'lucide-react';
+import { AudioRecorder } from '@/components/audio-studio/AudioRecorder';
+import { Loader2, Volume2, FileAudio, Library } from 'lucide-react';
 
 const LANGUAGES = [
   'German', 'English', 'French', 'Spanish', 'Italian',
@@ -30,6 +31,14 @@ interface TextToSpeechProps {
   onGenerated?: () => void;
 }
 
+interface SavedVoice {
+  id: string;
+  name: string;
+  description: string;
+  referenceAudioPath: string;
+  referenceText: string;
+}
+
 export function TextToSpeech({ onGenerated }: TextToSpeechProps) {
   const [text, setText] = useState('');
   const [language, setLanguage] = useState('German');
@@ -43,6 +52,22 @@ export function TextToSpeech({ onGenerated }: TextToSpeechProps) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [resultUrl, setResultUrl] = useState<string | null>(null);
+
+  // Saved voices from Voice Library
+  const [savedVoices, setSavedVoices] = useState<SavedVoice[]>([]);
+  const [cloneSource, setCloneSource] = useState<'library' | 'upload' | 'record'>('library');
+
+  // Fetch saved voices when clone mode is selected
+  React.useEffect(() => {
+    if (mode === 'clone') {
+      fetch('/api/voice-library')
+        .then(r => r.json())
+        .then(data => {
+          if (data.success && data.voices) setSavedVoices(data.voices);
+        })
+        .catch(() => {});
+    }
+  }, [mode]);
 
   const generate = useCallback(async () => {
     if (!text.trim()) {
@@ -202,24 +227,120 @@ export function TextToSpeech({ onGenerated }: TextToSpeechProps) {
       {/* Voice clone (clone mode) */}
       {mode === 'clone' && (
         <div className="space-y-3">
-          <ReferenceAudioUpload
-            srcAudioPath={referenceAudioPath}
-            srcAudioName={referenceAudioName}
-            onUploaded={(filePath, fileName) => {
-              setReferenceAudioPath(filePath);
-              setReferenceAudioName(fileName);
-            }}
-            onClear={() => {
-              setReferenceAudioPath('');
-              setReferenceAudioName('');
-              setReferenceText('');
-            }}
-            disabled={loading}
-          />
+          {/* Source selector */}
           <div>
-            <div className="flex items-center justify-between mb-1">
-              <label className="block text-sm font-medium">Referenz-Text</label>
-              {referenceAudioPath && (
+            <label className="block text-sm font-medium mb-2">Stimmquelle</label>
+            <div className="flex gap-2">
+              <Button
+                variant={cloneSource === 'library' ? 'default' : 'outline'}
+                size="sm"
+                onClick={() => setCloneSource('library')}
+                disabled={loading}
+                className="flex-1 gap-1.5"
+              >
+                <Library className="h-3.5 w-3.5" />
+                Gespeichert
+              </Button>
+              <Button
+                variant={cloneSource === 'upload' ? 'default' : 'outline'}
+                size="sm"
+                onClick={() => setCloneSource('upload')}
+                disabled={loading}
+                className="flex-1 gap-1.5"
+              >
+                <FileAudio className="h-3.5 w-3.5" />
+                Hochladen
+              </Button>
+              <Button
+                variant={cloneSource === 'record' ? 'default' : 'outline'}
+                size="sm"
+                onClick={() => setCloneSource('record')}
+                disabled={loading}
+                className="flex-1 gap-1.5"
+              >
+                <Volume2 className="h-3.5 w-3.5" />
+                Aufnehmen
+              </Button>
+            </div>
+          </div>
+
+          {/* Library voices */}
+          {cloneSource === 'library' && (
+            <div>
+              {savedVoices.length > 0 ? (
+                <div className="space-y-1.5 max-h-[200px] overflow-y-auto">
+                  {savedVoices.map((voice) => (
+                    <button
+                      key={voice.id}
+                      onClick={() => {
+                        setReferenceAudioPath(voice.referenceAudioPath);
+                        setReferenceAudioName(voice.name);
+                        setReferenceText(voice.referenceText || '');
+                      }}
+                      className={`w-full text-left px-3 py-2 rounded-lg border transition-colors text-sm ${
+                        referenceAudioPath === voice.referenceAudioPath
+                          ? 'border-primary bg-primary/10 text-foreground'
+                          : 'border-border/50 hover:bg-muted/30 text-muted-foreground'
+                      }`}
+                    >
+                      <div className="font-medium">{voice.name}</div>
+                      {voice.description && (
+                        <div className="text-xs text-muted-foreground/70 truncate">{voice.description}</div>
+                      )}
+                    </button>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-sm text-muted-foreground text-center py-4 border border-dashed border-border/50 rounded-lg">
+                  Keine Stimmen gespeichert. Erstelle welche im &quot;Voice Clone&quot; Tab.
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Upload */}
+          {cloneSource === 'upload' && (
+            <ReferenceAudioUpload
+              srcAudioPath={referenceAudioPath}
+              srcAudioName={referenceAudioName}
+              onUploaded={(filePath, fileName) => {
+                setReferenceAudioPath(filePath);
+                setReferenceAudioName(fileName);
+              }}
+              onClear={() => {
+                setReferenceAudioPath('');
+                setReferenceAudioName('');
+                setReferenceText('');
+              }}
+              disabled={loading}
+            />
+          )}
+
+          {/* Record */}
+          {cloneSource === 'record' && (
+            <AudioRecorder
+              maxDuration={30}
+              onRecordingComplete={async (blob) => {
+                const file = new File([blob], `tts-ref-${Date.now()}.webm`, { type: blob.type });
+                const formData = new FormData();
+                formData.append('file', file);
+                try {
+                  const res = await fetch('/api/qwen-tts/upload', { method: 'POST', body: formData });
+                  const data = await res.json();
+                  if (data.success && data.filePath) {
+                    setReferenceAudioPath(data.filePath);
+                    setReferenceAudioName('Aufnahme');
+                  }
+                } catch { /* ignore */ }
+              }}
+            />
+          )}
+
+          {/* Reference text (shared across all clone sources) */}
+          {referenceAudioPath && (
+            <div>
+              <div className="flex items-center justify-between mb-1">
+                <label className="block text-sm font-medium">Referenz-Text</label>
                 <Button
                   type="button"
                   variant="ghost"
@@ -235,18 +356,18 @@ export function TextToSpeech({ onGenerated }: TextToSpeechProps) {
                   )}
                   Auto-Transkribieren
                 </Button>
-              )}
+              </div>
+              <Input
+                placeholder="Text der im Referenz-Audio gesprochen wird..."
+                value={referenceText}
+                onChange={(e) => setReferenceText(e.target.value)}
+                disabled={loading}
+              />
+              <p className="text-xs text-muted-foreground mt-1">
+                Optional: Transkript des Referenz-Audios für bessere Ergebnisse
+              </p>
             </div>
-            <Input
-              placeholder="Text der im Referenz-Audio gesprochen wird..."
-              value={referenceText}
-              onChange={(e) => setReferenceText(e.target.value)}
-              disabled={loading}
-            />
-            <p className="text-xs text-muted-foreground mt-1">
-              Optional: Transkript des Referenz-Audios für bessere Ergebnisse
-            </p>
-          </div>
+          )}
         </div>
       )}
 
