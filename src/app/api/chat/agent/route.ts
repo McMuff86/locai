@@ -15,7 +15,8 @@ import { resolveWorkspacePath } from '@/lib/settings/store';
 import type { ChatMessage } from '@/lib/providers/types';
 import type { ProviderType } from '@/lib/providers/types';
 import type { AgentOptions } from '@/lib/agents/types';
-import { createServerProvider, getDefaultServerProvider } from '@/lib/providers/server';
+import { createServerProvider, getDefaultServerProvider, wrapWithFallback } from '@/lib/providers/server';
+import { FallbackProvider, type FallbackConfig } from '@/lib/providers/fallback';
 import { apiError } from '../../_utils/responses';
 
 // ---------------------------------------------------------------------------
@@ -79,6 +80,8 @@ interface AgentRequestBody {
   provider?: ProviderType;
   /** API key override (env vars take precedence) */
   apiKey?: string;
+  /** Fallback configuration (PROV-2) */
+  fallbackConfig?: FallbackConfig;
 }
 
 // ---------------------------------------------------------------------------
@@ -101,6 +104,7 @@ export async function POST(request: NextRequest) {
       chatOptions,
       provider: providerType,
       apiKey,
+      fallbackConfig,
     } = body;
 
     if (!message?.trim()) {
@@ -127,6 +131,11 @@ export async function POST(request: NextRequest) {
       if (!chatProvider) {
         chatProvider = getDefaultServerProvider();
       }
+    }
+
+    // Wrap with automatic fallback if configured (PROV-2)
+    if (fallbackConfig?.enabled && chatProvider.type === 'ollama') {
+      chatProvider = wrapWithFallback(chatProvider, fallbackConfig);
     }
 
     // Set up tool registry
@@ -239,6 +248,11 @@ export async function POST(request: NextRequest) {
           emit({ type: 'memory_context', count: injectedMemories.length, memories: injectedMemories });
         }
 
+        // Emit fallback status if applicable
+        if (chatProvider instanceof FallbackProvider) {
+          emit({ type: 'fallback_status', enabled: true });
+        }
+
         try {
           const generator = executeAgentLoop({
             messages,
@@ -279,6 +293,16 @@ export async function POST(request: NextRequest) {
                 done: true,
               });
             }
+          }
+          // Emit fallback metadata if fallback was triggered
+          if (chatProvider instanceof FallbackProvider && chatProvider.lastFallbackInfo?.didFallback) {
+            const info = chatProvider.lastFallbackInfo;
+            emit({
+              type: 'fallback_triggered',
+              actualProvider: info.actualProvider,
+              actualModel: info.actualModel,
+              reason: info.fallbackReason,
+            });
           }
         } catch (err) {
           const errMsg = err instanceof Error ? err.message : 'Unknown agent error';

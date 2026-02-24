@@ -8,6 +8,7 @@ import {
   getDefaultOptions
 } from './templates';
 import { MessageContent, MessageImageContent } from '../types/chat';
+import { ollamaFetch } from './ollama-agent';
 
 const DEFAULT_OLLAMA_HOST = 'http://localhost:11434';
 const SETTINGS_STORAGE_KEY = 'locai-settings';
@@ -192,7 +193,7 @@ export interface StreamChunk {
  */
 export async function getOllamaModels(host?: string): Promise<OllamaModel[]> {
   try {
-    const response = await fetch(`${resolveOllamaApiBase(host)}/tags`);
+    const response = await ollamaFetch(`${resolveOllamaApiBase(host)}/tags`);
     
     if (!response.ok) {
       throw new Error(`Error fetching models: ${response.statusText}`);
@@ -210,7 +211,7 @@ export async function getOllamaModels(host?: string): Promise<OllamaModel[]> {
  * Delete a model from Ollama
  */
 export async function deleteOllamaModel(modelName: string, host?: string): Promise<void> {
-  const response = await fetch(`${resolveOllamaApiBase(host)}/delete`, {
+  const response = await ollamaFetch(`${resolveOllamaApiBase(host)}/delete`, {
     method: 'DELETE',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ model: modelName })
@@ -249,7 +250,7 @@ export async function getModelInfo(
 ): Promise<{ contextLength: number; parameterSize: string } | null> {
   try {
     const base = resolveOllamaHost(host);
-    const response = await fetch(`${base}/api/show`, {
+    const response = await ollamaFetch(`${base}/api/show`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ model: modelName })
@@ -577,7 +578,7 @@ async function fetchOllamaChat(
   const formattedMessages = formatMessagesForApi(model, messages);
   const chatRequest = buildChatRequest(model, formattedMessages, stream, opts.chatOptions, opts.tools);
 
-  const response = await fetch(`${resolveOllamaApiBase(opts.host)}/chat`, {
+  const response = await ollamaFetch(`${resolveOllamaApiBase(opts.host)}/chat`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(chatRequest),
@@ -729,7 +730,7 @@ export async function sendAgentChatMessage(
     chatRequest.tools = tools;
   }
 
-  const response = await fetch(`${resolveOllamaApiBase(host)}/chat`, {
+  const response = await ollamaFetch(`${resolveOllamaApiBase(host)}/chat`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(chatRequest),

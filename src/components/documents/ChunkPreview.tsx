@@ -13,6 +13,10 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { cn } from '@/lib/utils';
 import { ScrollArea } from '@/components/ui/scroll-area';
 
+// ---------------------------------------------------------------------------
+// Types
+// ---------------------------------------------------------------------------
+
 export interface ChunkData {
   id: string;
   index: number;
@@ -28,6 +32,10 @@ interface ChunkPreviewProps {
   documentId: string;
   chunkCount: number;
 }
+
+// ---------------------------------------------------------------------------
+// Single Chunk Item
+// ---------------------------------------------------------------------------
 
 function ChunkItem({
   chunk,
@@ -47,6 +55,7 @@ function ChunkItem({
           : 'hover:bg-muted/20 hover:border-border/70',
       )}
     >
+      {/* Chunk Header */}
       <button
         onClick={onToggle}
         className="w-full flex items-center gap-2 px-3 py-2 text-left"
@@ -56,18 +65,23 @@ function ChunkItem({
         ) : (
           <ChevronRight className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
         )}
+
         <span className="inline-flex items-center gap-1 text-xs font-mono text-muted-foreground flex-shrink-0">
           <Hash className="h-3 w-3" />
           {chunk.index}
         </span>
+
         <span className="text-xs text-foreground/80 truncate flex-1">
           {chunk.preview}
         </span>
+
         <span className="inline-flex items-center gap-1 text-[10px] text-muted-foreground/60 flex-shrink-0 tabular-nums">
           <Type className="h-2.5 w-2.5" />
           ~{chunk.tokenEstimate} tok
         </span>
       </button>
+
+      {/* Expanded Content */}
       <AnimatePresence>
         {isExpanded && (
           <motion.div
@@ -95,6 +109,10 @@ function ChunkItem({
     </div>
   );
 }
+
+// ---------------------------------------------------------------------------
+// Main Component
+// ---------------------------------------------------------------------------
 
 export function ChunkPreview({ documentId, chunkCount }: ChunkPreviewProps) {
   const [isOpen, setIsOpen] = useState(false);
@@ -131,11 +149,9 @@ export function ChunkPreview({ documentId, chunkCount }: ChunkPreviewProps) {
 
   return (
     <div className="mt-2">
+      {/* Toggle Button */}
       <button
-        onClick={(e) => {
-          e.stopPropagation();
-          handleToggle();
-        }}
+        onClick={handleToggle}
         className={cn(
           'flex items-center gap-2 px-2 py-1 rounded-md text-xs transition-colors w-full',
           'text-muted-foreground hover:text-foreground hover:bg-muted/30',
@@ -149,9 +165,11 @@ export function ChunkPreview({ documentId, chunkCount }: ChunkPreviewProps) {
         )}
         <Layers className="h-3.5 w-3.5" />
         <span>
-          {chunkCount} Chunks {isOpen ? 'verbergen' : 'anzeigen'}
+          {chunkCount} Chunks anzeigen
         </span>
       </button>
+
+      {/* Chunk List */}
       <AnimatePresence>
         {isOpen && (
           <motion.div

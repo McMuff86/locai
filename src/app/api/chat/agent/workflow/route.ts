@@ -17,7 +17,8 @@ import { getRelevantMemories, formatMemories, recallWorkflowRuns, formatWorkflow
 import { getPresetById } from '@/lib/agents/presets';
 import { resolveWorkspacePath } from '@/lib/settings/store';
 import type { ChatMessage, ProviderType } from '@/lib/providers/types';
-import { createServerProvider, getDefaultServerProvider } from '@/lib/providers/server';
+import { createServerProvider, getDefaultServerProvider, wrapWithFallback } from '@/lib/providers/server';
+import { FallbackProvider, type FallbackConfig } from '@/lib/providers/fallback';
 import type { WorkflowApiRequest, WorkflowPlan, WorkflowState } from '@/lib/agents/workflowTypes';
 import { WORKFLOW_DEFAULTS } from '@/lib/agents/workflowTypes';
 import { saveFlowHistoryEntry } from '@/lib/flow/history';
@@ -152,9 +153,15 @@ export async function POST(request: NextRequest) {
     // Build conversation messages
     // Resolve provider
     const providerType = (body as unknown as Record<string, unknown>).provider as ProviderType | undefined;
-    const chatProvider = providerType && providerType !== 'ollama'
+    let chatProvider = providerType && providerType !== 'ollama'
       ? createServerProvider(providerType) ?? getDefaultServerProvider()
       : createServerProvider('ollama', { baseUrl: host || undefined }) ?? getDefaultServerProvider();
+
+    // Wrap with automatic fallback if configured (PROV-2)
+    const fallbackConfig = (body as unknown as Record<string, unknown>).fallbackConfig as FallbackConfig | undefined;
+    if (fallbackConfig?.enabled && chatProvider.type === 'ollama') {
+      chatProvider = wrapWithFallback(chatProvider, fallbackConfig);
+    }
 
     const messages: ChatMessage[] = [
       ...conversationHistory.map((m) => ({
@@ -188,19 +195,17 @@ export async function POST(request: NextRequest) {
       // Memory injection is best-effort
     }
 
-    // Past Workflow Runs Injection (MEM-4)
-    if (body.workflowId) {
-      try {
-        const pastRuns = await recallWorkflowRuns(body.workflowId, 5);
-        if (pastRuns) {
-          messages.unshift({
-            role: 'system',
-            content: formatWorkflowRunHistory(pastRuns),
-          });
+    // Flow template run history injection (MEM-4)
+    try {
+      if (body.workflowId) {
+        const runHistory = await recallWorkflowRuns(body.workflowId, 5);
+        const formatted = formatWorkflowRunHistory(runHistory);
+        if (formatted) {
+          messages.unshift({ role: 'system', content: formatted });
         }
-      } catch {
-        // Past run recall is best-effort
       }
+    } catch {
+      // Run history injection is best-effort
     }
 
     // Flow-specific system prompt from the selected Agent node (if provided)

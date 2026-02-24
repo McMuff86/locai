@@ -9,6 +9,7 @@ import { promises as fs } from 'fs';
 import { v4 as uuidv4 } from 'uuid';
 import { MemoryEntry, MemoryStore, MemoryLogEvent, MemoryCategory, MemoryType } from './types';
 import { MAX_MEMORY_ENTRIES, MEMORY_SCHEMA_VERSION, MEMORY_FILE, MEMORY_LOG_FILE } from './constants';
+import { getFlowHistory, type FlowHistoryEntry } from '@/lib/flow/history';
 
 // ---------------------------------------------------------------------------
 // Path helpers
@@ -538,4 +539,51 @@ export async function pruneMemories(basePath?: string): Promise<PruneResult> {
     remaining: toKeep.length,
     archivedIds: toArchive.map(e => e.id),
   };
+}
+
+// ---------------------------------------------------------------------------
+// Recall past workflow runs for a flow template
+// ---------------------------------------------------------------------------
+
+/**
+ * Retrieve past run summaries for a specific flow template.
+ * Returns a formatted string (max ~500 tokens) suitable for system prompt injection.
+ */
+export async function recallWorkflowRuns(
+  flowId: string,
+  limit: number = 5,
+): Promise<string> {
+  const history = await getFlowHistory(flowId);
+  if (history.length === 0) return '';
+
+  const runs = history.slice(0, limit);
+
+  const lines = runs.map((run: FlowHistoryEntry) => {
+    const date = new Date(run.startedAt).toLocaleDateString('de-DE', {
+      day: '2-digit', month: '2-digit', year: 'numeric',
+    });
+    const durationSec = run.totalDurationMs
+      ? `${(run.totalDurationMs / 1000).toFixed(1)}s`
+      : 'unbekannt';
+    const status = run.status === 'done' ? '✅' : run.status === 'error' ? '❌' : '⏳';
+    const answer = run.finalAnswer
+      ? run.finalAnswer.slice(0, 120).replace(/\n/g, ' ')
+      : 'kein Ergebnis';
+    return `- ${status} ${date} | Modell: ${run.model} | Dauer: ${durationSec} | ${answer}`;
+  });
+
+  return lines.join('\n');
+}
+
+/**
+ * Build a system prompt snippet with past run context for a flow template.
+ * Returns empty string if no history exists.
+ */
+export function formatWorkflowRunHistory(runHistory: string): string {
+  if (!runHistory) return '';
+  return (
+    'Vergangene Ausführungen dieses Flow-Templates:\n' +
+    runHistory + '\n' +
+    'Nutze diese Informationen um bessere Entscheidungen zu treffen (z.B. Modell-Wahl, Vorgehensweise).'
+  );
 }

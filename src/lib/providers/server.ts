@@ -11,6 +11,7 @@ import {
   ProviderConfig,
 } from './types';
 import { createProvider } from './index';
+import { FallbackProvider, FallbackConfig } from './fallback';
 
 // ---------------------------------------------------------------------------
 // Environment variable mapping
@@ -70,6 +71,28 @@ export function getDefaultServerProvider(): ChatProvider {
   const provider = createServerProvider('ollama');
   // Ollama always succeeds (no key required)
   return provider!;
+}
+
+/**
+ * Wrap a primary provider with automatic fallback if configured.
+ * Returns a FallbackProvider if fallback is enabled and the fallback provider is available,
+ * otherwise returns the primary provider as-is.
+ */
+export function wrapWithFallback(
+  primary: ChatProvider,
+  fallbackConfig: FallbackConfig,
+): ChatProvider | FallbackProvider {
+  if (!fallbackConfig.enabled) return primary;
+
+  const fallback = createServerProvider(fallbackConfig.fallbackProvider);
+  if (!fallback) {
+    console.warn(
+      `[Fallback] Fallback provider "${fallbackConfig.fallbackProvider}" is not configured. Skipping fallback.`,
+    );
+    return primary;
+  }
+
+  return new FallbackProvider(primary, fallback, fallbackConfig);
 }
 
 /**

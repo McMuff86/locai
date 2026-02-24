@@ -1,3 +1,4 @@
+import { ollamaFetch } from "@/lib/ollama-agent";
 import { NextResponse } from 'next/server';
 import { resolveAndValidateOllamaHost } from '../_utils/ollama';
 import { apiError } from '../_utils/responses';
@@ -13,7 +14,7 @@ interface ServiceStatus {
 async function checkOllama(host: string): Promise<ServiceStatus> {
   const start = Date.now();
   try {
-    const res = await fetch(`${host}/api/version`, {
+    const res = await ollamaFetch(`${host}/api/version`, {
       signal: AbortSignal.timeout(5000),
     });
     if (!res.ok) {

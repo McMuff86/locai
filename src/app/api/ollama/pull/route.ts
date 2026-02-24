@@ -1,3 +1,4 @@
+import { ollamaFetch } from "@/lib/ollama-agent";
 import { resolveAndValidateOllamaHost } from '../../_utils/ollama';
 import { apiError, apiSuccess } from '../../_utils/responses';
 
@@ -95,7 +96,7 @@ export async function POST(request: Request) {
     }
 
     // Start pull request to Ollama
-    const response = await fetch(`${baseUrl}/api/pull`, {
+    const response = await ollamaFetch(`${baseUrl}/api/pull`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name: model, stream: true }),

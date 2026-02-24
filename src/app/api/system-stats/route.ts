@@ -1,3 +1,4 @@
+import { ollamaFetch } from "@/lib/ollama-agent";
 import { NextResponse } from 'next/server';
 import os from 'os';
 import { execFile } from 'child_process';
@@ -220,7 +221,7 @@ async function getGpuStats(): Promise<GpuStats> {
 // Get Ollama running models
 async function getOllamaStats(ollamaHost: string): Promise<SystemStats['ollama']> {
   try {
-    const response = await fetch(`${ollamaHost}/api/ps`, {
+    const response = await ollamaFetch(`${ollamaHost}/api/ps`, {
       signal: AbortSignal.timeout(2000)
     });
     

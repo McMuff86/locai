@@ -23,8 +23,16 @@ import { OpenAICompatibleProvider } from './openai-provider';
 
 const PROVIDER_SETTINGS_KEY = 'locai-provider-settings';
 
+export interface FallbackSettings {
+  enabled: boolean;
+  timeoutMs: number;
+  fallbackProvider: ProviderType;
+  fallbackModel: string;
+}
+
 export interface ProviderSettings {
   providers: Record<ProviderType, ProviderConfig>;
+  fallback: FallbackSettings;
 }
 
 const DEFAULT_PROVIDER_SETTINGS: ProviderSettings = {
@@ -33,6 +41,12 @@ const DEFAULT_PROVIDER_SETTINGS: ProviderSettings = {
     anthropic: { type: 'anthropic', enabled: false },
     openai: { type: 'openai', enabled: false },
     openrouter: { type: 'openrouter', enabled: false },
+  },
+  fallback: {
+    enabled: false,
+    timeoutMs: 30000,
+    fallbackProvider: 'openai',
+    fallbackModel: 'gpt-4o-mini',
   },
 };
 

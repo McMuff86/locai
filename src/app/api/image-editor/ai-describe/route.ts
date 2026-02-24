@@ -1,3 +1,4 @@
+import { ollamaFetch } from "@/lib/ollama-agent";
 import { NextRequest } from 'next/server';
 import fs from 'fs';
 import path from 'path';
@@ -35,7 +36,7 @@ export async function POST(req: NextRequest) {
 
     for (const model of visionModels) {
       try {
-        const res = await fetch(`${ollamaHost}/api/generate`, {
+        const res = await ollamaFetch(`${ollamaHost}/api/generate`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
