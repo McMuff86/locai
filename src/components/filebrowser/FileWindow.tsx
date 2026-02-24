@@ -160,6 +160,11 @@ export function FileWindow({
 
   // ── Copy state ───────────────────────────────────────────────────
   const [copied, setCopied] = useState(false);
+  const copyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    return () => { if (copyTimerRef.current) clearTimeout(copyTimerRef.current); };
+  }, []);
 
   const { toast } = useToast();
   const router = useRouter();
@@ -339,7 +344,8 @@ export function FileWindow({
     try {
       await navigator.clipboard.writeText(text);
       setCopied(true);
-      setTimeout(() => setCopied(false), 1500);
+      if (copyTimerRef.current) clearTimeout(copyTimerRef.current);
+      copyTimerRef.current = setTimeout(() => setCopied(false), 1500);
     } catch {
       // ignore
     }
