@@ -1,6 +1,5 @@
 import { NextResponse } from 'next/server';
 import archiver from 'archiver';
-import { Readable } from 'stream';
 import fs from 'fs';
 import path from 'path';
 import os from 'os';
@@ -61,7 +60,7 @@ export async function GET() {
     await archive.finalize();
     const buffer = await done;
 
-    return new NextResponse(buffer, {
+    return new NextResponse(new Uint8Array(buffer), {
       status: 200,
       headers: {
         'Content-Type': 'application/zip',
