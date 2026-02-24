@@ -38,13 +38,13 @@
 - [x] Memory als eigene RAG-Collection (nutzt existierendes Embedding-System)
 - [x] 3 Memory-Typen: Conversation, Agent (Workflow-Ergebnisse), User Preferences
 - [x] Memory Store: `lib/memory/` (save, recall, search, prune)
-- [ ] Auto-Prune: alte/irrelevante Memories nach X Tagen archivieren
+- [x] Auto-Prune: alte/irrelevante Memories nach X Tagen archivieren
 
 ### MEM-2: Auto-Inject
 - [x] Relevante Memories automatisch in Chat-Kontext injizieren
 - [x] Semantic Search über Memory-Collection bei jedem Chat-Request
-- [ ] Max Token Budget für Memory-Injection (z.B. 2000 Tokens)
-- [ ] Confidence Threshold: nur Memories mit Score > 0.7 injizieren
+- [x] Max Token Budget für Memory-Injection (z.B. 2000 Tokens)
+- [x] Confidence Threshold: nur Memories mit Score > 0.7 injizieren
 
 ### MEM-3: Memory Management UI
 - [x] Memory-Seite: alle gespeicherten Memories durchsuchen/bearbeiten/löschen
@@ -54,7 +54,7 @@
 
 ### MEM-4: Workflow Memory
 - [x] Nach jedem Workflow: Ergebnis + Learnings automatisch als Memory speichern
-- [ ] "Welches Modell war schnell für PDF-Zusammenfassung?" → Memory recall
+- [x] "Welches Modell war schnell für PDF-Zusammenfassung?" → Memory recall
 - [ ] Flow-Templates können auf vergangene Runs zugreifen
 
 ---

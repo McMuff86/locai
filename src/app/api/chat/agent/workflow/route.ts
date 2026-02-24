@@ -21,7 +21,7 @@ import { createServerProvider, getDefaultServerProvider } from '@/lib/providers/
 import type { WorkflowApiRequest, WorkflowPlan, WorkflowState } from '@/lib/agents/workflowTypes';
 import { WORKFLOW_DEFAULTS } from '@/lib/agents/workflowTypes';
 import { saveFlowHistoryEntry } from '@/lib/flow/history';
-import { saveMemory } from '@/lib/memory/store';
+import { saveMemoryWithEmbedding } from '@/lib/memory/store';
 import type { FlowHistoryEntry } from '@/lib/flow/history';
 import { apiError } from '../../../_utils/responses';
 
@@ -280,10 +280,11 @@ export async function POST(request: NextRequest) {
             if (memState.status === 'done' && memState.finalAnswer) {
               const goal = memState.plan?.goal || message.slice(0, 100);
               const summary = `Ziel: ${goal}\nErgebnis: ${memState.finalAnswer}`.slice(0, 500);
-              await saveMemory({
+              await saveMemoryWithEmbedding({
                 key: `workflow_result_${memState.id}`,
                 value: summary,
                 category: 'project_context',
+                type: 'agent',
                 tags: ['workflow', 'auto'],
                 source: 'workflow',
               });
