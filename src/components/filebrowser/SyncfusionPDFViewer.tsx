@@ -73,34 +73,46 @@ export function SyncfusionPDFViewer({
 
     setIsSaving(true);
     try {
-      // Export the PDF with annotations as base64
-      const base64Data = await pdfViewerRef.current.exportAnnotationsAsBase64String();
-      
-      // Create the new filename with "_annotated" suffix
       const fileNameWithoutExt = fileName.replace(/\.pdf$/i, '');
       const newFileName = `${fileNameWithoutExt}_annotated.pdf`;
-      const newPath = relativePath.replace(/\/[^\/]+$/, `/${newFileName}`);
-      
-      // Save to workspace using the API
-      const response = await fetch('/api/filebrowser/write', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          rootId,
-          path: newPath,
-          content: base64Data,
-          encoding: 'base64',
-        }),
-      });
 
-      const result = await response.json();
-      if (!response.ok || !result.success) {
-        throw new Error(result.error ?? 'Speichern fehlgeschlagen');
-      }
+      await new Promise<void>((resolve, reject) => {
+        pdfViewerRef.current?.saveAsBlob().then((blob: Blob) => {
+          const reader = new FileReader();
+          reader.onload = async () => {
+            try {
+              const base64 = reader.result as string;
+              const base64Data = base64.split(',')[1];
+              const newPath = relativePath.replace(/\/[^\/]+$/, `/${newFileName}`);
 
-      toast({
-        title: "Erfolgreich gespeichert",
-        description: `Annotierte PDF wurde als "${newFileName}" gespeichert.`,
+              const response = await fetch('/api/filebrowser/write', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  rootId,
+                  path: newPath,
+                  content: base64Data,
+                  encoding: 'base64',
+                }),
+              });
+
+              const result = await response.json();
+              if (!response.ok || !result.success) {
+                throw new Error(result.error ?? 'Speichern fehlgeschlagen');
+              }
+
+              toast({
+                title: "Erfolgreich gespeichert",
+                description: `Annotierte PDF wurde als "${newFileName}" gespeichert.`,
+              });
+              resolve();
+            } catch (error) {
+              reject(error);
+            }
+          };
+          reader.onerror = () => reject(new Error('Fehler beim Lesen der PDF'));
+          reader.readAsDataURL(blob);
+        }).catch(reject);
       });
     } catch (error) {
       console.error('Save to workspace error:', error);
@@ -126,12 +138,8 @@ export function SyncfusionPDFViewer({
 
     setIsDownloading(true);
     try {
-      // Use Syncfusion's built-in download with annotations
-      const fileNameWithoutExt = fileName.replace(/\.pdf$/i, '');
-      const downloadFileName = `${fileNameWithoutExt}_annotated.pdf`;
-      
-      await pdfViewerRef.current.download(downloadFileName);
-      
+      await pdfViewerRef.current.download();
+
       toast({
         title: "Download gestartet",
         description: "Die annotierte PDF wird heruntergeladen.",
@@ -146,7 +154,7 @@ export function SyncfusionPDFViewer({
     } finally {
       setIsDownloading(false);
     }
-  }, [pdfViewerRef, fileName, toast]);
+  }, [pdfViewerRef, toast]);
 
   const canSaveToWorkspace = rootId === 'workspace' && relativePath;
 
@@ -157,7 +165,7 @@ export function SyncfusionPDFViewer({
         <span className="text-xs text-muted-foreground font-medium mr-2">
           PDF Annotationen:
         </span>
-        
+
         {canSaveToWorkspace && (
           <Button
             variant="ghost"
