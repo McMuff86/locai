@@ -229,7 +229,7 @@ export function PDFViewerFallback({ pdfUrl, fileName }: PDFViewerFallbackProps) 
                   />
                   {!renderedPages.has(pageNum) && (
                     <div className="absolute inset-0 flex items-center justify-center bg-white">
-                      <Loader2 className="h-4 w-4 animate-spin text-gray-400" />
+                      <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
                     </div>
                   )}
                 </div>

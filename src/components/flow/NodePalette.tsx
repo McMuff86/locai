@@ -34,7 +34,7 @@ export function NodePalette() {
   };
 
   return (
-    <aside className="h-full w-72 border-r border-border/60 bg-zinc-900/70 p-3">
+    <aside className="h-full w-72 border-r border-border/60 bg-card/70 p-3">
       <div className="mb-3">
         <h2 className="text-sm font-semibold tracking-wide text-foreground">Node Palette</h2>
         <p className="mt-1 text-xs text-muted-foreground">

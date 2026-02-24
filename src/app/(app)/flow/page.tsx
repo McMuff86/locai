@@ -1005,7 +1005,7 @@ export default function FlowPage() {
           <ConfigPanel />
         </div>
 
-        <section className="flex shrink-0 flex-col border-t border-border/60 bg-zinc-900/40" style={{ height: bottomPanelHeight }}>
+        <section className="flex shrink-0 flex-col border-t border-border/60 bg-card/40" style={{ height: bottomPanelHeight }}>
           {/* Resize handle */}
           <div
             onPointerDown={handleBottomPanelResize}

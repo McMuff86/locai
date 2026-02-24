@@ -93,7 +93,7 @@ function DraggableMiniMap({ parentRef }: { parentRef: React.RefObject<HTMLDivEle
     <div
       ref={containerRef}
       onPointerDown={handlePointerDown}
-      className="absolute z-[5] rounded-lg border border-border/60 bg-zinc-900/90 shadow-lg"
+      className="absolute z-[5] rounded-lg border border-border/60 bg-card/90 shadow-lg"
       style={pos}
     >
       <div
@@ -352,7 +352,7 @@ export function FlowCanvas({ insertNodeKind = null, onInsertNodeHandled }: FlowC
         isValidConnection={isValidConnection}
         deleteKeyCode={['Backspace', 'Delete']}
         defaultViewport={viewport}
-        className="bg-zinc-950"
+        className="bg-background"
       >
         <Background variant={BackgroundVariant.Dots} gap={22} size={1} color="#334155" />
         <Controls className="flow-controls" />

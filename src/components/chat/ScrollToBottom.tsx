@@ -34,8 +34,8 @@ export function ScrollToBottom({
             size="icon"
             className={cn(
               "h-10 w-10 rounded-full shadow-lg",
-              "bg-zinc-800 hover:bg-zinc-700 border border-zinc-600",
-              "text-zinc-200 hover:text-white",
+              "bg-card hover:bg-accent border border-border",
+              "text-foreground hover:text-foreground",
               "transition-all duration-200",
               newMessageCount > 0 && "ring-2 ring-cyan-400/30"
             )}
@@ -43,7 +43,7 @@ export function ScrollToBottom({
             <ChevronDown className="h-5 w-5" />
             {newMessageCount > 0 && (
               <motion.div
-                className="absolute -top-1 -right-1 h-5 w-5 rounded-full bg-cyan-400 text-black text-xs font-semibold flex items-center justify-center"
+                className="absolute -top-1 -right-1 h-5 w-5 rounded-full bg-primary text-primary-foreground text-xs font-semibold flex items-center justify-center"
                 initial={{ scale: 0 }}
                 animate={{ scale: 1 }}
                 transition={{ type: "spring", stiffness: 300, damping: 30 }}

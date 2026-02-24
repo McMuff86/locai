@@ -92,7 +92,7 @@ function ChunkItem({
             className="overflow-hidden"
           >
             <div className="px-3 pb-3 pt-0">
-              <div className="rounded-md bg-zinc-900/50 border border-border/30 p-3 max-h-64 overflow-y-auto">
+              <div className="rounded-md bg-muted/50 border border-border/30 p-3 max-h-64 overflow-y-auto">
                 <pre className="text-xs text-foreground/70 whitespace-pre-wrap break-words font-mono leading-relaxed">
                   {chunk.content}
                 </pre>

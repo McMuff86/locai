@@ -103,7 +103,7 @@ export function AudioPlayer({ src, title, downloadable = false, compact = false 
           step={0.1}
           value={currentTime}
           onChange={handleSeek}
-          className="w-full h-1.5 appearance-none bg-zinc-700 rounded-full cursor-pointer
+          className="w-full h-1.5 appearance-none bg-muted rounded-full cursor-pointer
             [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:w-3
             [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-primary
             [&::-moz-range-thumb]:h-3 [&::-moz-range-thumb]:w-3 [&::-moz-range-thumb]:rounded-full

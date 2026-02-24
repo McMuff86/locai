@@ -27,7 +27,7 @@ const toastVariants = cva(
   {
     variants: {
       variant: {
-        default: "border-zinc-600/50 bg-zinc-800/90 text-zinc-100 backdrop-blur-sm p-4",
+        default: "border-border/50 bg-card/90 text-card-foreground backdrop-blur-sm p-4",
         destructive:
           "destructive group border-red-500/30 bg-red-900/20 text-red-200 backdrop-blur-sm p-4",
         success: 
@@ -123,7 +123,7 @@ const ToastProgress = React.forwardRef<
   <div 
     ref={ref}
     className={cn(
-      "absolute bottom-0 left-0 right-0 h-1 bg-zinc-700/30 overflow-hidden",
+      "absolute bottom-0 left-0 right-0 h-1 bg-muted overflow-hidden",
       className
     )}
     {...props}

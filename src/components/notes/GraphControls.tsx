@@ -76,7 +76,7 @@ export function GraphControls({
               onClick={() => onSettingsChange({ linkFilter: 'wiki' })}
               className={`px-2 py-1 text-xs flex items-center gap-1 transition-colors ${
                 settings.linkFilter === 'wiki' 
-                  ? 'bg-blue-500 text-white' 
+                  ? 'bg-primary text-primary-foreground' 
                   : 'bg-muted/50 text-muted-foreground hover:bg-muted'
               }`}
               title="Nur Wiki-Links [[...]]"
@@ -88,7 +88,7 @@ export function GraphControls({
               onClick={() => onSettingsChange({ linkFilter: 'semantic' })}
               className={`px-2 py-1 text-xs flex items-center gap-1 transition-colors ${
                 settings.linkFilter === 'semantic' 
-                  ? 'bg-emerald-500 text-white' 
+                  ? 'bg-locai-success text-primary-foreground' 
                   : 'bg-muted/50 text-muted-foreground hover:bg-muted'
               }`}
               title="Nur Semantische Links (Embeddings)"

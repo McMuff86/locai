@@ -67,7 +67,7 @@ const categoryColors: Record<string, string> = {
   preference: "bg-purple-500/20 text-purple-400 border-purple-500/30",
   project_context: "bg-green-500/20 text-green-400 border-green-500/30",
   instruction: "bg-orange-500/20 text-orange-400 border-orange-500/30",
-  general: "bg-gray-500/20 text-gray-400 border-gray-500/30",
+  general: "bg-muted text-muted-foreground border-border",
 };
 
 const typeColors: Record<string, string> = {
