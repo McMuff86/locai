@@ -8,6 +8,7 @@ import { MarkdownRenderer } from "./MarkdownRenderer";
 import { SourceCitation } from "./SourceCitation";
 import { useSettings } from "../../hooks/useSettings";
 import { ChatAvatar } from "./ChatAvatar";
+import { MemoryBadge } from "./MemoryBadge";
 
 // Regular expression to extract thinking process from messages
 const THINK_REGEX = /<think>([\s\S]*?)<\/think>/;
@@ -227,6 +228,10 @@ function ChatMessageComponent({ message }: ChatMessageProps) {
             {!isUser && message.ragSources && message.ragSources.length > 0 && (
               <SourceCitation sources={message.ragSources} className="max-w-[95%] mt-1.5" />
             )}
+            {/* Memory Badge */}
+            {!isUser && message.memoryContext && message.memoryContext.length > 0 && (
+              <MemoryBadge memories={message.memoryContext} className="max-w-[95%]" />
+            )}
           </div>
         </motion.div>
       ) : showResponse ? (
@@ -278,6 +283,12 @@ function ChatMessageComponent({ message }: ChatMessageProps) {
           {!isUser && message.ragSources && message.ragSources.length > 0 && (
             <div className="mt-1.5 ml-2">
               <SourceCitation sources={message.ragSources} className="max-w-[82%]" />
+            </div>
+          )}
+          {/* Memory Badge */}
+          {!isUser && message.memoryContext && message.memoryContext.length > 0 && (
+            <div className="mt-1 ml-2">
+              <MemoryBadge memories={message.memoryContext} className="max-w-[82%]" />
             </div>
           )}
         </motion.div>

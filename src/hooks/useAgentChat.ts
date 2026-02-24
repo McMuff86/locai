@@ -48,6 +48,12 @@ interface StreamEventPlan {
   content: string;
 }
 
+interface StreamEventMemoryContext {
+  type: 'memory_context';
+  count: number;
+  memories: Array<{ key: string; value: string; category: string }>;
+}
+
 type StreamEvent =
   | StreamEventToolCall
   | StreamEventToolResult
@@ -55,7 +61,8 @@ type StreamEvent =
   | StreamEventError
   | StreamEventTurnStart
   | StreamEventTurnEnd
-  | StreamEventPlan;
+  | StreamEventPlan
+  | StreamEventMemoryContext;
 
 // ---------------------------------------------------------------------------
 // Hook options & return type
@@ -120,6 +127,8 @@ export interface UseAgentChatReturn {
   togglePlanning: () => void;
   /** Plan content from the planning step */
   agentPlan: string | null;
+  /** Memory context injected into the current run */
+  memoryContext: Array<{ key: string; value: string; category: string }> | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -146,6 +155,7 @@ export function useAgentChat(): UseAgentChatReturn {
   const [activePreset, setActivePreset] = useState<string | null>(null);
   const [enablePlanning, setEnablePlanning] = useState(false);
   const [agentPlan, setAgentPlan] = useState<string | null>(null);
+  const [memoryContext, setMemoryContext] = useState<Array<{ key: string; value: string; category: string }> | null>(null);
 
   const abortControllerRef = useRef<AbortController | null>(null);
 
@@ -186,6 +196,7 @@ export function useAgentChat(): UseAgentChatReturn {
     setTotalTurnsEstimate(null);
     setAgentError(null);
     setAgentPlan(null);
+    setMemoryContext(null);
   }, []);
 
   const cancelAgentRun = useCallback(() => {
@@ -331,6 +342,11 @@ export function useAgentChat(): UseAgentChatReturn {
               break;
             }
 
+            case 'memory_context': {
+              setMemoryContext(event.memories);
+              break;
+            }
+
             case 'message': {
               finalContent += event.content;
               setAgentStreamingContent(finalContent);
@@ -402,6 +418,7 @@ export function useAgentChat(): UseAgentChatReturn {
     enablePlanning,
     togglePlanning,
     agentPlan,
+    memoryContext,
   };
 }
 

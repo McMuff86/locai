@@ -190,6 +190,7 @@ function ChatPageContent() {
     enablePlanning,
     togglePlanning,
     agentPlan,
+    memoryContext,
   } = useAgentChat();
 
   // Workflow Engine hook (Sprint 5)
@@ -559,6 +560,7 @@ function ChatPageContent() {
             content: finalContent,
             timestamp: new Date(),
             modelName: selectedModel,
+            ...(memoryContext && memoryContext.length > 0 ? { memoryContext } : {}),
           };
           addMessage(botMessage);
         }

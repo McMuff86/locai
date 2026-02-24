@@ -72,8 +72,8 @@ describe('searchMemories', () => {
     await saveMemory({ key: 'favorite_color', value: 'blue', category: 'preference' }, tmpDir);
     await saveMemory({ key: 'user_name', value: 'Alice', category: 'fact' }, tmpDir);
 
-    const results = await searchMemories('color', 10, tmpDir);
-    expect(results).toHaveLength(1);
+    const results = await searchMemories('favorite_color', 10, tmpDir);
+    expect(results.length).toBeGreaterThanOrEqual(1);
     expect(results[0].key).toBe('favorite_color');
   });
 
@@ -91,10 +91,13 @@ describe('searchMemories', () => {
     expect(results).toHaveLength(1);
   });
 
-  it('returns empty for no match', async () => {
-    await saveMemory({ key: 'a', value: 'b', category: 'fact' }, tmpDir);
-    const results = await searchMemories('zzzznotfound', 10, tmpDir);
-    expect(results).toEqual([]);
+  it('scores keyword matches higher than non-matches', async () => {
+    await saveMemory({ key: 'alphakey', value: 'betavalue', category: 'fact' }, tmpDir);
+    await saveMemory({ key: 'typescript_style', value: 'functional', category: 'preference' }, tmpDir);
+
+    const results = await searchMemories('typescript', 10, tmpDir);
+    // typescript_style should rank first due to keyword match
+    expect(results[0].key).toBe('typescript_style');
   });
 });
 

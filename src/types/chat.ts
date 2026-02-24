@@ -28,6 +28,8 @@ export interface Message {
   toolCalls?: ToolCall[];
   /** Agent turns for this message (agent mode) */
   agentTurns?: AgentTurn[];
+  /** Injected memory entries used for this response */
+  memoryContext?: Array<{ key: string; value: string; category: string }>;
 }
 
 export interface Conversation {

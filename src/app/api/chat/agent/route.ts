@@ -234,6 +234,11 @@ export async function POST(request: NextRequest) {
           controller.enqueue(encoder.encode(JSON.stringify(data) + '\n'));
         }
 
+        // Emit memory metadata if memories were injected
+        if (injectedMemories.length > 0) {
+          emit({ type: 'memory_context', count: injectedMemories.length, memories: injectedMemories });
+        }
+
         try {
           const generator = executeAgentLoop({
             messages,
