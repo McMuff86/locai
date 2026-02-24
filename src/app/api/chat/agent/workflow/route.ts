@@ -13,7 +13,7 @@ import { NextRequest } from 'next/server';
 import { WorkflowEngine } from '@/lib/agents/workflow';
 import { ToolRegistry } from '@/lib/agents/registry';
 import { registerBuiltinTools } from '@/lib/agents/tools';
-import { getRelevantMemories, formatMemories } from '@/lib/memory/store';
+import { getRelevantMemories, formatMemories, recallWorkflowRuns, formatWorkflowRunHistory } from '@/lib/memory/store';
 import { getPresetById } from '@/lib/agents/presets';
 import { resolveWorkspacePath } from '@/lib/settings/store';
 import type { ChatMessage, ProviderType } from '@/lib/providers/types';
@@ -186,6 +186,21 @@ export async function POST(request: NextRequest) {
       }
     } catch {
       // Memory injection is best-effort
+    }
+
+    // Past Workflow Runs Injection (MEM-4)
+    if (body.workflowId) {
+      try {
+        const pastRuns = await recallWorkflowRuns(body.workflowId, 5);
+        if (pastRuns) {
+          messages.unshift({
+            role: 'system',
+            content: formatWorkflowRunHistory(pastRuns),
+          });
+        }
+      } catch {
+        // Past run recall is best-effort
+      }
     }
 
     // Flow-specific system prompt from the selected Agent node (if provided)
