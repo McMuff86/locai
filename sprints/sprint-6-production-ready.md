@@ -103,7 +103,7 @@
 ## 🟢 Prio 5: RAG & Knowledge
 
 ### RAG-1: Chunk-Vorschau
-- [ ] Document Details: Chunks anzeigen (nicht nur Count)
+- [x] Document Details: Chunks anzeigen (nicht nur Count)
 - [x] Chunk-Navigation: zu Chunk im Dokument springen
 
 ### RAG-2: Drag & Drop Fix
