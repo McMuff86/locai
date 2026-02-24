@@ -41,12 +41,19 @@ interface PDFViewerProps {
   fileName: string;
 }
 
-export function PDFViewer({ pdfUrl, fileName }: PDFViewerProps) {
+export function PDFViewer({ pdfUrl, rootId, relativePath, fileName }: PDFViewerProps) {
   // Check if Syncfusion license key is available (client-side env var)
   const hasSyncfusion = !!process.env.NEXT_PUBLIC_SYNCFUSION_LICENSE_KEY;
 
   if (hasSyncfusion) {
-    return <SyncfusionPDFViewer pdfUrl={pdfUrl} fileName={fileName} />;
+    return (
+      <SyncfusionPDFViewer 
+        pdfUrl={pdfUrl} 
+        fileName={fileName}
+        rootId={rootId}
+        relativePath={relativePath}
+      />
+    );
   }
 
   return <PDFViewerFallback pdfUrl={pdfUrl} fileName={fileName} />;
