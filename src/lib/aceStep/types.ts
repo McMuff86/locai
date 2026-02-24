@@ -23,6 +23,7 @@ export interface GenerateOptions {
   seed?: number;
   numSteps?: number;
   cfgScale?: number;
+  audioFormat?: 'flac' | 'mp3' | 'opus' | 'aac' | 'wav' | 'wav32';
 }
 
 export interface TaskInfo {

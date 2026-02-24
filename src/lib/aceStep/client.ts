@@ -104,6 +104,7 @@ export class AceStepClient {
   async generate(options: GenerateOptions): Promise<TaskInfo> {
     const body: Record<string, unknown> = {
       task_type: normalizeTaskType(options.taskType),
+      audio_format: options.audioFormat ?? 'flac',
     };
     if (options.caption !== undefined) body.caption = options.caption;
     if (options.lyrics !== undefined) body.lyrics = options.lyrics;
