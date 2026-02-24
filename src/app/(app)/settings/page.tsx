@@ -70,6 +70,9 @@ export default function SettingsPage() {
   const [isPickingFolder, setIsPickingFolder] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
   const [status, setStatus] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+  const [isExporting, setIsExporting] = useState(false);
+  const [isImporting, setIsImporting] = useState(false);
+  const [importConfirm, setImportConfirm] = useState<{ file: File; show: boolean } | null>(null);
 
   // ── Provider Settings ───────────────────────────────────────────────────
   const [providerSettings, setProviderSettings] = useState<ProviderSettings>(loadProviderSettings);
@@ -193,6 +196,66 @@ export default function SettingsPage() {
       showStatus('success', 'Alle Konversationen wurden gelöscht. Seite wird neu geladen…');
       setTimeout(() => window.location.reload(), 1500);
     }
+  }, []);
+
+  // ── Full Backup / Restore ────────────────────────────────────────────
+
+  const handleExportBackup = useCallback(async () => {
+    setIsExporting(true);
+    try {
+      const res = await fetch('/api/backup/export');
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({ error: 'Export fehlgeschlagen' }));
+        showStatus('error', data.error || 'Export fehlgeschlagen');
+        return;
+      }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      const disposition = res.headers.get('Content-Disposition');
+      const match = disposition?.match(/filename="(.+)"/);
+      a.download = match?.[1] || `locai-backup-${new Date().toISOString().slice(0, 10)}.zip`;
+      a.click();
+      URL.revokeObjectURL(url);
+      showStatus('success', 'Backup erfolgreich exportiert.');
+    } catch {
+      showStatus('error', 'Backup-Export fehlgeschlagen.');
+    } finally {
+      setIsExporting(false);
+    }
+  }, []);
+
+  const handleImportBackup = useCallback(async (file: File) => {
+    setIsImporting(true);
+    setImportConfirm(null);
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      const res = await fetch('/api/backup/import', { method: 'POST', body: formData });
+      const data = await res.json();
+      if (data.success) {
+        showStatus('success', `Backup wiederhergestellt: ${data.restoredCount} Dateien importiert.`);
+      } else {
+        showStatus('error', data.error || 'Import fehlgeschlagen');
+      }
+    } catch {
+      showStatus('error', 'Backup-Import fehlgeschlagen.');
+    } finally {
+      setIsImporting(false);
+    }
+  }, []);
+
+  const handleImportBackupClick = useCallback(() => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.zip';
+    input.onchange = (e) => {
+      const file = (e.target as HTMLInputElement).files?.[0];
+      if (!file) return;
+      setImportConfirm({ file, show: true });
+    };
+    input.click();
   }, []);
 
   // ── Helpers ────────────────────────────────────────────────────────────
@@ -1038,6 +1101,91 @@ export default function SettingsPage() {
                 {status.message}
               </div>
             )}
+          </div>
+        </section>
+
+        {/* ────────────── Backup & Restore ────────────── */}
+        <section className="space-y-4">
+          <div className="flex items-center gap-2 text-lg font-semibold">
+            <Download className="h-5 w-5 text-primary" />
+            Backup &amp; Restore
+          </div>
+          <div className="bg-card border border-border rounded-lg p-4 space-y-4">
+            <p className="text-sm text-muted-foreground">
+              Exportiere oder importiere alle LocAI-Daten (Einstellungen, Memory, Workspace, RAG-Collections) als ZIP-Backup.
+            </p>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <Button
+                variant="outline"
+                className="gap-2 justify-start"
+                onClick={handleExportBackup}
+                disabled={isExporting}
+              >
+                {isExporting ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Download className="h-4 w-4" />
+                )}
+                Backup exportieren
+              </Button>
+              <Button
+                variant="outline"
+                className="gap-2 justify-start"
+                onClick={handleImportBackupClick}
+                disabled={isImporting}
+              >
+                {isImporting ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Upload className="h-4 w-4" />
+                )}
+                Backup importieren
+              </Button>
+            </div>
+
+            {/* Import confirmation dialog */}
+            {importConfirm?.show && (
+              <div className="bg-destructive/10 border border-destructive/30 rounded-lg p-4 space-y-3">
+                <div className="flex items-start gap-2">
+                  <AlertCircle className="h-5 w-5 text-destructive shrink-0 mt-0.5" />
+                  <div>
+                    <div className="font-medium text-destructive">Backup importieren?</div>
+                    <p className="text-sm text-muted-foreground mt-1">
+                      Dies überschreibt bestehende Daten in <code className="bg-background/50 px-1 rounded text-xs">~/.locai/</code>.
+                      Ein automatisches Pre-Import-Backup wird erstellt.
+                    </p>
+                    <p className="text-sm text-muted-foreground mt-1">
+                      Datei: <strong>{importConfirm.file.name}</strong> ({(importConfirm.file.size / 1024 / 1024).toFixed(1)} MB)
+                    </p>
+                  </div>
+                </div>
+                <div className="flex gap-2">
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    onClick={() => handleImportBackup(importConfirm.file)}
+                    disabled={isImporting}
+                  >
+                    {isImporting ? (
+                      <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                    ) : null}
+                    Ja, importieren
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setImportConfirm(null)}
+                  >
+                    Abbrechen
+                  </Button>
+                </div>
+              </div>
+            )}
+
+            <div className="text-xs text-muted-foreground bg-muted/50 p-2 rounded">
+              💡 Beim Import wird automatisch ein Pre-Import-Backup erstellt, damit du im Notfall zurückkehren kannst.
+            </div>
           </div>
         </section>
 
