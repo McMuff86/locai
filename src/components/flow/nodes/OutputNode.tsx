@@ -1,10 +1,11 @@
 import { Handle, Position, type NodeProps } from '@xyflow/react';
-import React, { useCallback, useState } from 'react';
-import { CheckCheck, CircleDashed, HardDriveDownload, Loader2 } from 'lucide-react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { CheckCheck, ChevronDown, ChevronUp, CircleDashed, HardDriveDownload, Loader2 } from 'lucide-react';
 import { NodeRuntimeBadge } from '@/components/flow/nodes/NodeRuntimeBadge';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/components/ui/use-toast';
 import { saveFlowOutput } from '@/lib/flow/saveOutput';
+import { useFlowStore } from '@/stores/flowStore';
 import type { NodeRunStatus, OutputNodeData } from '@/lib/flow/types';
 
 function runtimeClass(status?: NodeRunStatus): string {
@@ -20,12 +21,30 @@ function runtimeClass(status?: NodeRunStatus): string {
   }
 }
 
+/** Rough token estimate (~4 chars per token for English/German mix) */
+function estimateTokens(text: string): number {
+  if (!text) return 0;
+  return Math.ceil(text.length / 4);
+}
+
 export function OutputNode({ data: rawData, selected }: NodeProps) {
   const data = rawData as OutputNodeData;
   const { toast } = useToast();
   const [isSaving, setIsSaving] = useState(false);
+  const [isExpanded, setIsExpanded] = useState(false);
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const outputStepLabel = useFlowStore((state) => state.outputStepLabel);
 
+  const isStreaming = data.runtime?.status === 'running';
   const hasResult = Boolean(data.config.result?.trim());
+  const tokenCount = estimateTokens(data.config.result ?? '');
+
+  // Auto-scroll during streaming
+  useEffect(() => {
+    if (isStreaming && scrollRef.current) {
+      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+    }
+  }, [isStreaming, data.config.result]);
 
   const handleSaveClick = useCallback(
     async (e: React.MouseEvent) => {
@@ -49,6 +68,11 @@ export function OutputNode({ data: rawData, selected }: NodeProps) {
     [data.config.result, data.config.filePath, hasResult, toast],
   );
 
+  const toggleExpand = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation();
+    setIsExpanded((prev) => !prev);
+  }, []);
+
   return (
     <div
       className={cn(
@@ -65,10 +89,45 @@ export function OutputNode({ data: rawData, selected }: NodeProps) {
         <NodeRuntimeBadge status={data.runtime?.status} />
       </div>
 
-      <div className="space-y-2 px-3 py-2.5">
-        <div className="text-[11px] text-muted-foreground">Ergebnis</div>
-        <div className="max-h-36 overflow-auto rounded-md border border-amber-500/20 bg-amber-500/5 px-2 py-1.5 text-[11px] leading-relaxed text-foreground/85">
-          {data.config.result?.trim() || 'Noch kein Ergebnis verfügbar.'}
+      <div className="space-y-1.5 px-3 py-2.5">
+        <div className="flex items-center justify-between">
+          <div className="text-[11px] text-muted-foreground">Ergebnis</div>
+          {hasResult && (
+            <button
+              type="button"
+              onClick={toggleExpand}
+              className="nopan nodrag inline-flex items-center gap-0.5 rounded px-1 py-0.5 text-[10px] text-muted-foreground hover:bg-muted/50 hover:text-foreground transition-colors"
+              title={isExpanded ? 'Verkleinern' : 'Erweitern'}
+            >
+              {isExpanded ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+            </button>
+          )}
+        </div>
+
+        {/* Step label during streaming */}
+        {isStreaming && outputStepLabel && (
+          <div className="text-[10px] font-medium text-amber-400/80 truncate">
+            ▸ {outputStepLabel}
+          </div>
+        )}
+
+        <div
+          ref={scrollRef}
+          className={cn(
+            'overflow-auto rounded-md border border-amber-500/20 bg-amber-500/5 px-2 py-1.5 text-[11px] leading-relaxed text-foreground/85 transition-[max-height] duration-200',
+            isExpanded ? 'max-h-96' : 'max-h-36',
+          )}
+        >
+          {data.config.result?.trim() ? (
+            <>
+              {data.config.result}
+              {isStreaming && (
+                <span className="inline-block ml-0.5 w-1.5 h-3 bg-amber-300/80 animate-pulse rounded-sm" />
+              )}
+            </>
+          ) : (
+            'Noch kein Ergebnis verfügbar.'
+          )}
         </div>
       </div>
 
@@ -77,6 +136,14 @@ export function OutputNode({ data: rawData, selected }: NodeProps) {
           <CircleDashed className="h-3 w-3" />
           sink
         </span>
+
+        {/* Token counter */}
+        {hasResult && (
+          <span className="text-[9px] tabular-nums text-muted-foreground/70">
+            ~{tokenCount.toLocaleString()} tokens
+          </span>
+        )}
+
         <button
           type="button"
           onClick={handleSaveClick}
