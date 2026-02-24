@@ -7,6 +7,7 @@ import { Loader2, Music } from 'lucide-react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { ModeSelector } from './ModeSelector';
 import { PresetSelector } from './PresetSelector';
+import { QualitySelector } from './QualitySelector';
 import { ParameterPanel } from './ParameterPanel';
 import { ReferenceAudioUpload } from './ReferenceAudioUpload';
 import { ResultCard } from './ResultCard';
@@ -47,8 +48,7 @@ export function MusicGenerator({ gen, onGenerated, onOpenInStudio }: MusicGenera
     numSteps: gen.numSteps,
   });
 
-  // Estimate generation time based on duration and batch
-  const estimatedSeconds = Math.max(15, Math.round((gen.duration / 30) * 20 * gen.batch));
+  const estimatedSeconds = gen.estimatedTime;
 
   return (
     <div className="grid grid-cols-1 xl:grid-cols-[280px_1fr] gap-6">
@@ -65,6 +65,15 @@ export function MusicGenerator({ gen, onGenerated, onOpenInStudio }: MusicGenera
           onSaveCurrent={getCurrentAsPreset}
           disabled={gen.loading}
         />
+
+        {gen.mode === 'simple' && (
+          <QualitySelector
+            value={gen.quality}
+            onChange={gen.setQuality}
+            estimatedTime={gen.estimatedTime}
+            disabled={gen.loading}
+          />
+        )}
 
         <AnimatePresence mode="wait">
           {needsReference && (

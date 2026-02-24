@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useCallback } from 'react';
+import { type QualityLevel, QUALITY_PRESETS, estimateGenerationTime } from '@/lib/aceStep/promptTemplates';
 
 export type GenerationMode = 'simple' | 'custom' | 'remix' | 'repaint';
 
@@ -30,6 +31,9 @@ export interface AudioGeneratorState {
   // Reference audio
   srcAudioPath: string;
   srcAudioName: string;
+  // Quality
+  quality: QualityLevel;
+  estimatedTime: number;
   // Status
   loading: boolean;
   error: string | null;
@@ -61,10 +65,15 @@ export function useAudioGenerator() {
   const [repaintEnd, setRepaintEnd] = useState(-1);
   const [srcAudioPath, setSrcAudioPath] = useState('');
   const [srcAudioName, setSrcAudioName] = useState('');
+  const [quality, setQuality] = useState<QualityLevel>('standard');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [statusText, setStatusText] = useState('');
   const [results, setResults] = useState<GeneratedAudio[]>([]);
+
+  const effectiveNumSteps = mode === 'simple' ? QUALITY_PRESETS[quality].numSteps : numSteps;
+  const effectiveCfgScale = mode === 'simple' ? QUALITY_PRESETS[quality].cfgScale : cfgScale;
+  const estimatedTime = estimateGenerationTime(duration, batch, quality);
 
   const generate = useCallback(async (onGenerated?: () => void) => {
     if (!caption.trim() && !lyrics.trim() && mode !== 'remix' && mode !== 'repaint') {
@@ -94,7 +103,11 @@ export function useAudioGenerator() {
 
       if (instrumental) body.instrumental = true;
       if (seed.trim()) body.seed = parseInt(seed);
-      if (mode === 'custom' || mode === 'remix' || mode === 'repaint') {
+      if (mode === 'simple') {
+        const qp = QUALITY_PRESETS[quality];
+        if (qp.numSteps !== 50) body.num_steps = qp.numSteps;
+        if (qp.cfgScale !== 5) body.cfg_scale = qp.cfgScale;
+      } else if (mode === 'custom' || mode === 'remix' || mode === 'repaint') {
         if (thinking) body.thinking = true;
         if (numSteps !== 50) body.num_steps = numSteps;
         if (cfgScale !== 5) body.cfg_scale = cfgScale;
@@ -130,12 +143,19 @@ export function useAudioGenerator() {
       setStatusText('');
       onGenerated?.();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Unbekannter Fehler');
+      const message = err instanceof Error ? err.message : 'Unbekannter Fehler';
+      if (message.includes('fetch') || message.includes('network') || message.includes('ECONNREFUSED')) {
+        setError('ACE-Step Server nicht erreichbar. Bitte starte den Server über den "Server starten" Button oder prüfe ob er auf localhost:8001 läuft.');
+      } else if (message.includes('timeout') || message.includes('Timeout')) {
+        setError('Generierung hat zu lange gedauert (Timeout). Versuche eine kürzere Dauer oder weniger Steps.');
+      } else {
+        setError(message);
+      }
       setStatusText('');
     } finally {
       setLoading(false);
     }
-  }, [caption, lyrics, duration, bpm, batch, mode, instrumental, seed, thinking, numSteps, cfgScale, strength, repaintStart, repaintEnd, srcAudioPath]);
+  }, [caption, lyrics, duration, bpm, batch, mode, instrumental, seed, thinking, numSteps, cfgScale, strength, repaintStart, repaintEnd, srcAudioPath, quality]);
 
   const sendToRemix = useCallback((audioPath: string, audioName?: string) => {
     setMode('remix');
@@ -162,12 +182,13 @@ export function useAudioGenerator() {
     mode, caption, lyrics, duration, bpm, batch, instrumental, seed,
     thinking, numSteps, cfgScale, strength, repaintStart, repaintEnd,
     srcAudioPath, srcAudioName,
+    quality, estimatedTime, effectiveNumSteps, effectiveCfgScale,
     loading, error, statusText, results,
     // Setters
     setMode, setCaption, setLyrics, setDuration, setBpm, setBatch,
     setInstrumental, setSeed, setThinking, setNumSteps, setCfgScale,
     setStrength, setRepaintStart, setRepaintEnd,
-    setSrcAudioPath, setSrcAudioName,
+    setSrcAudioPath, setSrcAudioName, setQuality,
     // Actions
     generate, sendToRemix, sendToRepaint, clearReference,
   };
