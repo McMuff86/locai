@@ -23,8 +23,16 @@ import { OpenAICompatibleProvider } from './openai-provider';
 
 const PROVIDER_SETTINGS_KEY = 'locai-provider-settings';
 
+export interface FallbackSettings {
+  enabled: boolean;
+  timeoutMs: number;
+  fallbackProvider: ProviderType;
+  fallbackModel: string;
+}
+
 export interface ProviderSettings {
   providers: Record<ProviderType, ProviderConfig>;
+  fallback: FallbackSettings;
 }
 
 const DEFAULT_PROVIDER_SETTINGS: ProviderSettings = {
