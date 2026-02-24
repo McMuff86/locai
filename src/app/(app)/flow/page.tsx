@@ -69,6 +69,7 @@ export default function FlowPage() {
   const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
   const [pendingInsertNodeKind, setPendingInsertNodeKind] = useState<FlowNodeKind | null>(null);
   const streamBufferRef = useRef('');
+  const currentStepLabelRef = useRef<string | null>(null);
   const runAbortControllerRef = useRef<AbortController | null>(null);
   const [showLastRunInfo, setShowLastRunInfo] = useState(true);
   const [isSaveDialogOpen, setIsSaveDialogOpen] = useState(false);
@@ -366,6 +367,7 @@ export default function FlowPage() {
     setRunError(null);
     resetNodeRuntime();
     streamBufferRef.current = '';
+    currentStepLabelRef.current = null;
     timelineEventsRef.current = [];
     setTimelineData(null);
     logEntriesRef.current = [];
@@ -414,6 +416,7 @@ export default function FlowPage() {
           setNodeRuntime(event.stepId, { status: 'running' });
           setRunNodeStatus(event.stepId, 'running');
           totalSteps = Math.max(totalSteps ?? 0, event.stepIndex + 1);
+          currentStepLabelRef.current = event.description || event.stepId;
           timelineEventsRef.current.push({
             stepId: event.stepId,
             label: event.description,
@@ -444,7 +447,7 @@ export default function FlowPage() {
           if (compiled.outputNodeId) {
             setNodeRuntime(compiled.outputNodeId, { status: 'running' });
           }
-          setOutputResult(streamBufferRef.current);
+          setOutputResult(streamBufferRef.current, currentStepLabelRef.current ?? undefined);
           setRunNodeStatus(compiled.outputNodeId ?? undefined, 'running');
           break;
 

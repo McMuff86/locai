@@ -37,6 +37,7 @@ import {
   Music,
 } from 'lucide-react';
 import { HealthIndicator } from '@/components/HealthIndicator';
+import { ProviderHealthWidget } from '@/components/providers/ProviderHealthWidget';
 import { ChatAvatar } from '@/components/chat/ChatAvatar';
 import {
   loadProviderSettings,
@@ -270,6 +271,15 @@ export default function SettingsPage() {
             </div>
           )}
         </div>
+
+        {/* ────────────── Provider Status ────────────── */}
+        <section className="space-y-4">
+          <div className="flex items-center gap-2 text-lg font-semibold">
+            <Activity className="h-5 w-5 text-primary" />
+            Provider Status
+          </div>
+          <ProviderHealthWidget />
+        </section>
 
         {/* ────────────── Appearance ────────────── */}
         <section className="space-y-4">

@@ -51,7 +51,8 @@ interface FlowStoreState {
   resetNodeRuntime: () => void;
   clearRunningNodeRuntime: () => void;
   setNodeRuntime: (nodeId: string, patch: Partial<NodeRuntimeState>) => void;
-  setOutputResult: (content: string) => void;
+  outputStepLabel: string | null;
+  setOutputResult: (content: string, stepLabel?: string) => void;
   setRunning: (running: boolean) => void;
   setRunError: (error: string | null) => void;
   addRunSummary: (summary: WorkflowRunSummary) => void;
@@ -75,6 +76,7 @@ export const useFlowStore = create<FlowStoreState>((set) => ({
   savedTemplates: [],
   activeTemplateId: null,
   activeTemplateName: null,
+  outputStepLabel: null,
 
   setHydrated: (hydrated) => set({ isHydrated: hydrated }),
 
@@ -377,8 +379,9 @@ export const useFlowStore = create<FlowStoreState>((set) => ({
       }),
     })),
 
-  setOutputResult: (content) =>
+  setOutputResult: (content, stepLabel) =>
     set((state) => ({
+      outputStepLabel: stepLabel !== undefined ? stepLabel : state.outputStepLabel,
       workflow: withUpdatedTimestamp({
         ...state.workflow,
         graph: {
