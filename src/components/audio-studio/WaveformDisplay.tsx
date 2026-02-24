@@ -16,6 +16,7 @@ export function WaveformDisplay({ waveformData, onSeek }: WaveformDisplayProps) 
   const [hoverX, setHoverX] = useState(0);
   const [isDragging, setIsDragging] = useState(false);
   const dragStart = useRef<number | null>(null);
+  const dragMode = useRef<'new' | 'start' | 'end'>('new');
   const isDarkRef = useRef(true);
 
   const {
@@ -100,9 +101,18 @@ export function WaveformDisplay({ waveformData, onSeek }: WaveformDisplayProps) 
       const lex = (loopEnd / duration) * w;
       ctx.fillStyle = dark ? 'hsl(38 90% 60% / 0.08)' : 'hsl(38 90% 50% / 0.12)';
       ctx.fillRect(lsx, rulerH, lex - lsx, waveH);
-      ctx.fillStyle = dark ? 'hsl(38 90% 60% / 0.5)' : 'hsl(38 90% 50% / 0.6)';
-      ctx.fillRect(lsx, rulerH, 2, waveH);
-      ctx.fillRect(lex - 2, rulerH, 2, waveH);
+      // Loop edge handles (wider for easier grabbing)
+      ctx.fillStyle = dark ? 'hsl(38 90% 60% / 0.7)' : 'hsl(38 90% 50% / 0.8)';
+      ctx.fillRect(lsx - 1, rulerH, 3, waveH);
+      ctx.fillRect(lex - 2, rulerH, 3, waveH);
+      // Small grab indicators at top of edges
+      ctx.fillStyle = dark ? 'hsl(38 90% 70% / 0.9)' : 'hsl(38 90% 55% / 0.9)';
+      ctx.beginPath();
+      ctx.roundRect(lsx - 3, rulerH, 7, 14, 2);
+      ctx.fill();
+      ctx.beginPath();
+      ctx.roundRect(lex - 4, rulerH, 7, 14, 2);
+      ctx.fill();
     }
 
     // Waveform bars
@@ -204,37 +214,82 @@ export function WaveformDisplay({ waveformData, onSeek }: WaveformDisplayProps) 
     return Math.max(0, Math.min(duration, (x / rect.width) * duration));
   }, [duration]);
 
+  // Detect if mouse is near a loop edge (within ~6px)
+  const getEdgeHitZone = useCallback((clientX: number): 'start' | 'end' | null => {
+    if (!loopEnabled || loopEnd <= loopStart || !duration || !canvasRef.current) return null;
+    const rect = canvasRef.current.getBoundingClientRect();
+    const px = clientX - rect.left;
+    const loopStartPx = (loopStart / duration) * rect.width;
+    const loopEndPx = (loopEnd / duration) * rect.width;
+    const threshold = 6; // pixels
+    if (Math.abs(px - loopStartPx) <= threshold) return 'start';
+    if (Math.abs(px - loopEndPx) <= threshold) return 'end';
+    return null;
+  }, [loopEnabled, loopStart, loopEnd, duration]);
+
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
-    dragStart.current = getTimeFromX(e.clientX);
+    const edge = getEdgeHitZone(e.clientX);
+    if (edge) {
+      // Drag an existing loop edge
+      dragMode.current = edge;
+    } else {
+      // New selection
+      dragMode.current = 'new';
+      dragStart.current = getTimeFromX(e.clientX);
+    }
     setIsDragging(true);
-  }, [getTimeFromX]);
+  }, [getTimeFromX, getEdgeHitZone]);
 
   const handleMouseMove = useCallback((e: React.MouseEvent) => {
     const t = getTimeFromX(e.clientX);
     setHoverTime(t);
     setHoverX(e.clientX - (canvasRef.current?.getBoundingClientRect().left || 0));
 
-    if (isDragging && dragStart.current !== null) {
-      const start = Math.min(dragStart.current, t);
-      const end = Math.max(dragStart.current, t);
-      if (end - start > 0.2) {
-        setLoopRegion(start, end);
-        setLoopEnabled(true);
+    // Update cursor based on edge proximity
+    if (!isDragging) {
+      const edge = getEdgeHitZone(e.clientX);
+      const canvas = canvasRef.current;
+      if (canvas) {
+        canvas.style.cursor = edge ? 'col-resize' : 'crosshair';
       }
     }
-  }, [isDragging, getTimeFromX, setLoopRegion, setLoopEnabled]);
+
+    if (isDragging) {
+      if (dragMode.current === 'start') {
+        // Drag loop start, clamp to before loop end
+        const newStart = Math.max(0, Math.min(t, loopEnd - 0.1));
+        setLoopRegion(newStart, loopEnd);
+      } else if (dragMode.current === 'end') {
+        // Drag loop end, clamp to after loop start
+        const newEnd = Math.min(duration, Math.max(t, loopStart + 0.1));
+        setLoopRegion(loopStart, newEnd);
+      } else if (dragStart.current !== null) {
+        // New selection
+        const start = Math.min(dragStart.current, t);
+        const end = Math.max(dragStart.current, t);
+        if (end - start > 0.2) {
+          setLoopRegion(start, end);
+          setLoopEnabled(true);
+        }
+      }
+    }
+  }, [isDragging, getTimeFromX, getEdgeHitZone, setLoopRegion, setLoopEnabled, loopStart, loopEnd, duration]);
 
   const handleMouseUp = useCallback((e: React.MouseEvent) => {
-    if (isDragging && dragStart.current !== null) {
-      const t = getTimeFromX(e.clientX);
-      const start = Math.min(dragStart.current, t);
-      const end = Math.max(dragStart.current, t);
-      if (end - start <= 0.2) {
-        onSeek(t);
+    if (isDragging) {
+      if (dragMode.current === 'new' && dragStart.current !== null) {
+        const t = getTimeFromX(e.clientX);
+        const start = Math.min(dragStart.current, t);
+        const end = Math.max(dragStart.current, t);
+        if (end - start <= 0.2) {
+          // Click, not drag → seek
+          onSeek(t);
+        }
       }
     }
     setIsDragging(false);
     dragStart.current = null;
+    dragMode.current = 'new';
   }, [isDragging, getTimeFromX, onSeek]);
 
   const handleMouseLeave = useCallback(() => {
