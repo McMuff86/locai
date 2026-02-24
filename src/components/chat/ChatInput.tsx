@@ -206,11 +206,8 @@ export function ChatInput({
     e.stopPropagation();
     dragCounterRef.current += 1;
     
-    // Check if any dragged items are files (not just images)
-    const hasFiles = Array.from(e.dataTransfer.items).some(item => 
-      item.kind === 'file' && !item.type.startsWith('image/')
-    );
-    
+    // Show overlay for any file drag (MIME types may not be available during dragenter)
+    const hasFiles = Array.from(e.dataTransfer.items).some(item => item.kind === 'file');
     if (hasFiles) {
       setIsDragOver(true);
     }
@@ -304,10 +301,10 @@ export function ChatInput({
             className="absolute inset-0 bg-primary/10 backdrop-blur-sm z-50 flex items-center justify-center border-2 border-dashed border-primary/60 rounded-lg"
           >
             <div className="flex flex-col items-center gap-3 text-primary">
-              <FileText className="h-12 w-12" />
+              <Upload className="h-12 w-12" />
               <div className="text-center">
-                <p className="text-lg font-semibold">Dokument hier ablegen</p>
-                <p className="text-sm opacity-80">PDF, Markdown, Text oder Code-Dateien</p>
+                <p className="text-lg font-semibold">Dateien hier ablegen</p>
+                <p className="text-sm opacity-80">Bilder, PDF, Markdown, Text oder Code-Dateien</p>
               </div>
             </div>
           </motion.div>

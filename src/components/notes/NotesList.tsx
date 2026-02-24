@@ -69,7 +69,7 @@ export function NotesList({
   }, [contextMenu.visible, closeContextMenu]);
 
   return (
-    <div className="w-1/3 min-w-[200px] max-w-[350px] flex flex-col rounded-xl border border-border/40 bg-background/60 backdrop-blur-sm shadow-sm overflow-hidden flex-shrink-0">
+    <div className="w-full md:w-1/3 md:min-w-[200px] md:max-w-[350px] max-md:max-h-[35vh] flex flex-col rounded-xl border border-border/40 bg-background/60 backdrop-blur-sm shadow-sm overflow-hidden flex-shrink-0">
       <div className="flex items-center justify-between px-3 py-2.5 border-b border-border/30 bg-muted/20 flex-shrink-0">
         <h2 className="text-xs font-semibold tracking-tight">Notizen</h2>
         <Button size="sm" variant="ghost" onClick={onRefresh} disabled={loading} className="h-6 px-2 text-[11px] rounded-md">

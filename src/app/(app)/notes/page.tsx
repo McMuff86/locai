@@ -362,7 +362,7 @@ export default function NotesPage() {
       />
       
       {/* Split View: Notes List + Editor */}
-      <div className="flex-1 flex gap-3 min-h-0 overflow-hidden">
+      <div className="flex-1 flex flex-col md:flex-row gap-3 min-h-0 overflow-hidden">
         {/* Left Panel: Notes List */}
         <NotesList
           notes={notes}

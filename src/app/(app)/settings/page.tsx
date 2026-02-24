@@ -39,6 +39,7 @@ import {
 import { LoadingState } from '@/components/ui/loading-state';
 import { HealthIndicator } from '@/components/HealthIndicator';
 import { ProviderHealthWidget } from '@/components/providers/ProviderHealthWidget';
+import { FallbackSettings } from '@/components/providers/FallbackSettings';
 import { ChatAvatar } from '@/components/chat/ChatAvatar';
 import {
   loadProviderSettings,
@@ -343,6 +344,15 @@ export default function SettingsPage() {
             Provider Status
           </div>
           <ProviderHealthWidget />
+        </section>
+
+        {/* ────────────── Automatic Fallback ────────────── */}
+        <section className="space-y-4">
+          <div className="flex items-center gap-2 text-lg font-semibold">
+            <Activity className="h-5 w-5 text-primary" />
+            Automatic Fallback
+          </div>
+          <FallbackSettings />
         </section>
 
         {/* ────────────── Appearance ────────────── */}
