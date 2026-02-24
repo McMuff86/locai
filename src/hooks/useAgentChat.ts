@@ -441,6 +441,7 @@ export function useAgentChat(): UseAgentChatReturn {
     togglePlanning,
     agentPlan,
     memoryContext,
+    fallbackInfo,
   };
 }
 

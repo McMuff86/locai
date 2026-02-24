@@ -151,8 +151,6 @@ export function ChunkPreview({ documentId, chunkCount }: ChunkPreviewProps) {
     <div className="mt-2">
       {/* Toggle Button */}
       <button
-        onClick={handleToggle}
-      <button
         onClick={(e) => {
           e.stopPropagation();
           handleToggle();
@@ -170,11 +168,6 @@ export function ChunkPreview({ documentId, chunkCount }: ChunkPreviewProps) {
         )}
         <Layers className="h-3.5 w-3.5" />
         <span>
-          {chunkCount} Chunks anzeigen
-        </span>
-      </button>
-
-      {/* Chunk List */}
           {chunkCount} Chunks {isOpen ? 'verbergen' : 'anzeigen'}
         </span>
       </button>
