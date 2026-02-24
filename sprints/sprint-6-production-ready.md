@@ -69,7 +69,7 @@
 ### PROV-2: OpenAI Provider Integration
 - [x] OpenAI API Key Config in Settings
 - [x] GPT-4.1/GPT-5 als Alternative für Workflows
-- [ ] Automatic Fallback: wenn Ollama langsam → Cloud-Provider
+- [x] Automatic Fallback: wenn Ollama langsam → Cloud-Provider
 
 ### PROV-3: Provider Health Dashboard
 - [x] Widget: welche Provider/Modelle sind erreichbar? (Ollama, OpenAI, Anthropic, OpenRouter)
@@ -168,7 +168,7 @@
 - [x] Bundle Size analysieren und reduzieren
 - [x] Lazy Loading für schwere Komponenten (PDF Viewer, Studio, Image Editor, Knowledge Graph)
 - [x] API Response Caching wo sinnvoll (models 30s cache, health check 30s interval)
-- [ ] Ollama Connection Pooling / Keep-Alive
+- [x] Ollama Connection Pooling / Keep-Alive
 - [ ] Memory Leaks identifizieren und fixen
 - [ ] Lighthouse Score messen und optimieren
 
