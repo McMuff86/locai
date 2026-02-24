@@ -8,6 +8,7 @@ interface AudioFile {
   filename: string;
   size: number;
   createdAt: string;
+  source?: string;  // 'generated' | 'workspace' | 'custom'
 }
 
 export interface AudioHistoryHandle {
@@ -92,7 +93,11 @@ export const AudioHistory = forwardRef<AudioHistoryHandle, AudioHistoryProps>(
             }
           >
             <div className="flex items-center justify-between text-xs text-muted-foreground">
-              <span className="truncate font-mono text-[10px]">{file.filename}</span>
+              <span className="truncate font-mono text-[10px]">
+                {file.source === 'workspace' && <span className="text-cyan-400 mr-1">📁</span>}
+                {file.source === 'custom' && <span className="text-amber-400 mr-1">📂</span>}
+                {file.filename}
+              </span>
               {!compact && (
                 <span className="flex-shrink-0 ml-2">
                   {formatSize(file.size)} &middot; {formatDate(file.createdAt)}

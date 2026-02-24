@@ -6,9 +6,12 @@ import { NextResponse } from 'next/server';
 export const dynamic = 'force-dynamic';
 
 const AUDIO_CACHE_DIR = path.join(homedir(), '.locai', 'audio');
+const WORKSPACE_AUDIO_DIR = path.join(homedir(), '.locai', 'workspace', 'audio');
 
 /**
  * Serve cached audio files with Range header support.
+ * Searches in: ~/.locai/audio/ then ~/.locai/workspace/audio/
+ * Also supports ?dir= query param for custom source directories.
  * Path traversal protection: reject any filename containing '..' or '/'.
  */
 export async function GET(
@@ -28,15 +31,28 @@ export async function GET(
     return NextResponse.json({ success: false, error: 'Invalid filename' }, { status: 400 });
   }
 
-  const filePath = path.join(AUDIO_CACHE_DIR, filename);
+  // Search multiple directories for the file
+  const searchDirs = [AUDIO_CACHE_DIR, WORKSPACE_AUDIO_DIR];
 
-  // Ensure resolved path is still within cache dir
-  const resolved = path.resolve(filePath);
-  if (!resolved.startsWith(path.resolve(AUDIO_CACHE_DIR))) {
-    return NextResponse.json({ success: false, error: 'Invalid filename' }, { status: 400 });
+  // Support custom dir via query param
+  const url = new URL(request.url);
+  const customDir = url.searchParams.get('dir');
+  if (customDir && !customDir.includes('..')) {
+    searchDirs.push(path.resolve(customDir));
   }
 
-  if (!existsSync(filePath)) {
+  let filePath = '';
+  for (const dir of searchDirs) {
+    const candidate = path.join(dir, filename);
+    const resolved = path.resolve(candidate);
+    // Ensure resolved path stays within the search dir
+    if (resolved.startsWith(path.resolve(dir)) && existsSync(candidate)) {
+      filePath = candidate;
+      break;
+    }
+  }
+
+  if (!filePath) {
     return NextResponse.json({ success: false, error: 'File not found' }, { status: 404 });
   }
 
@@ -51,6 +67,9 @@ export async function GET(
     '.ogg': 'audio/ogg',
     '.flac': 'audio/flac',
     '.m4a': 'audio/mp4',
+    '.opus': 'audio/opus',
+    '.aac': 'audio/aac',
+    '.wma': 'audio/x-ms-wma',
   };
   const contentType = contentTypeMap[ext] || 'application/octet-stream';
 
