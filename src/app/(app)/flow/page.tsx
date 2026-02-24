@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ChevronDown, Download, FileText, GripHorizontal, Loader2, Play, Plus, Save, Square, Trash2, Upload, X } from 'lucide-react';
+import { ChevronDown, Copy, Download, FileText, GripHorizontal, Loader2, Play, Plus, Save, Square, Trash2, Upload, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -64,6 +64,7 @@ export default function FlowPage() {
   const setSavedTemplates = useFlowStore((state) => state.setSavedTemplates);
   const setActiveTemplate = useFlowStore((state) => state.setActiveTemplate);
   const loadSavedTemplate = useFlowStore((state) => state.loadSavedTemplate);
+  const duplicateFlow = useFlowStore((state) => state.duplicateFlow);
 
   const [compileWarnings, setCompileWarnings] = useState<string[]>([]);
   const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
@@ -239,6 +240,11 @@ export default function FlowPage() {
   }, [deleteTarget, savedTemplates, activeTemplateId, setSavedTemplates, setActiveTemplate, toast]);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleDuplicate = useCallback(() => {
+    duplicateFlow();
+    toast({ title: 'Flow dupliziert', description: 'Eine Kopie des Flows wurde erstellt.' });
+  }, [duplicateFlow, toast]);
 
   const handleExportJson = useCallback(() => {
     const json = exportWorkflowAsJson(workflow.graph);
@@ -797,6 +803,17 @@ export default function FlowPage() {
             <span className="rounded border border-border/60 px-1.5 py-0.5 text-[10px] text-muted-foreground">
               Ctrl/Cmd+K
             </span>
+          </Button>
+
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-8 gap-1.5"
+            onClick={handleDuplicate}
+            disabled={isRunning}
+          >
+            <Copy className="h-3.5 w-3.5" />
+            Duplicate
           </Button>
 
           <DropdownMenu>

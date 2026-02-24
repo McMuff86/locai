@@ -22,8 +22,8 @@
 - [ ] Option: `enabledTools` per Step statt global
 
 ### ENGINE-4: Flow Builder Streaming
-- [ ] Live-Output im Output-Node während Workflow läuft
-- [ ] Streaming-Events in der Flow-UI anzeigen (nicht nur Logs)
+- [x] Live-Output im Output-Node während Workflow läuft (auto-scroll, typing indicator, expand toggle, per-step label, token counter)
+- [x] Streaming-Events in der Flow-UI anzeigen (nicht nur Logs)
 
 ### ENGINE-5: Template Testing
 - [ ] Alle 7 Flow-Templates mit lokalen Modellen (qwen3, phi4) durchlaufen
@@ -72,9 +72,9 @@
 - [ ] Automatic Fallback: wenn Ollama langsam → Cloud-Provider
 
 ### PROV-3: Provider Health Dashboard
-- [ ] Widget: welche Provider/Modelle sind erreichbar?
-- [ ] Latenz-Monitoring pro Modell
-- [ ] "Empfohlenes Modell" basierend auf Task-Typ
+- [x] Widget: welche Provider/Modelle sind erreichbar? (Ollama, OpenAI, Anthropic, OpenRouter)
+- [x] Latenz-Monitoring pro Modell (auto-refresh 30s)
+- [x] "Empfohlenes Modell" basierend auf Task-Typ (⚡ fast / 🧠 complex)
 
 ---
 

@@ -170,6 +170,31 @@ export function useChat(): UseChatReturn {
       }
     }
 
+    // Memory Auto-Inject: fetch relevant memories and inject as system context
+    if (typeof content === 'string' && content.trim()) {
+      try {
+        const memRes = await fetch(`/api/memory/relevant?message=${encodeURIComponent(content)}&limit=10`);
+        if (memRes.ok) {
+          const memData = await memRes.json();
+          const memories = memData.data?.memories ?? memData.memories ?? [];
+          if (Array.isArray(memories) && memories.length > 0) {
+            const memoryLines = memories.map(
+              (m: { category?: string; key: string; value: string }) =>
+                `- [${m.category || 'general'}] ${m.key}: ${m.value}`
+            );
+            const memSystemMsg = {
+              role: 'system' as const,
+              content: `Bekannte Informationen über den Benutzer:\n${memoryLines.join('\n')}`,
+            };
+            // Insert before the last user message
+            apiMessages.splice(apiMessages.length - 1, 0, memSystemMsg);
+          }
+        }
+      } catch (err) {
+        console.debug('[Memory] Auto-inject failed:', err);
+      }
+    }
+
     const botMessageId = uuidv4();
 
     if (useStreaming) {

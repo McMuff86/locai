@@ -57,6 +57,7 @@ interface FlowStoreState {
   setRunError: (error: string | null) => void;
   addRunSummary: (summary: WorkflowRunSummary) => void;
   applyRunSummary: (summary: WorkflowRunSummary) => void;
+  duplicateFlow: () => void;
 }
 
 function withUpdatedTimestamp(workflow: StoredWorkflow): StoredWorkflow {
@@ -445,4 +446,65 @@ export const useFlowStore = create<FlowStoreState>((set) => ({
         },
       }),
     })),
+
+  duplicateFlow: () =>
+    set((state) => {
+      const makeId = (prefix: string) =>
+        `${prefix}-${Math.random().toString(36).slice(2, 10)}`;
+
+      // Build old→new ID mapping for nodes
+      const idMap = new Map<string, string>();
+      for (const node of state.workflow.graph.nodes) {
+        idMap.set(node.id, makeId(node.data.kind));
+      }
+
+      const now = new Date().toISOString();
+      const clonedNodes = state.workflow.graph.nodes.map((node) => ({
+        ...node,
+        id: idMap.get(node.id)!,
+        selected: false,
+        data: {
+          ...node.data,
+          runtime: { status: 'idle' as const, updatedAt: now },
+        },
+      })) as FlowNode[];
+
+      const clonedEdges = state.workflow.graph.edges
+        .filter((e) => idMap.has(e.source) && idMap.has(e.target))
+        .map((e) => ({
+          ...e,
+          id: makeId('edge'),
+          source: idMap.get(e.source)!,
+          target: idMap.get(e.target)!,
+        })) as FlowEdge[];
+
+      const newName = `${state.workflow.name} (Copy)`;
+
+      return {
+        selectedNodeId: null,
+        selectedRunId: null,
+        runError: null,
+        activeTemplateId: null,
+        activeTemplateName: newName,
+        workflow: {
+          id: 'current',
+          name: newName,
+          description: state.workflow.description,
+          graph: {
+            nodes: clonedNodes,
+            edges: clonedEdges,
+            viewport: state.workflow.graph.viewport,
+            metadata: {
+              name: newName,
+              description: state.workflow.graph.metadata?.description,
+            },
+          },
+          runs: [],
+          createdAt: now,
+          updatedAt: now,
+          tags: [...state.workflow.tags],
+          isFavorite: false,
+        },
+      };
+    }),
 }));
