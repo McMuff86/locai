@@ -65,16 +65,19 @@ export class QwenTTSClient {
   /** Clone a voice from reference audio */
   async cloneVoice(options: VoiceCloneOptions): Promise<TTSResult> {
     const audioHandle = await this.resolveFileInput(options.referenceAudio);
+    // clone_voice(voice_file_dropdown, voice_file_upload, reference_text,
+    //             text_to_generate, language, model_size, combine_audio, pause_seconds)
     const { data, duration } = await this.callApi<[GradioFileRef, string, string]>(
       "clone_voice",
       [
-        audioHandle,
-        options.referenceText,
-        options.text,
-        options.language,
-        options.modelSize ?? "1.7B",
-        options.combine ?? true,
-        options.pauseSeconds ?? 0.5,
+        null,                              // voice_file_dropdown (not used)
+        audioHandle,                       // voice_file_upload
+        options.referenceText ?? "",       // reference_text
+        options.text,                      // text_to_generate
+        options.language,                  // language
+        options.modelSize ?? "1.7B",       // model_size
+        options.combine ?? true,           // combine_audio
+        options.pauseSeconds ?? 0.5,       // pause_seconds
       ],
     );
     return this.parseTTSResult(data, duration);
@@ -242,6 +245,7 @@ export class QwenTTSClient {
       }
 
       const sseText = await sseRes.text();
+      console.log(`[QwenTTS] SSE response for ${endpoint}:`, sseText.slice(0, 500));
       const duration = (Date.now() - startTime) / 1000;
 
       // Parse SSE: look for "event: complete" followed by "data: ..."
@@ -264,7 +268,16 @@ export class QwenTTSClient {
         if (lines[i].startsWith("event: error")) {
           for (let j = i + 1; j < lines.length; j++) {
             if (lines[j].startsWith("data: ")) {
-              throw new QwenTTSGenerationError(`Gradio error: ${lines[j].slice(6)}`);
+              const errData = lines[j].slice(6);
+              // Try to parse JSON error for better message
+              try {
+                const parsed = JSON.parse(errData);
+                const msg = parsed?.message || parsed?.error || parsed || errData;
+                throw new QwenTTSGenerationError(`Gradio error: ${typeof msg === 'string' ? msg : JSON.stringify(msg)}`);
+              } catch (e) {
+                if (e instanceof QwenTTSGenerationError) throw e;
+                throw new QwenTTSGenerationError(`Gradio error: ${errData}`);
+              }
             }
           }
           throw new QwenTTSGenerationError("Gradio returned an error event");
