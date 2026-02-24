@@ -12,7 +12,7 @@ export function StudioControls() {
       {/* Volume */}
       <div className="space-y-2">
         <div className="flex items-center justify-between">
-          <label className="text-[10px] font-medium text-foreground/50 uppercase tracking-wider">
+          <label className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">
             Volume
           </label>
           <span className="font-mono text-[10px] tabular-nums text-foreground/60">
@@ -25,9 +25,8 @@ export function StudioControls() {
           step={0.5}
           value={[volume]}
           onValueChange={([v]) => setVolume(v)}
-          className="[&_[data-slot=slider-range]]:bg-[oklch(0.75_0.17_182)] [&_[data-slot=slider-thumb]]:border-[oklch(0.75_0.17_182)]"
         />
-        <div className="flex justify-between text-[9px] text-foreground/30 font-mono">
+        <div className="flex justify-between text-[9px] text-muted-foreground/40 font-mono">
           <span>-60</span>
           <span>-30</span>
           <span>0</span>
@@ -38,7 +37,7 @@ export function StudioControls() {
       {/* Pan */}
       <div className="space-y-2">
         <div className="flex items-center justify-between">
-          <label className="text-[10px] font-medium text-foreground/50 uppercase tracking-wider">
+          <label className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">
             Pan
           </label>
           <span className="font-mono text-[10px] tabular-nums text-foreground/60">
@@ -51,9 +50,8 @@ export function StudioControls() {
           step={0.01}
           value={[pan]}
           onValueChange={([v]) => setPan(v)}
-          className="[&_[data-slot=slider-range]]:bg-[oklch(0.75_0.17_182)] [&_[data-slot=slider-thumb]]:border-[oklch(0.75_0.17_182)]"
         />
-        <div className="flex justify-between text-[9px] text-foreground/30 font-mono">
+        <div className="flex justify-between text-[9px] text-muted-foreground/40 font-mono">
           <span>L</span>
           <span>C</span>
           <span>R</span>
@@ -63,7 +61,7 @@ export function StudioControls() {
       {/* Pitch */}
       <div className="space-y-2">
         <div className="flex items-center justify-between">
-          <label className="text-[10px] font-medium text-foreground/50 uppercase tracking-wider">
+          <label className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">
             Pitch
           </label>
           <span className="font-mono text-[10px] tabular-nums text-foreground/60">
@@ -76,9 +74,8 @@ export function StudioControls() {
           step={1}
           value={[pitch]}
           onValueChange={([v]) => setPitch(v)}
-          className="[&_[data-slot=slider-range]]:bg-[oklch(0.78_0.19_80)] [&_[data-slot=slider-thumb]]:border-[oklch(0.78_0.19_80)]"
         />
-        <div className="flex justify-between text-[9px] text-foreground/30 font-mono">
+        <div className="flex justify-between text-[9px] text-muted-foreground/40 font-mono">
           <span>-12</span>
           <span>0</span>
           <span>+12</span>

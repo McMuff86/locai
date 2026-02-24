@@ -40,17 +40,16 @@ export function TransportBar() {
   const resetPitch = useCallback(() => setPitch(0), [setPitch]);
 
   return (
-    <div className="flex items-center gap-3 px-4 h-12 border-b border-border/40 bg-[oklch(0.08_0.005_240)] flex-shrink-0">
-      {/* Play / Stop */}
+    <div className="flex items-center gap-3 px-4 h-12 border-b border-border/40 bg-muted/20 backdrop-blur-sm flex-shrink-0">
       <div className="flex items-center gap-1">
         <button
           onClick={togglePlay}
           disabled={!activeTrack}
           className={cn(
-            'flex items-center justify-center h-8 w-8 rounded-md transition-colors',
+            'flex items-center justify-center h-8 w-8 rounded-lg transition-all',
             playing
-              ? 'bg-[oklch(0.75_0.17_182)] text-[oklch(0.08_0.005_240)] hover:bg-[oklch(0.70_0.17_182)]'
-              : 'bg-muted/40 text-foreground hover:bg-muted/60',
+              ? 'bg-primary text-primary-foreground hover:bg-primary/90 shadow-sm'
+              : 'bg-muted/60 text-foreground hover:bg-muted/80',
             !activeTrack && 'opacity-40 cursor-not-allowed',
           )}
           title="Play / Pause (Space)"
@@ -60,75 +59,67 @@ export function TransportBar() {
         <button
           onClick={stop}
           disabled={!activeTrack}
-          className="flex items-center justify-center h-8 w-8 rounded-md bg-muted/40 text-foreground hover:bg-muted/60 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+          className="flex items-center justify-center h-8 w-8 rounded-lg bg-muted/60 text-foreground hover:bg-muted/80 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
           title="Stop (0)"
         >
           <Square className="h-3.5 w-3.5" />
         </button>
       </div>
 
-      {/* Divider */}
       <div className="w-px h-6 bg-border/30" />
 
-      {/* Time display */}
       <span className="font-mono text-xs tabular-nums text-foreground/80 min-w-[120px]">
         {formatTimePrecise(currentTime)}
-        <span className="text-foreground/30 mx-1">/</span>
+        <span className="text-muted-foreground/50 mx-1">/</span>
         {formatTimePrecise(duration)}
       </span>
 
-      {/* Divider */}
       <div className="w-px h-6 bg-border/30" />
 
-      {/* Speed */}
       <button
         onClick={cycleSpeed}
         disabled={!activeTrack}
         className={cn(
-          'font-mono text-xs tabular-nums px-2 py-1 rounded-md transition-colors',
+          'font-mono text-xs tabular-nums px-2 py-1 rounded-lg transition-colors',
           playbackRate !== 1
-            ? 'text-[oklch(0.75_0.17_182)] bg-[oklch(0.75_0.17_182/0.1)]'
-            : 'text-foreground/60 hover:text-foreground hover:bg-muted/30',
+            ? 'text-primary bg-primary/10'
+            : 'text-muted-foreground hover:text-foreground hover:bg-muted/30',
         )}
         title="Geschwindigkeit"
       >
         {playbackRate}x
       </button>
 
-      {/* Pitch */}
       <button
         onClick={resetPitch}
         disabled={!activeTrack}
         className={cn(
-          'font-mono text-xs tabular-nums px-2 py-1 rounded-md transition-colors',
+          'font-mono text-xs tabular-nums px-2 py-1 rounded-lg transition-colors',
           pitch !== 0
-            ? 'text-[oklch(0.78_0.19_80)] bg-[oklch(0.78_0.19_80/0.1)]'
-            : 'text-foreground/60 hover:text-foreground hover:bg-muted/30',
+            ? 'text-amber-500 bg-amber-500/10'
+            : 'text-muted-foreground hover:text-foreground hover:bg-muted/30',
         )}
         title="Pitch (Klicken zum Zurücksetzen)"
       >
         {formatPitch(pitch)}
       </button>
 
-      {/* Loop toggle */}
       <button
         onClick={() => setLoopEnabled(!loopEnabled)}
         disabled={!activeTrack}
         className={cn(
-          'flex items-center gap-1 px-2 py-1 rounded-md text-xs transition-colors',
+          'flex items-center gap-1 px-2 py-1 rounded-lg text-xs transition-colors',
           loopEnabled
-            ? 'text-[oklch(0.78_0.19_80)] bg-[oklch(0.78_0.19_80/0.1)]'
-            : 'text-foreground/60 hover:text-foreground hover:bg-muted/30',
+            ? 'text-amber-500 bg-amber-500/10'
+            : 'text-muted-foreground hover:text-foreground hover:bg-muted/30',
         )}
         title="Loop (L)"
       >
         <Repeat className="h-3.5 w-3.5" />
       </button>
 
-      {/* Spacer */}
       <div className="flex-1" />
 
-      {/* Reset */}
       <button
         onClick={() => {
           const store = useStudioStore.getState();
@@ -140,13 +131,12 @@ export function TransportBar() {
           store.eqBands.forEach((_, i) => store.setEqBand(i, 0));
         }}
         disabled={!activeTrack}
-        className="text-foreground/40 hover:text-foreground transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+        className="text-muted-foreground hover:text-foreground transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
         title="Alle Effekte zurücksetzen"
       >
         <RotateCcw className="h-3.5 w-3.5" />
       </button>
 
-      {/* Save */}
       {activeTrack && <SaveMenu src={activeTrack.url} variant="label" />}
     </div>
   );

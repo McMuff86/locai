@@ -16,11 +16,22 @@ export function WaveformDisplay({ waveformData, onSeek }: WaveformDisplayProps) 
   const [hoverX, setHoverX] = useState(0);
   const [isDragging, setIsDragging] = useState(false);
   const dragStart = useRef<number | null>(null);
+  const isDarkRef = useRef(true);
 
   const {
     playing, currentTime, duration, loopEnabled, loopStart, loopEnd,
     setLoopEnabled, setLoopRegion,
   } = useStudioStore();
+
+  useEffect(() => {
+    const check = () => {
+      isDarkRef.current = document.documentElement.classList.contains('dark');
+    };
+    check();
+    const obs = new MutationObserver(check);
+    obs.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
+    return () => obs.disconnect();
+  }, []);
 
   const drawWaveform = useCallback(() => {
     const canvas = canvasRef.current;
@@ -39,28 +50,35 @@ export function WaveformDisplay({ waveformData, onSeek }: WaveformDisplayProps) 
     const h = rect.height;
     const barWidth = w / waveformData.length;
     const progress = duration > 0 ? currentTime / duration : 0;
-    const rulerH = 16;
+    const rulerH = 18;
     const waveH = h - rulerH;
+    const dark = isDarkRef.current;
 
-    // Background
-    ctx.fillStyle = 'oklch(0.07 0.005 240)';
+    // Background gradient
+    const bgGrad = ctx.createLinearGradient(0, 0, 0, h);
+    if (dark) {
+      bgGrad.addColorStop(0, 'hsl(220 15% 6%)');
+      bgGrad.addColorStop(1, 'hsl(220 15% 4%)');
+    } else {
+      bgGrad.addColorStop(0, 'hsl(220 15% 97%)');
+      bgGrad.addColorStop(1, 'hsl(220 15% 94%)');
+    }
+    ctx.fillStyle = bgGrad;
     ctx.fillRect(0, 0, w, h);
 
     // Time ruler
-    ctx.fillStyle = 'oklch(0.10 0.005 240)';
+    ctx.fillStyle = dark ? 'hsl(220 15% 10%)' : 'hsl(220 15% 90%)';
     ctx.fillRect(0, 0, w, rulerH);
 
     if (duration > 0) {
-      ctx.fillStyle = 'oklch(0.40 0.01 240)';
+      ctx.fillStyle = dark ? 'hsl(220 10% 40%)' : 'hsl(220 10% 55%)';
       ctx.font = '9px "Geist Mono", ui-monospace, monospace';
       ctx.textAlign = 'center';
 
       const interval = duration > 120 ? 30 : duration > 60 ? 10 : duration > 20 ? 5 : 1;
       for (let t = 0; t <= duration; t += interval) {
         const x = (t / duration) * w;
-        // Tick mark
         ctx.fillRect(x, rulerH - 4, 1, 4);
-        // Label
         if (t > 0 && t < duration - interval * 0.5) {
           const label = t >= 60
             ? `${Math.floor(t / 60)}:${String(Math.floor(t % 60)).padStart(2, '0')}`
@@ -74,11 +92,9 @@ export function WaveformDisplay({ waveformData, onSeek }: WaveformDisplayProps) 
     if (loopEnabled && loopEnd > loopStart && duration > 0) {
       const lsx = (loopStart / duration) * w;
       const lex = (loopEnd / duration) * w;
-      ctx.fillStyle = 'oklch(0.78 0.19 80 / 0.12)';
+      ctx.fillStyle = dark ? 'hsl(38 90% 60% / 0.08)' : 'hsl(38 90% 50% / 0.12)';
       ctx.fillRect(lsx, rulerH, lex - lsx, waveH);
-
-      // Loop handles
-      ctx.fillStyle = 'oklch(0.78 0.19 80 / 0.6)';
+      ctx.fillStyle = dark ? 'hsl(38 90% 60% / 0.5)' : 'hsl(38 90% 50% / 0.6)';
       ctx.fillRect(lsx, rulerH, 2, waveH);
       ctx.fillRect(lex - 2, rulerH, 2, waveH);
     }
@@ -86,47 +102,77 @@ export function WaveformDisplay({ waveformData, onSeek }: WaveformDisplayProps) 
     // Waveform bars
     for (let i = 0; i < waveformData.length; i++) {
       const x = i * barWidth;
-      const barH = Math.max(waveformData[i] * (waveH * 0.85), 1);
+      const amplitude = waveformData[i];
+      const barH = Math.max(amplitude * (waveH * 0.85), 1);
       const y = rulerH + (waveH - barH) / 2;
-
       const isPlayed = i / waveformData.length <= progress;
-      ctx.fillStyle = isPlayed
-        ? 'oklch(0.75 0.17 182 / 0.9)'
-        : 'oklch(0.5 0.02 240 / 0.3)';
+
+      if (isPlayed) {
+        const t = i / waveformData.length;
+        const hue = 172 + t * 20;
+        ctx.fillStyle = dark
+          ? `hsl(${hue} 70% 55% / 0.9)`
+          : `hsl(${hue} 60% 40% / 0.85)`;
+      } else {
+        const t = i / waveformData.length;
+        if (amplitude > 0.5) {
+          const hue = 172 + t * 20;
+          ctx.fillStyle = dark
+            ? `hsl(${hue} 30% 40% / 0.25)`
+            : `hsl(${hue} 25% 50% / 0.2)`;
+        } else {
+          ctx.fillStyle = dark
+            ? `hsl(220 10% ${25 + amplitude * 15}% / 0.4)`
+            : `hsl(220 10% ${55 - amplitude * 15}% / 0.35)`;
+        }
+      }
 
       ctx.beginPath();
       ctx.roundRect(x + 0.5, y, Math.max(barWidth - 1, 1), barH, 1);
       ctx.fill();
+
+      // Mirror reflection for played bars
+      if (isPlayed && barH > 3) {
+        const mirrorH = barH * 0.15;
+        const mirrorY = rulerH + (waveH + barH) / 2;
+        ctx.fillStyle = dark
+          ? 'hsl(172 70% 55% / 0.08)'
+          : 'hsl(172 60% 40% / 0.06)';
+        ctx.fillRect(x + 0.5, mirrorY, Math.max(barWidth - 1, 1), mirrorH);
+      }
     }
 
     // Playhead
     if (duration > 0) {
       const px = progress * w;
-      // Glow
-      const gradient = ctx.createLinearGradient(px - 6, 0, px + 6, 0);
-      gradient.addColorStop(0, 'oklch(0.75 0.17 182 / 0)');
-      gradient.addColorStop(0.5, 'oklch(0.75 0.17 182 / 0.15)');
-      gradient.addColorStop(1, 'oklch(0.75 0.17 182 / 0)');
-      ctx.fillStyle = gradient;
-      ctx.fillRect(px - 6, rulerH, 12, waveH);
+      const glowColor = dark ? 'hsl(172 70% 60%)' : 'hsl(172 60% 45%)';
 
-      // Line
-      ctx.fillStyle = 'oklch(0.95 0.02 182)';
-      ctx.fillRect(px - 0.5, 0, 1, h);
+      const gradient = ctx.createLinearGradient(px - 8, 0, px + 8, 0);
+      gradient.addColorStop(0, 'transparent');
+      gradient.addColorStop(0.5, dark ? 'hsl(172 70% 60% / 0.12)' : 'hsl(172 60% 45% / 0.1)');
+      gradient.addColorStop(1, 'transparent');
+      ctx.fillStyle = gradient;
+      ctx.fillRect(px - 8, rulerH, 16, waveH);
+
+      ctx.fillStyle = glowColor;
+      ctx.fillRect(px - 0.5, 0, 1.5, h);
+
+      ctx.beginPath();
+      ctx.arc(px, rulerH, 3, 0, Math.PI * 2);
+      ctx.fillStyle = glowColor;
+      ctx.fill();
     }
 
-    // Hover tooltip
+    // Hover line
     if (hoverTime !== null && duration > 0) {
       const hx = (hoverTime / duration) * w;
-      ctx.fillStyle = 'oklch(0.60 0.02 240 / 0.4)';
+      ctx.fillStyle = dark ? 'hsl(220 10% 50% / 0.3)' : 'hsl(220 10% 40% / 0.25)';
       ctx.fillRect(hx, rulerH, 1, waveH);
     }
   }, [waveformData, currentTime, duration, loopEnabled, loopStart, loopEnd, hoverTime]);
 
-  // Animation loop
   useEffect(() => {
     if (!waveformData) return;
-
     if (playing) {
       const animate = () => {
         drawWaveform();
@@ -139,7 +185,6 @@ export function WaveformDisplay({ waveformData, onSeek }: WaveformDisplayProps) 
     }
   }, [playing, waveformData, drawWaveform]);
 
-  // Redraw on any visual state change
   useEffect(() => {
     if (!playing) drawWaveform();
   }, [currentTime, loopEnabled, loopStart, loopEnd, hoverTime, playing, drawWaveform]);
@@ -178,7 +223,6 @@ export function WaveformDisplay({ waveformData, onSeek }: WaveformDisplayProps) 
       const start = Math.min(dragStart.current, t);
       const end = Math.max(dragStart.current, t);
       if (end - start <= 0.2) {
-        // Click — seek
         onSeek(t);
       }
     }
@@ -203,18 +247,16 @@ export function WaveformDisplay({ waveformData, onSeek }: WaveformDisplayProps) 
     <div ref={containerRef} className="relative w-full h-full min-h-[120px]">
       <canvas
         ref={canvasRef}
-        className="w-full h-full cursor-crosshair rounded-md"
+        className="w-full h-full cursor-crosshair rounded-lg"
         onMouseDown={handleMouseDown}
         onMouseMove={handleMouseMove}
         onMouseUp={handleMouseUp}
         onMouseLeave={handleMouseLeave}
         onDoubleClick={handleDoubleClick}
       />
-
-      {/* Hover tooltip */}
       {hoverTime !== null && duration > 0 && (
         <div
-          className="absolute top-0 pointer-events-none font-mono text-[10px] text-foreground/60 bg-[oklch(0.12_0.005_240/0.9)] px-1.5 py-0.5 rounded-sm"
+          className="absolute top-0 pointer-events-none font-mono text-[10px] text-foreground/60 bg-background/90 backdrop-blur-sm px-1.5 py-0.5 rounded-md border border-border/30 shadow-sm"
           style={{ left: Math.min(hoverX, (containerRef.current?.offsetWidth || 200) - 50), top: 0 }}
         >
           {hoverTime >= 60
