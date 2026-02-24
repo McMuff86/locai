@@ -74,7 +74,7 @@ export function SyncfusionPDFViewer({
     setIsSaving(true);
     try {
       // Export the PDF with annotations as base64
-      const base64Data = await pdfViewerRef.current.exportAnnotationsAsBase64();
+      const base64Data = await pdfViewerRef.current.exportAnnotationsAsBase64String();
       
       // Create the new filename with "_annotated" suffix
       const fileNameWithoutExt = fileName.replace(/\.pdf$/i, '');
