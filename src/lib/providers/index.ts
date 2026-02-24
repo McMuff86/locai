@@ -42,6 +42,12 @@ const DEFAULT_PROVIDER_SETTINGS: ProviderSettings = {
     openai: { type: 'openai', enabled: false },
     openrouter: { type: 'openrouter', enabled: false },
   },
+  fallback: {
+    enabled: false,
+    timeoutMs: 30000,
+    fallbackProvider: 'openai',
+    fallbackModel: 'gpt-4o-mini',
+  },
 };
 
 // ---------------------------------------------------------------------------
