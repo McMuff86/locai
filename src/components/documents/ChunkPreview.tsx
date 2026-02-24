@@ -152,6 +152,11 @@ export function ChunkPreview({ documentId, chunkCount }: ChunkPreviewProps) {
       {/* Toggle Button */}
       <button
         onClick={handleToggle}
+      <button
+        onClick={(e) => {
+          e.stopPropagation();
+          handleToggle();
+        }}
         className={cn(
           'flex items-center gap-2 px-2 py-1 rounded-md text-xs transition-colors w-full',
           'text-muted-foreground hover:text-foreground hover:bg-muted/30',
@@ -170,6 +175,10 @@ export function ChunkPreview({ documentId, chunkCount }: ChunkPreviewProps) {
       </button>
 
       {/* Chunk List */}
+          {chunkCount} Chunks {isOpen ? 'verbergen' : 'anzeigen'}
+        </span>
+      </button>
+
       <AnimatePresence>
         {isOpen && (
           <motion.div
