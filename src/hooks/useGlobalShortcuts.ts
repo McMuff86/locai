@@ -12,6 +12,7 @@ const NAV_ROUTES = ["/chat", "/documents", "/flow", "/notes", "/settings"] as co
 
 export interface GlobalShortcutsOptions {
   onToggleShortcutsDialog?: () => void;
+  onToggleCommandPalette?: () => void;
 }
 
 export function useGlobalShortcuts(options: GlobalShortcutsOptions = {}) {
@@ -44,20 +45,10 @@ export function useGlobalShortcuts(options: GlobalShortcutsOptions = {}) {
 
       if (!mod) return;
 
-      // --- Cmd+K: skip on flow page (has its own handler) ---
+      // --- Cmd+K: Global command palette (skip on flow page which has its own handler) ---
       if (key === "k" && pathname !== "/flow") {
         e.preventDefault();
-        // Try to focus a chat input
-        const chatInput =
-          document.querySelector<HTMLTextAreaElement>(
-            'textarea[placeholder*="Nachricht"], textarea[placeholder*="message"], textarea[name="chat-input"]'
-          ) ??
-          document.querySelector<HTMLTextAreaElement>("textarea");
-        if (chatInput) {
-          chatInput.focus();
-        } else {
-          router.push("/chat");
-        }
+        options.onToggleCommandPalette?.();
         return;
       }
 
@@ -103,7 +94,7 @@ export function useGlobalShortcuts(options: GlobalShortcutsOptions = {}) {
 
 /** List of shortcuts for display */
 export const GLOBAL_SHORTCUTS = [
-  { keys: ["⌘", "K"], description: "Suche / Chat-Fokus" },
+  { keys: ["⌘", "K"], description: "Quick Switch (Bereiche)" },
   { keys: ["⌘", "N"], description: "Neuer Chat" },
   { keys: ["⌘", ","], description: "Einstellungen" },
   { keys: ["⌘", "1"], description: "Chat" },

@@ -28,6 +28,8 @@ import { KeyboardShortcutsDialog } from '@/components/KeyboardShortcutsDialog';
 import Link from 'next/link';
 import NextImage from 'next/image';
 import { MigrationBanner } from '@/components/MigrationBanner';
+import { Breadcrumbs } from '@/components/Breadcrumbs';
+import { GlobalCommandPalette } from '@/components/GlobalCommandPalette';
 import { motion, AnimatePresence } from 'framer-motion';
 
 // ── Navigation sections ───────────────────────────────────────────
@@ -103,6 +105,7 @@ function NavItem({
   isActive,
   onClick,
   collapsed,
+  badge,
 }: {
   href: string;
   label: string;
@@ -110,6 +113,7 @@ function NavItem({
   isActive: boolean;
   onClick?: () => void;
   collapsed?: boolean;
+  badge?: number;
 }) {
   return (
     <SideTooltip label={label} enabled={!!collapsed}>
@@ -142,12 +146,23 @@ function NavItem({
                 animate={{ opacity: 1, x: 0 }}
                 exit={{ opacity: 0, x: -8 }}
                 transition={{ duration: 0.15 }}
-                className={`text-sm overflow-hidden whitespace-nowrap ${isActive ? 'font-medium' : ''}`}
+                className={`text-sm overflow-hidden whitespace-nowrap flex-1 ${isActive ? 'font-medium' : ''}`}
               >
                 {label}
               </motion.span>
             )}
           </AnimatePresence>
+
+          {/* Badge */}
+          {badge != null && badge > 0 && (
+            <span
+              className={`flex-shrink-0 min-w-[18px] h-[18px] flex items-center justify-center rounded-full text-[10px] font-medium leading-none ${
+                collapsed ? 'absolute -top-0.5 -right-0.5' : ''
+              } bg-primary/15 text-primary`}
+            >
+              {badge > 99 ? '99+' : badge}
+            </span>
+          )}
         </div>
       </Link>
     </SideTooltip>
@@ -163,10 +178,40 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   const [mounted, setMounted] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
+  const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
+  const [badges, setBadges] = useState<Record<string, number>>({});
 
   useGlobalShortcuts({
     onToggleShortcutsDialog: () => setShortcutsOpen((v) => !v),
+    onToggleCommandPalette: () => setCommandPaletteOpen((v) => !v),
   });
+
+  // Fetch badge counts periodically
+  useEffect(() => {
+    let cancelled = false;
+    async function fetchBadges() {
+      try {
+        const [memoriesRes, flowRes] = await Promise.allSettled([
+          fetch('/api/memories?limit=1').then((r) => r.json()),
+          fetch('/api/flow/list').then((r) => r.json()),
+        ]);
+        const newBadges: Record<string, number> = {};
+        if (memoriesRes.status === 'fulfilled' && memoriesRes.value?.total) {
+          newBadges['/memories'] = memoriesRes.value.total;
+        }
+        if (flowRes.status === 'fulfilled') {
+          const flows = flowRes.value?.flows || flowRes.value || [];
+          if (Array.isArray(flows) && flows.length > 0) {
+            newBadges['/flow'] = flows.length;
+          }
+        }
+        if (!cancelled) setBadges(newBadges);
+      } catch { /* ignore */ }
+    }
+    fetchBadges();
+    const interval = setInterval(fetchBadges, 60_000);
+    return () => { cancelled = true; clearInterval(interval); };
+  }, []);
 
   useEffect(() => {
     setMounted(true);
@@ -297,6 +342,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                     icon={item.icon}
                     isActive={isActive(item.href)}
                     collapsed={collapsed}
+                    badge={badges[item.href]}
                   />
                 ))}
               </div>
@@ -451,6 +497,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       {/* ── Main Content ── */}
       <main className="flex-1 overflow-hidden md:pt-0 pt-14 flex flex-col min-w-0">
         <MigrationBanner />
+        <Breadcrumbs />
         <div className="flex-1 overflow-hidden">
           {children}
         </div>
@@ -458,6 +505,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
       {/* Keyboard shortcuts dialog */}
       <KeyboardShortcutsDialog open={shortcutsOpen} onOpenChange={setShortcutsOpen} />
+      <GlobalCommandPalette open={commandPaletteOpen} onOpenChange={setCommandPaletteOpen} />
     </div>
   );
 }
