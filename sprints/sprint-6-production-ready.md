@@ -127,9 +127,9 @@
 ## 🟡 Prio 7: Studio & Audio
 
 ### STUDIO-1: Studio Verbesserung
-- [ ] Studio UI aufräumen und polishen
-- [ ] Bessere Projekt-Verwaltung (Ordner, Tags)
-- [ ] Waveform-Visualisierung verbessern
+- [x] Studio UI aufräumen und polishen
+- [x] Bessere Projekt-Verwaltung (Ordner, Tags)
+- [x] Waveform-Visualisierung verbessern
 
 ### STUDIO-2: Music Generation Verbesserung
 - [ ] ACE-Step Integration optimieren (Prompts, Styles, Qualität)
