@@ -72,8 +72,8 @@ export async function POST(request: Request) {
       );
     }
     
-    // SEC-3: Validate path has no shell metacharacters
-    const shellMetachars = /[;&|`$(){}[\]!#~<>*?\\'"]/;
+    // SEC-3: Validate path has no shell metacharacters (backslash allowed for Windows paths)
+    const shellMetachars = /[;&|`$(){}[\]!#~<>*?'"]/;
     if (shellMetachars.test(normalizedPath) || shellMetachars.test(startFile)) {
       return NextResponse.json(
         { success: false, error: 'Path contains invalid characters' },

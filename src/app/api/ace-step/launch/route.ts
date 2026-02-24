@@ -70,7 +70,7 @@ export async function POST(request: Request) {
     }
 
     // Validate path has no shell metacharacters
-    const shellMetachars = /[;&|`$(){}[\]!#~<>*?\\'"]/;
+    const shellMetachars = /[;&|`$(){}[\]!#~<>*?'"]/;
     if (shellMetachars.test(normalizedPath) || shellMetachars.test(startFile)) {
       return NextResponse.json(
         { success: false, error: 'Path contains invalid characters' },
