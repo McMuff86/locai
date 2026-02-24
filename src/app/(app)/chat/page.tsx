@@ -795,7 +795,7 @@ function ChatPageContent() {
         <div 
           ref={sidebarRef}
           style={{ width: `${sidebarWidth}px` }}
-          className={`relative border-r border-border/60 bg-sidebar/50 ${isResizing ? 'select-none cursor-col-resize' : ''}`}
+          className={`relative border-r border-border/60 bg-sidebar/50 max-md:fixed max-md:inset-y-0 max-md:left-0 max-md:z-40 max-md:w-72 max-md:pt-14 max-md:shadow-xl ${isResizing ? 'select-none cursor-col-resize' : ''}`}
         >
           <ConversationSidebar 
             conversations={savedConversations}
@@ -816,6 +816,14 @@ function ChatPageContent() {
             <GripVertical className="h-5 w-5 text-muted-foreground/30 opacity-0 group-hover:opacity-100 transition-opacity" />
           </div>
         </div>
+      )}
+
+      {/* Mobile sidebar overlay */}
+      {showSidebar && (
+        <div
+          className="fixed inset-0 z-30 bg-black/50 md:hidden"
+          onClick={() => setShowSidebar(false)}
+        />
       )}
       
       {/* ── Main chat area ───────────────────────────────────────── */}
