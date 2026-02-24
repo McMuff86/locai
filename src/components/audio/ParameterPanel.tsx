@@ -2,7 +2,6 @@
 
 import React, { useState } from 'react';
 import { Slider } from '@/components/ui/slider';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
 import { ChevronDown } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -77,20 +76,21 @@ export function ParameterPanel({
         />
       </div>
 
-      {/* Batch */}
+      {/* Batch (Varianten) */}
       <div>
-        <label className="text-xs font-medium text-muted-foreground mb-1 block">Varianten</label>
-        <Select value={String(batch)} onValueChange={(v) => onBatchChange(parseInt(v))} disabled={disabled}>
-          <SelectTrigger className="w-full h-8 text-xs">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="1">1 Variante</SelectItem>
-            <SelectItem value="2">2 Varianten</SelectItem>
-            <SelectItem value="3">3 Varianten</SelectItem>
-            <SelectItem value="4">4 Varianten</SelectItem>
-          </SelectContent>
-        </Select>
+        <label className="flex items-center justify-between text-xs font-medium text-muted-foreground mb-2">
+          <span>Varianten</span>
+          <span className="text-foreground tabular-nums">{batch}</span>
+        </label>
+        <Slider
+          min={1} max={5} step={1}
+          value={[batch]}
+          onValueChange={(v) => onBatchChange(v[0])}
+          disabled={disabled}
+        />
+        <p className="text-[10px] text-muted-foreground/60 mt-1">
+          {batch > 1 ? `${batch} Varianten mit unterschiedlichen Seeds` : '1 Variante'}
+        </p>
       </div>
 
       {/* Seed */}

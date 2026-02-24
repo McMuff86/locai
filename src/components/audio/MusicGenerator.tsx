@@ -6,11 +6,13 @@ import { Textarea } from '@/components/ui/textarea';
 import { Loader2, Music } from 'lucide-react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { ModeSelector } from './ModeSelector';
+import { PresetSelector } from './PresetSelector';
 import { ParameterPanel } from './ParameterPanel';
 import { ReferenceAudioUpload } from './ReferenceAudioUpload';
 import { ResultCard } from './ResultCard';
 import { GenerationStatus } from './GenerationStatus';
 import type { useAudioGenerator } from '@/hooks/useAudioGenerator';
+import type { MusicPreset } from './presets';
 
 interface MusicGeneratorProps {
   gen: ReturnType<typeof useAudioGenerator>;
@@ -22,6 +24,32 @@ export function MusicGenerator({ gen, onGenerated, onOpenInStudio }: MusicGenera
   const needsReference = gen.mode === 'remix' || gen.mode === 'repaint';
   const showLyrics = gen.mode !== 'simple';
 
+  const applyPreset = (preset: MusicPreset) => {
+    gen.setCaption(preset.caption);
+    if (preset.lyrics) gen.setLyrics(preset.lyrics);
+    gen.setDuration(preset.duration);
+    gen.setBpm(preset.bpm);
+    gen.setInstrumental(preset.instrumental);
+    if (preset.cfgScale !== undefined) gen.setCfgScale(preset.cfgScale);
+    if (preset.numSteps !== undefined) gen.setNumSteps(preset.numSteps);
+  };
+
+  const getCurrentAsPreset = (): MusicPreset => ({
+    id: '',
+    name: '',
+    emoji: '⭐',
+    caption: gen.caption,
+    lyrics: gen.lyrics || undefined,
+    duration: gen.duration,
+    bpm: gen.bpm,
+    instrumental: gen.instrumental,
+    cfgScale: gen.cfgScale,
+    numSteps: gen.numSteps,
+  });
+
+  // Estimate generation time based on duration and batch
+  const estimatedSeconds = Math.max(15, Math.round((gen.duration / 30) * 20 * gen.batch));
+
   return (
     <div className="grid grid-cols-1 xl:grid-cols-[280px_1fr] gap-6">
       {/* ── Left Panel: Controls ── */}
@@ -29,6 +57,12 @@ export function MusicGenerator({ gen, onGenerated, onOpenInStudio }: MusicGenera
         <ModeSelector
           value={gen.mode}
           onChange={gen.setMode}
+          disabled={gen.loading}
+        />
+
+        <PresetSelector
+          onApply={applyPreset}
+          onSaveCurrent={getCurrentAsPreset}
           disabled={gen.loading}
         />
 
@@ -160,7 +194,7 @@ export function MusicGenerator({ gen, onGenerated, onOpenInStudio }: MusicGenera
         </AnimatePresence>
 
         {/* Generation Status */}
-        <GenerationStatus loading={gen.loading} statusText={gen.statusText} />
+        <GenerationStatus loading={gen.loading} statusText={gen.statusText} estimatedSeconds={estimatedSeconds} />
 
         {/* Results */}
         {gen.results.length > 0 && (
