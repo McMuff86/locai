@@ -156,7 +156,7 @@ const ProcessBadge = ({ process }: { process: GpuProcess }) => {
   const typeColors = {
     ollama: 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30',
     comfyui: 'bg-purple-500/20 text-purple-400 border-purple-500/30',
-    other: 'bg-gray-500/20 text-gray-400 border-gray-500/30'
+    other: 'bg-muted text-muted-foreground border-border'
   };
 
   const typeIcons = {

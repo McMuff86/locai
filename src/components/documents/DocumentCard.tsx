@@ -54,8 +54,8 @@ function getFileIcon(type: DocumentType): {
       };
     case DocumentType.TXT:
       return {
-        icon: <FileType className="h-5 w-5 text-gray-500 dark:text-gray-400" />,
-        bgClass: 'bg-gray-500/10 border-gray-500/20',
+        icon: <FileType className="h-5 w-5 text-muted-foreground" />,
+        bgClass: 'bg-muted/50 border-border',
       };
     case DocumentType.MD:
       return {

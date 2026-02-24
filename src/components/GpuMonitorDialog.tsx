@@ -116,7 +116,7 @@ const ProcessBadge = ({ process }: { process: GpuProcess }) => {
   const styles = {
     ollama: { bg: 'bg-emerald-500/20', text: 'text-emerald-400', border: 'border-emerald-500/30', icon: '🦙' },
     comfyui: { bg: 'bg-purple-500/20', text: 'text-purple-400', border: 'border-purple-500/30', icon: '🎨' },
-    other: { bg: 'bg-gray-500/20', text: 'text-gray-400', border: 'border-gray-500/30', icon: '📦' }
+    other: { bg: 'bg-muted', text: 'text-muted-foreground', border: 'border-border', icon: '📦' }
   };
   
   const style = styles[process.type];
