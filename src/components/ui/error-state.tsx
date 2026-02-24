@@ -19,7 +19,7 @@ import { Button } from "./button";
 type ErrorType = "generic" | "network" | "not-found" | "permission" | "timeout" | "server";
 type ErrorVariant = "inline" | "full-page" | "card";
 
-const errorConfig: Record<ErrorType, { icon: React.ElementType; title: string; message: string }> = {
+const errorConfig: Record<ErrorType, { icon: React.ComponentType<{ className?: string }>; title: string; message: string }> = {
   generic: {
     icon: AlertCircle,
     title: "Etwas ist schiefgelaufen",
@@ -76,8 +76,8 @@ const fadeIn = {
   initial: { opacity: 0, y: 8 },
   animate: { opacity: 1, y: 0 },
   exit: { opacity: 0, y: -8 },
-  transition: { duration: 0.25, ease: "easeOut" },
-};
+  transition: { duration: 0.25, ease: "easeOut" as const },
+} as const;
 
 // ── Component ────────────────────────────────────────────────────
 

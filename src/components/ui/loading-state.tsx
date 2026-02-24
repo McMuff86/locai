@@ -27,7 +27,7 @@ const fadeIn = {
   initial: { opacity: 0 },
   animate: { opacity: 1 },
   exit: { opacity: 0 },
-  transition: { duration: 0.2, ease: "easeOut" },
+  transition: { duration: 0.2, ease: "easeOut" as const },
 };
 
 // ── Spinner (for buttons, actions, centered areas) ──────────────
