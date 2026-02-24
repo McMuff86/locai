@@ -443,6 +443,42 @@ export async function saveMemoryWithEmbedding(
 }
 
 // ---------------------------------------------------------------------------
+// Workflow Run Recall – for flow templates accessing past runs (MEM-4)
+// ---------------------------------------------------------------------------
+
+/**
+ * Recall past workflow runs for a specific flow template.
+ * Returns a formatted string suitable for injection into agent context.
+ */
+export async function recallWorkflowRuns(flowId: string, limit: number = 5): Promise<string> {
+  const { getFlowHistory } = await import('@/lib/flow/history');
+  const history = await getFlowHistory(flowId);
+  if (history.length === 0) return '';
+
+  const runs = history.slice(0, limit);
+  const lines = runs.map((run: { startedAt: string; model: string; provider?: string; totalDurationMs?: number; status: string; finalAnswer?: string }) => {
+    const date = new Date(run.startedAt).toLocaleString('de-CH');
+    const duration = run.totalDurationMs ? `${Math.round(run.totalDurationMs / 1000)}s` : '?';
+    const answer = run.finalAnswer ? run.finalAnswer.slice(0, 120) : 'kein Ergebnis';
+    return `- ${date} | ${run.model} (${run.provider || 'ollama'}) | ${duration} | ${run.status} | ${answer}`;
+  });
+
+  return lines.join('\n');
+}
+
+/**
+ * Format past workflow runs for system prompt injection.
+ */
+export function formatWorkflowRunHistory(history: string): string {
+  if (!history) return '';
+  return (
+    'Vergangene Runs dieses Workflows:\n' +
+    history + '\n' +
+    'Nutze diese Informationen um bessere Entscheidungen zu treffen (z.B. welches Modell gut funktioniert hat).'
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Prune: archive old memories (>30 days without access)
 // ---------------------------------------------------------------------------
 
