@@ -91,8 +91,8 @@
 - [ ] Flow-Bibliothek (Community Templates?)
 
 ### UX-3: PDF Viewer
-- [ ] Save-to-Workspace für Syncfusion Annotationen
-- [ ] Annotation Download verifizieren
+- [x] Save-to-Workspace für Syncfusion Annotationen
+- [x] Annotation Download verifizieren
 
 ### UX-4: Responsive
 - [x] Tablet-Support (min-width 768px)
