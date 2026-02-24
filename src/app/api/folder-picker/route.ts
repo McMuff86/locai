@@ -49,11 +49,22 @@ export async function POST(request: Request) {
       // SEC-3: Use execFile with argument array to prevent injection
       const psScript = [
         'Add-Type -AssemblyName System.Windows.Forms',
+        '$f = New-Object System.Windows.Forms.Form',
+        '$f.TopMost = $true',
+        '$f.MinimizeBox = $false',
+        '$f.MaximizeBox = $false',
+        '$f.Width = 0',
+        '$f.Height = 0',
+        '$f.StartPosition = "Manual"',
+        '$f.Location = New-Object System.Drawing.Point(-1000,-1000)',
+        '$f.Show()',
+        '$f.BringToFront()',
         '$browser = New-Object System.Windows.Forms.FolderBrowserDialog',
         `$browser.Description = "${safeTitle}"`,
         ...(safeInitialPath ? [`$browser.SelectedPath = "${safeInitialPath.replace(/\\/g, '\\\\')}"`] : []),
         '$browser.ShowNewFolderButton = $true',
-        '$result = $browser.ShowDialog()',
+        '$result = $browser.ShowDialog($f)',
+        '$f.Close()',
         'if ($result -eq [System.Windows.Forms.DialogResult]::OK) { Write-Output $browser.SelectedPath }',
       ].join('; ');
       
