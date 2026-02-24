@@ -54,7 +54,7 @@ export function useAudioGenerator() {
   const [lyrics, setLyrics] = useState('');
   const [duration, setDuration] = useState(30);
   const [bpm, setBpm] = useState(120);
-  const [batch, setBatch] = useState(1);
+  const [batch, setBatch] = useState(2);
   const [instrumental, setInstrumental] = useState(false);
   const [seed, setSeed] = useState('');
   const [thinking, setThinking] = useState(false);
