@@ -101,8 +101,9 @@ export async function POST(request: Request) {
     // ACE-Step completes synchronously during /release_task but may need
     // a moment to register the files in /query_result
     let results: Awaited<ReturnType<typeof client.getStatus>> = [];
-    const maxRetries = 10;
-    const retryDelay = 2000;
+    // ACE-Step with LLM thinking + DiT + VAE decode can take 60-120s
+    const maxRetries = 60;
+    const retryDelay = 3000;
 
     for (let i = 0; i < maxRetries; i++) {
       results = await client.getStatus(task.taskId);
