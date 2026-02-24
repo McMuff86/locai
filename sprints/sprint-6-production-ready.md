@@ -179,5 +179,5 @@
 - [x] Alle Tests grün (`npm run preflight`)
 - [x] Memory System funktional (save + recall + auto-inject)
 - [x] Mindestens 1 Flow-Template end-to-end mit lokalem Modell getestet
-- [ ] CONTEXT-HANDOFF.md aktuell
+- [x] CONTEXT-HANDOFF.md aktuell
 - [x] Keine TypeScript Errors
