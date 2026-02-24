@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useRef, useEffect } from 'react';
 import { Download, FolderDown, Check } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { extractFilename } from '@/lib/audio-utils';
@@ -26,6 +26,11 @@ interface SaveMenuProps {
  */
 export function SaveMenu({ src, filename, compact = false, variant = 'icon' }: SaveMenuProps) {
   const [saved, setSaved] = useState(false);
+  const savedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    return () => { if (savedTimerRef.current) clearTimeout(savedTimerRef.current); };
+  }, []);
   const [saving, setSaving] = useState(false);
 
   const handleSaveToWorkspace = useCallback(async () => {
@@ -40,7 +45,8 @@ export function SaveMenu({ src, filename, compact = false, variant = 'icon' }: S
       const data = await res.json();
       if (data.success) {
         setSaved(true);
-        setTimeout(() => setSaved(false), 3000);
+        if (savedTimerRef.current) clearTimeout(savedTimerRef.current);
+        savedTimerRef.current = setTimeout(() => setSaved(false), 3000);
       }
     } catch {
       // silently fail

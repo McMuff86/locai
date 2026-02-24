@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Folder,
   FileText,
@@ -90,7 +90,12 @@ export function FileEntryRow({
   onDropFilesOnDirectory,
 }: FileEntryRowProps) {
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const deleteTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [isDropTarget, setIsDropTarget] = useState(false);
+
+  useEffect(() => {
+    return () => { if (deleteTimerRef.current) clearTimeout(deleteTimerRef.current); };
+  }, []);
 
   const isWorkspaceEntry = canMutate && entry.rootId === 'workspace';
 
@@ -120,7 +125,8 @@ export function FileEntryRow({
     e.stopPropagation();
     if (!confirmDelete) {
       setConfirmDelete(true);
-      setTimeout(() => setConfirmDelete(false), 3000);
+      if (deleteTimerRef.current) clearTimeout(deleteTimerRef.current);
+      deleteTimerRef.current = setTimeout(() => setConfirmDelete(false), 3000);
       return;
     }
     await onDelete(entry);

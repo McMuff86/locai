@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, CSSProperties, useEffect } from 'react';
+import React, { useState, CSSProperties, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   Download, Loader2, Copy, Check, AlertTriangle, Bot, Files,
@@ -76,6 +76,7 @@ export function FilePreviewDialog({
 
   // ── Action states ──────────────────────────────────────────────
   const [copied, setCopied] = useState(false);
+  const copyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [isOpeningInAgent, setIsOpeningInAgent] = useState(false);
   const [isAddingToRag, setIsAddingToRag] = useState(false);
 
@@ -92,6 +93,10 @@ export function FilePreviewDialog({
     !preview?.truncated &&
     preview != null &&
     EDITABLE_TYPES.includes(preview.type);
+
+  useEffect(() => {
+    return () => { if (copyTimerRef.current) clearTimeout(copyTimerRef.current); };
+  }, []);
 
   // Reset edit state whenever the dialog opens a new file
   useEffect(() => {
@@ -117,7 +122,8 @@ export function FilePreviewDialog({
         isEditMode ? editedContent : preview.content,
       );
       setCopied(true);
-      window.setTimeout(() => setCopied(false), 1500);
+      if (copyTimerRef.current) clearTimeout(copyTimerRef.current);
+      copyTimerRef.current = setTimeout(() => setCopied(false), 1500);
     } catch {
       setCopied(false);
     }
