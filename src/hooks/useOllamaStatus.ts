@@ -10,7 +10,7 @@ export interface OllamaStatus {
   version?: string;
 }
 
-const CHECK_INTERVAL = 10000; // Check every 10 seconds
+const CHECK_INTERVAL = 30000; // Check every 30 seconds
 
 function sanitizeHost(host: string): string {
   return host.replace(/\/$/, '');

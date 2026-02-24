@@ -1,7 +1,11 @@
 "use client";
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { getOllamaModels, OllamaModel, getModelSystemContent, getModelInfo } from '../lib/ollama';
+
+// Simple in-memory cache for model list (shared across hook instances)
+const modelsCache: { data: OllamaModel[] | null; timestamp: number } = { data: null, timestamp: 0 };
+const MODELS_CACHE_TTL = 30_000; // 30 seconds
 
 export interface ModelContextInfo {
   contextLength: number;
@@ -31,11 +35,20 @@ export function useModels(host?: string): UseModelsReturn {
   const [contextInfo, setContextInfo] = useState<ModelContextInfo | null>(null);
   const [isLoadingContextInfo, setIsLoadingContextInfo] = useState(false);
 
-  const fetchModels = useCallback(async () => {
+  const fetchModels = useCallback(async (force = false) => {
+    // Use cache if fresh enough
+    const now = Date.now();
+    if (!force && modelsCache.data && (now - modelsCache.timestamp) < MODELS_CACHE_TTL) {
+      setModels(modelsCache.data);
+      setIsLoading(false);
+      return;
+    }
     try {
       setIsLoading(true);
       setError(null);
       const ollamaModels = await getOllamaModels(host);
+      modelsCache.data = ollamaModels;
+      modelsCache.timestamp = Date.now();
       setModels(ollamaModels);
       
       // Keep current selection if still available; otherwise pick the first model

@@ -15,14 +15,35 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useToast } from '@/components/ui/use-toast';
-import { ConfigPanel } from '@/components/flow/ConfigPanel';
-import { FlowCanvas } from '@/components/flow/FlowCanvas';
-import { NodeCommandPalette } from '@/components/flow/NodeCommandPalette';
-import { NodePalette } from '@/components/flow/NodePalette';
-import { RunHistoryPanel } from '@/components/flow/RunHistoryPanel';
 import { LoggerPanel, type LogEntry } from '@/components/flow/LoggerPanel';
 import { DeleteTemplateDialog } from '@/components/flow/DeleteTemplateDialog';
 import { SaveFlowDialog } from '@/components/flow/SaveFlowDialog';
+import dynamic from 'next/dynamic';
+
+const ConfigPanel = dynamic(
+  () => import('@/components/flow/ConfigPanel').then(mod => ({ default: mod.ConfigPanel })),
+  { ssr: false },
+);
+
+const FlowCanvas = dynamic(
+  () => import('@/components/flow/FlowCanvas').then(mod => ({ default: mod.FlowCanvas })),
+  { ssr: false },
+);
+
+const NodeCommandPalette = dynamic(
+  () => import('@/components/flow/NodeCommandPalette').then(mod => ({ default: mod.NodeCommandPalette })),
+  { ssr: false },
+);
+
+const NodePalette = dynamic(
+  () => import('@/components/flow/NodePalette').then(mod => ({ default: mod.NodePalette })),
+  { ssr: false },
+);
+
+const RunHistoryPanel = dynamic(
+  () => import('@/components/flow/RunHistoryPanel').then(mod => ({ default: mod.RunHistoryPanel })),
+  { ssr: false },
+);
 import { FlowCompileError, compileVisualWorkflowToPlan } from '@/lib/flow/engine';
 import { FLOW_TEMPLATES, type FlowTemplateId } from '@/lib/flow/registry';
 import { deleteTemplate as deleteTemplateFromDb, loadAllTemplates, loadCurrentWorkflow, saveCurrentWorkflow } from '@/lib/flow/serialization';
