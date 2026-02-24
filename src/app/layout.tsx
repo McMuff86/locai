@@ -6,9 +6,25 @@ import { Toaster } from "../components/ui/toaster";
 import { ClientErrorBoundary } from "../components/ClientErrorBoundary";
 import { FontSizeSync } from "../components/FontSizeSync";
 
-export const metadata = {
+export const metadata: Metadata = {
   title: 'LocAI',
   description: 'Your AI, Locked and Loaded - Future Unleashed on Bare Metal',
+  metadataBase: new URL('http://localhost:3000'),
+  openGraph: {
+    title: 'LocAI',
+    description: 'Your AI, Locked and Loaded - Future Unleashed on Bare Metal',
+    type: 'website',
+  },
+  icons: { icon: '/favicon.ico' },
+}
+
+export const viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  themeColor: [
+    { media: '(prefers-color-scheme: light)', color: '#ffffff' },
+    { media: '(prefers-color-scheme: dark)', color: '#0a0a0a' },
+  ],
 }
 
 const geistSans = Geist({
@@ -27,7 +43,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" suppressHydrationWarning>
+    <html lang="de" suppressHydrationWarning>
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased bg-background text-foreground`}
       >
