@@ -23,7 +23,6 @@ export function WaveformDisplay({ waveformData, onSeek }: WaveformDisplayProps) 
     setLoopEnabled, setLoopRegion,
   } = useStudioStore();
 
-  // Detect theme
   useEffect(() => {
     const check = () => {
       isDarkRef.current = document.documentElement.classList.contains('dark');
@@ -55,7 +54,7 @@ export function WaveformDisplay({ waveformData, onSeek }: WaveformDisplayProps) 
     const waveH = h - rulerH;
     const dark = isDarkRef.current;
 
-    // Background with subtle gradient
+    // Background gradient
     const bgGrad = ctx.createLinearGradient(0, 0, 0, h);
     if (dark) {
       bgGrad.addColorStop(0, 'hsl(220 15% 6%)');
@@ -100,7 +99,7 @@ export function WaveformDisplay({ waveformData, onSeek }: WaveformDisplayProps) 
       ctx.fillRect(lex - 2, rulerH, 2, waveH);
     }
 
-    // Waveform bars with gradient coloring
+    // Waveform bars
     for (let i = 0; i < waveformData.length; i++) {
       const x = i * barWidth;
       const amplitude = waveformData[i];
@@ -109,25 +108,22 @@ export function WaveformDisplay({ waveformData, onSeek }: WaveformDisplayProps) 
       const isPlayed = i / waveformData.length <= progress;
 
       if (isPlayed) {
-        // Gradient from primary through teal
         const t = i / waveformData.length;
-        const hue = 172 + t * 20; // teal range
+        const hue = 172 + t * 20;
         ctx.fillStyle = dark
           ? `hsl(${hue} 70% 55% / 0.9)`
           : `hsl(${hue} 60% 40% / 0.85)`;
       } else {
-        // Unplayed: subtle bars
         const t = i / waveformData.length;
-        ctx.fillStyle = dark
-          ? `hsl(220 10% ${25 + amplitude * 15}% / 0.4)`
-          : `hsl(220 10% ${55 - amplitude * 15}% / 0.35)`;
-
-        // Add subtle color hint to unplayed bars based on amplitude
         if (amplitude > 0.5) {
           const hue = 172 + t * 20;
           ctx.fillStyle = dark
             ? `hsl(${hue} 30% 40% / 0.25)`
             : `hsl(${hue} 25% 50% / 0.2)`;
+        } else {
+          ctx.fillStyle = dark
+            ? `hsl(220 10% ${25 + amplitude * 15}% / 0.4)`
+            : `hsl(220 10% ${55 - amplitude * 15}% / 0.35)`;
         }
       }
 
@@ -149,20 +145,18 @@ export function WaveformDisplay({ waveformData, onSeek }: WaveformDisplayProps) 
     // Playhead
     if (duration > 0) {
       const px = progress * w;
-      // Glow
-      const gradient = ctx.createLinearGradient(px - 8, 0, px + 8, 0);
       const glowColor = dark ? 'hsl(172 70% 60%)' : 'hsl(172 60% 45%)';
+
+      const gradient = ctx.createLinearGradient(px - 8, 0, px + 8, 0);
       gradient.addColorStop(0, 'transparent');
       gradient.addColorStop(0.5, dark ? 'hsl(172 70% 60% / 0.12)' : 'hsl(172 60% 45% / 0.1)');
       gradient.addColorStop(1, 'transparent');
       ctx.fillStyle = gradient;
       ctx.fillRect(px - 8, rulerH, 16, waveH);
 
-      // Line
       ctx.fillStyle = glowColor;
       ctx.fillRect(px - 0.5, 0, 1.5, h);
 
-      // Head indicator
       ctx.beginPath();
       ctx.arc(px, rulerH, 3, 0, Math.PI * 2);
       ctx.fillStyle = glowColor;
@@ -177,7 +171,6 @@ export function WaveformDisplay({ waveformData, onSeek }: WaveformDisplayProps) 
     }
   }, [waveformData, currentTime, duration, loopEnabled, loopStart, loopEnd, hoverTime]);
 
-  // Animation loop
   useEffect(() => {
     if (!waveformData) return;
     if (playing) {
@@ -261,8 +254,6 @@ export function WaveformDisplay({ waveformData, onSeek }: WaveformDisplayProps) 
         onMouseLeave={handleMouseLeave}
         onDoubleClick={handleDoubleClick}
       />
-
-      {/* Hover tooltip */}
       {hoverTime !== null && duration > 0 && (
         <div
           className="absolute top-0 pointer-events-none font-mono text-[10px] text-foreground/60 bg-background/90 backdrop-blur-sm px-1.5 py-0.5 rounded-md border border-border/30 shadow-sm"

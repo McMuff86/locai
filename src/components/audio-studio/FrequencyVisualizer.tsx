@@ -14,7 +14,6 @@ export function FrequencyVisualizer({ getFrequencyData }: FrequencyVisualizerPro
   const playing = useStudioStore((s) => s.playing);
   const prevDataRef = useRef<number[]>([]);
 
-  // Detect theme
   useEffect(() => {
     const check = () => {
       isDarkRef.current = document.documentElement.classList.contains('dark');
@@ -49,12 +48,11 @@ export function FrequencyVisualizer({ getFrequencyData }: FrequencyVisualizerPro
     const mirrorH = h * 0.12;
     const mainH = h - mirrorH;
 
-    // Initialize previous data for smoothing
     if (prevDataRef.current.length !== numBars) {
       prevDataRef.current = new Array(numBars).fill(0);
     }
 
-    // Background with gradient
+    // Background
     const bgGrad = ctx.createLinearGradient(0, 0, 0, h);
     if (dark) {
       bgGrad.addColorStop(0, 'hsl(220 15% 6%)');
@@ -66,7 +64,7 @@ export function FrequencyVisualizer({ getFrequencyData }: FrequencyVisualizerPro
     ctx.fillStyle = bgGrad;
     ctx.fillRect(0, 0, w, h);
 
-    // Subtle grid lines
+    // Grid lines
     ctx.strokeStyle = dark ? 'hsl(220 10% 12%)' : 'hsl(220 10% 88%)';
     ctx.lineWidth = 0.5;
     for (let i = 1; i < 4; i++) {
@@ -81,31 +79,28 @@ export function FrequencyVisualizer({ getFrequencyData }: FrequencyVisualizerPro
       const db = data[i + 1] || -100;
       const normalized = Math.max(0, Math.min(1, (db + 100) / 100));
 
-      // Smooth animation (decay slower than attack)
       const prev = prevDataRef.current[i];
       const smoothed = normalized > prev
-        ? prev + (normalized - prev) * 0.6  // fast attack
-        : prev + (normalized - prev) * 0.15; // slow decay
+        ? prev + (normalized - prev) * 0.6
+        : prev + (normalized - prev) * 0.15;
       prevDataRef.current[i] = smoothed;
 
       const barH = smoothed * mainH * 0.9;
       const x = i * (barWidth + gap) + gap / 2;
       const y = mainH - barH;
 
-      // Color gradient: teal → cyan → purple across frequency range
       const t = i / numBars;
       let hue: number, sat: number, light: number;
       if (t < 0.5) {
-        hue = 172 + t * 40; // teal to cyan
+        hue = 172 + t * 40;
         sat = 65;
         light = dark ? 55 : 42;
       } else {
-        hue = 192 + (t - 0.5) * 80; // cyan to blue-purple
+        hue = 192 + (t - 0.5) * 80;
         sat = 60;
         light = dark ? 58 : 45;
       }
 
-      // Main bar with gradient fill
       const barGrad = ctx.createLinearGradient(x, y, x, mainH);
       barGrad.addColorStop(0, `hsl(${hue} ${sat}% ${light}% / 0.95)`);
       barGrad.addColorStop(1, `hsl(${hue} ${sat}% ${light - 10}% / 0.5)`);
@@ -114,7 +109,6 @@ export function FrequencyVisualizer({ getFrequencyData }: FrequencyVisualizerPro
       ctx.roundRect(x, y, barWidth, barH, [3, 3, 0, 0]);
       ctx.fill();
 
-      // Top glow for high-amplitude bars
       if (smoothed > 0.6) {
         ctx.fillStyle = `hsl(${hue} ${sat}% ${light + 15}% / ${(smoothed - 0.6) * 0.5})`;
         ctx.beginPath();
@@ -122,7 +116,6 @@ export function FrequencyVisualizer({ getFrequencyData }: FrequencyVisualizerPro
         ctx.fill();
       }
 
-      // Mirror reflection
       const mirrorBarH = barH * 0.25;
       const mirrorGrad = ctx.createLinearGradient(x, mainH, x, mainH + mirrorBarH);
       mirrorGrad.addColorStop(0, `hsl(${hue} ${sat}% ${light}% / 0.12)`);

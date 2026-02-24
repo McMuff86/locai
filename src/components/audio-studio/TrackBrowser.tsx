@@ -29,7 +29,6 @@ function formatDate(iso: string): string {
   });
 }
 
-// Derive tags from filename patterns
 function deriveTags(filename: string): string[] {
   const tags: string[] = [];
   const lower = filename.toLowerCase();
@@ -72,14 +71,12 @@ export function TrackBrowser({ compact, onTrackSelected }: TrackBrowserProps) {
     fetchFiles();
   }, [fetchFiles]);
 
-  // Compute available tags
   const allTags = useMemo(() => {
     const tagSet = new Set<string>();
     files.forEach(f => deriveTags(f.filename).forEach(t => tagSet.add(t)));
     return Array.from(tagSet).sort();
   }, [files]);
 
-  // Filter files
   const filteredFiles = useMemo(() => {
     let result = files;
     if (searchQuery.trim()) {
@@ -125,7 +122,6 @@ export function TrackBrowser({ compact, onTrackSelected }: TrackBrowserProps) {
 
   return (
     <div className="space-y-2">
-      {/* Search + Tag Filter */}
       {!compact && (
         <div className="space-y-2 px-1">
           <div className="relative">
@@ -166,7 +162,6 @@ export function TrackBrowser({ compact, onTrackSelected }: TrackBrowserProps) {
         </div>
       )}
 
-      {/* File List */}
       <div className={compact ? 'space-y-0.5' : 'space-y-1'}>
         <AnimatePresence mode="popLayout">
           {filteredFiles.map((file, i) => {

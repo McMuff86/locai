@@ -23,13 +23,11 @@ export function AudioStudio() {
   const [waveformData, setWaveformData] = useState<Float32Array | null>(null);
   const [showBrowser, setShowBrowser] = useState(false);
 
-  // Load waveform data when track changes
   useEffect(() => {
     if (!activeTrack) {
       setWaveformData(null);
       return;
     }
-
     let cancelled = false;
     getWaveformData(activeTrack.url).then((data) => {
       if (!cancelled) setWaveformData(data);
@@ -37,7 +35,6 @@ export function AudioStudio() {
     return () => { cancelled = true; };
   }, [activeTrack, getWaveformData]);
 
-  // Global keyboard shortcuts
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       const tag = (e.target as HTMLElement)?.tagName;
@@ -103,7 +100,6 @@ export function AudioStudio() {
           break;
       }
     };
-
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
   }, [activeTrack, playing, currentTime, duration, loopEnabled, loopStart, loopEnd,
@@ -114,7 +110,6 @@ export function AudioStudio() {
     seek(time);
   }, [seek]);
 
-  // Empty state — show track browser
   if (!activeTrack) {
     return (
       <motion.div
@@ -142,7 +137,6 @@ export function AudioStudio() {
     );
   }
 
-  // Loading state
   if (trackLoading && !waveformData) {
     return (
       <motion.div
@@ -159,7 +153,6 @@ export function AudioStudio() {
     );
   }
 
-  // Error state
   if (trackError) {
     return (
       <motion.div
@@ -201,10 +194,8 @@ export function AudioStudio() {
       animate={{ opacity: 1, y: 0 }}
       className="flex flex-col h-[calc(100vh-180px)] rounded-xl border border-border/40 bg-background/60 backdrop-blur-sm overflow-hidden shadow-sm"
     >
-      {/* Transport Bar */}
       <TransportBar />
 
-      {/* Loading overlay */}
       <AnimatePresence>
         {trackLoading && (
           <motion.div
@@ -219,14 +210,11 @@ export function AudioStudio() {
         )}
       </AnimatePresence>
 
-      {/* Waveform — 40% of remaining height */}
       <div className="flex-[4] min-h-0 border-b border-border/30">
         <WaveformDisplay waveformData={waveformData} onSeek={handleSeek} />
       </div>
 
-      {/* Bottom section */}
       <div className="flex-[6] min-h-0 grid grid-cols-[280px_1fr] border-t border-border/30">
-        {/* Left column: Controls + EQ */}
         <div className="border-r border-border/30 overflow-y-auto">
           <div className="px-4 pt-3 pb-1">
             <label className="block text-[10px] font-medium text-muted-foreground uppercase tracking-wider">
@@ -250,9 +238,7 @@ export function AudioStudio() {
           </div>
         </div>
 
-        {/* Right column: Visualizer + Info */}
         <div className="flex flex-col min-h-0">
-          {/* Frequency Visualizer */}
           <div className="flex-1 min-h-0 p-4">
             <label className="block text-[10px] font-medium text-muted-foreground uppercase tracking-wider mb-2">
               Frequenz
@@ -262,7 +248,6 @@ export function AudioStudio() {
             </div>
           </div>
 
-          {/* Track Info */}
           <div className="border-t border-border/30 px-4 py-3">
             <div className="flex items-center gap-3">
               <Headphones className="h-4 w-4 text-primary flex-shrink-0" />

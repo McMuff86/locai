@@ -41,7 +41,6 @@ export function TransportBar() {
 
   return (
     <div className="flex items-center gap-3 px-4 h-12 border-b border-border/40 bg-muted/20 backdrop-blur-sm flex-shrink-0">
-      {/* Play / Stop */}
       <div className="flex items-center gap-1">
         <button
           onClick={togglePlay}
@@ -67,20 +66,16 @@ export function TransportBar() {
         </button>
       </div>
 
-      {/* Divider */}
       <div className="w-px h-6 bg-border/30" />
 
-      {/* Time display */}
       <span className="font-mono text-xs tabular-nums text-foreground/80 min-w-[120px]">
         {formatTimePrecise(currentTime)}
         <span className="text-muted-foreground/50 mx-1">/</span>
         {formatTimePrecise(duration)}
       </span>
 
-      {/* Divider */}
       <div className="w-px h-6 bg-border/30" />
 
-      {/* Speed */}
       <button
         onClick={cycleSpeed}
         disabled={!activeTrack}
@@ -95,7 +90,6 @@ export function TransportBar() {
         {playbackRate}x
       </button>
 
-      {/* Pitch */}
       <button
         onClick={resetPitch}
         disabled={!activeTrack}
@@ -110,7 +104,6 @@ export function TransportBar() {
         {formatPitch(pitch)}
       </button>
 
-      {/* Loop toggle */}
       <button
         onClick={() => setLoopEnabled(!loopEnabled)}
         disabled={!activeTrack}
@@ -125,10 +118,8 @@ export function TransportBar() {
         <Repeat className="h-3.5 w-3.5" />
       </button>
 
-      {/* Spacer */}
       <div className="flex-1" />
 
-      {/* Reset */}
       <button
         onClick={() => {
           const store = useStudioStore.getState();
@@ -146,7 +137,6 @@ export function TransportBar() {
         <RotateCcw className="h-3.5 w-3.5" />
       </button>
 
-      {/* Save */}
       {activeTrack && <SaveMenu src={activeTrack.url} variant="label" />}
     </div>
   );

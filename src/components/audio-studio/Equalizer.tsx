@@ -29,7 +29,6 @@ export function Equalizer() {
   const isDarkRef = useRef(true);
   const { eqBands, setEqBand } = useStudioStore();
 
-  // Detect theme
   useEffect(() => {
     const check = () => {
       isDarkRef.current = document.documentElement.classList.contains('dark');
@@ -97,7 +96,7 @@ export function Equalizer() {
       ctx.fillText(`${g > 0 ? '+' : ''}${g}`, w - 4, gainToY(g, h) - 3);
     }
 
-    // Frequency curve points
+    // Frequency curve
     const points = eqBands.map((band) => ({
       x: freqToX(band.frequency, w),
       y: gainToY(band.gain, h),
@@ -150,7 +149,6 @@ export function Equalizer() {
     points.forEach((p, i) => {
       const isActive = draggingBand === i;
 
-      // Glow
       if (isActive || eqBands[i].gain !== 0) {
         ctx.beginPath();
         ctx.arc(p.x, p.y, isActive ? 14 : 10, 0, Math.PI * 2);
@@ -158,7 +156,6 @@ export function Equalizer() {
         ctx.fill();
       }
 
-      // Point
       ctx.beginPath();
       ctx.arc(p.x, p.y, isActive ? 7 : 5, 0, Math.PI * 2);
       ctx.fillStyle = isActive ? primaryLight : primaryColor;
@@ -167,13 +164,11 @@ export function Equalizer() {
       ctx.lineWidth = 1.5;
       ctx.stroke();
 
-      // Label
       ctx.fillStyle = dark ? 'hsl(220 10% 45%)' : 'hsl(220 10% 50%)';
       ctx.font = '9px "Geist Mono", ui-monospace, monospace';
       ctx.textAlign = 'center';
       ctx.fillText(BAND_LABELS[i], p.x, h - 4);
 
-      // Gain value
       if (isActive || eqBands[i].gain !== 0) {
         ctx.fillStyle = primaryColor;
         ctx.fillText(`${eqBands[i].gain > 0 ? '+' : ''}${eqBands[i].gain}dB`, p.x, p.y - 12);
