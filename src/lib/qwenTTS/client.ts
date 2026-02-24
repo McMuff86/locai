@@ -44,11 +44,19 @@ export class QwenTTSClient {
   /** Check if the Gradio server is reachable */
   async isAvailable(): Promise<boolean> {
     try {
-      const res = await fetch(this.config.baseUrl, {
+      // Try Gradio 6 info endpoint first (more reliable than HEAD)
+      const res = await fetch(`${this.config.baseUrl}/gradio_api/info`, {
+        method: "GET",
+        signal: AbortSignal.timeout(5_000),
+      });
+      if (res.ok) return true;
+
+      // Fallback: simple HEAD
+      const head = await fetch(this.config.baseUrl, {
         method: "HEAD",
         signal: AbortSignal.timeout(5_000),
       });
-      return res.ok;
+      return head.ok;
     } catch {
       return false;
     }
@@ -140,11 +148,20 @@ export class QwenTTSClient {
     const name = filename ?? (file instanceof File ? file.name : "audio.wav");
     formData.append("files", file, name);
 
-    const res = await fetch(`${this.config.baseUrl}/upload`, {
+    // Try Gradio 6 upload path first, then Gradio 5
+    let res = await fetch(`${this.config.baseUrl}/gradio_api/upload`, {
       method: "POST",
       body: formData,
       signal: AbortSignal.timeout(this.config.timeout!),
     });
+
+    if (!res.ok && res.status === 404) {
+      res = await fetch(`${this.config.baseUrl}/upload`, {
+        method: "POST",
+        body: formData,
+        signal: AbortSignal.timeout(this.config.timeout!),
+      });
+    }
 
     if (!res.ok) {
       throw new QwenTTSConnectionError(`File upload failed: ${res.status} ${res.statusText}`);
@@ -157,35 +174,117 @@ export class QwenTTSClient {
     return { path: paths[0], url: paths[0] };
   }
 
-  /** Generic Gradio API call */
+  /** Generic Gradio API call — supports both Gradio 5 (/api/) and Gradio 6 (/gradio_api/call/) */
   private async callApi<T>(
     endpoint: string,
     data: unknown[],
   ): Promise<{ data: T; duration: number }> {
-    const url = `${this.config.baseUrl}/api/${endpoint}`;
+    // Try Gradio 6 first (/gradio_api/call/), fall back to Gradio 5 (/api/)
+    const g6url = `${this.config.baseUrl}/gradio_api/call/${endpoint}`;
+    const g5url = `${this.config.baseUrl}/api/${endpoint}`;
 
     let res: Response;
+    let isGradio6 = false;
+
     try {
-      res = await fetch(url, {
+      res = await fetch(g6url, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ data }),
+        signal: AbortSignal.timeout(30_000),
+      });
+      if (res.ok) {
+        isGradio6 = true;
+      } else if (res.status === 404) {
+        // Gradio 5 fallback
+        res = await fetch(g5url, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ data }),
+          signal: AbortSignal.timeout(this.config.timeout!),
+        });
+      }
+    } catch (err) {
+      // Try Gradio 5 as fallback
+      try {
+        res = await fetch(g5url, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ data }),
+          signal: AbortSignal.timeout(this.config.timeout!),
+        });
+      } catch (err2) {
+        throw new QwenTTSConnectionError(
+          `Failed to connect to ${g6url}: ${err instanceof Error ? err.message : String(err)}`,
+        );
+      }
+    }
+
+    if (isGradio6) {
+      // Gradio 6: POST returns { event_id }, then GET SSE stream for result
+      if (!res!.ok) {
+        const body = await res!.text().catch(() => "");
+        throw new QwenTTSGenerationError(`API call to ${endpoint} failed (${res!.status}): ${body}`);
+      }
+
+      const { event_id } = (await res!.json()) as { event_id: string };
+      const resultUrl = `${this.config.baseUrl}/gradio_api/call/${endpoint}/${event_id}`;
+      const startTime = Date.now();
+
+      // Poll the SSE stream for completion
+      const sseRes = await fetch(resultUrl, {
+        method: "GET",
         signal: AbortSignal.timeout(this.config.timeout!),
       });
-    } catch (err) {
-      throw new QwenTTSConnectionError(
-        `Failed to connect to ${url}: ${err instanceof Error ? err.message : String(err)}`,
-      );
+
+      if (!sseRes.ok) {
+        throw new QwenTTSGenerationError(`SSE stream failed (${sseRes.status})`);
+      }
+
+      const sseText = await sseRes.text();
+      const duration = (Date.now() - startTime) / 1000;
+
+      // Parse SSE: look for "event: complete" followed by "data: ..."
+      const lines = sseText.split("\n");
+      let resultData: T | null = null;
+
+      for (let i = 0; i < lines.length; i++) {
+        if (lines[i].startsWith("event: complete")) {
+          // Next "data:" line has the JSON
+          for (let j = i + 1; j < lines.length; j++) {
+            if (lines[j].startsWith("data: ")) {
+              const jsonStr = lines[j].slice(6);
+              const parsed = JSON.parse(jsonStr);
+              resultData = parsed as T;
+              break;
+            }
+          }
+          break;
+        }
+        if (lines[i].startsWith("event: error")) {
+          for (let j = i + 1; j < lines.length; j++) {
+            if (lines[j].startsWith("data: ")) {
+              throw new QwenTTSGenerationError(`Gradio error: ${lines[j].slice(6)}`);
+            }
+          }
+          throw new QwenTTSGenerationError("Gradio returned an error event");
+        }
+      }
+
+      if (!resultData) {
+        throw new QwenTTSGenerationError("No completion event in Gradio SSE response");
+      }
+
+      return { data: resultData, duration };
     }
 
-    if (!res.ok) {
-      const body = await res.text().catch(() => "");
-      throw new QwenTTSGenerationError(
-        `API call to ${endpoint} failed (${res.status}): ${body}`,
-      );
+    // Gradio 5: direct JSON response
+    if (!res!.ok) {
+      const body = await res!.text().catch(() => "");
+      throw new QwenTTSGenerationError(`API call to ${endpoint} failed (${res!.status}): ${body}`);
     }
 
-    const json = (await res.json()) as { data: T; duration: number };
+    const json = (await res!.json()) as { data: T; duration: number };
     return json;
   }
 
