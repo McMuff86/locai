@@ -444,6 +444,13 @@ function ChatPageContent() {
     clearTokenStats();
   }, [createNewConversation, clearTokenStats]);
 
+  // Listen for global Cmd+N shortcut
+  useEffect(() => {
+    const handler = () => handleNewConversation();
+    window.addEventListener('locai:new-chat', handler);
+    return () => window.removeEventListener('locai:new-chat', handler);
+  }, [handleNewConversation]);
+
   // ── Start conversation ────────────────────────────────────────
 
   const handleStartConversation = useCallback(() => {

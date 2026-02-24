@@ -16,3 +16,6 @@ export type { UseSettingsReturn, AppSettings } from './useSettings';
 export { useOllamaStatus } from './useOllamaStatus';
 export type { OllamaStatus } from './useOllamaStatus';
 
+export { useGlobalShortcuts, GLOBAL_SHORTCUTS } from './useGlobalShortcuts';
+export type { GlobalShortcutsOptions } from './useGlobalShortcuts';
+
