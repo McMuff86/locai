@@ -121,10 +121,10 @@ export default function DocumentsPage() {
 
         {/* ── Filebrowser + Canvas ─────────────────────────────── */}
         <TabsContent value="filebrowser" className="flex-1 min-h-0 mt-0">
-          <div className="flex h-full">
+          <div className="flex flex-col md:flex-row h-full">
             {/* Left sidebar: FileBrowser (resizable) */}
             <div
-              className="flex-shrink-0 overflow-y-auto overflow-x-hidden rounded-xl border border-border/40 bg-background/60 backdrop-blur-sm shadow-sm p-3"
+              className="flex-shrink-0 overflow-y-auto overflow-x-hidden rounded-xl border border-border/40 bg-background/60 backdrop-blur-sm shadow-sm p-3 max-md:!w-full max-md:max-h-[40vh]"
               style={{ width: sidebarWidth }}
             >
               <FileBrowser onOpenFile={handleOpenFile} />
@@ -132,7 +132,7 @@ export default function DocumentsPage() {
 
             {/* Resize handle */}
             <div
-              className="flex-shrink-0 w-3 flex items-center justify-center cursor-col-resize group hover:bg-primary/5 transition-colors relative"
+              className="flex-shrink-0 w-3 hidden md:flex items-center justify-center cursor-col-resize group hover:bg-primary/5 transition-colors relative"
               onMouseDown={handleResizeStart}
               title="Breite anpassen"
             >

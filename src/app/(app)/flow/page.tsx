@@ -44,6 +44,7 @@ const RunHistoryPanel = dynamic(
   () => import('@/components/flow/RunHistoryPanel').then(mod => ({ default: mod.RunHistoryPanel })),
   { ssr: false },
 );
+import { DesktopOnlyGuard } from '@/components/ui/desktop-only-guard';
 import { FlowCompileError, compileVisualWorkflowToPlan } from '@/lib/flow/engine';
 import { FLOW_TEMPLATES, type FlowTemplateId } from '@/lib/flow/registry';
 import { deleteTemplate as deleteTemplateFromDb, loadAllTemplates, loadCurrentWorkflow, saveCurrentWorkflow } from '@/lib/flow/serialization';
@@ -773,6 +774,10 @@ export default function FlowPage() {
   }
 
   return (
+    <DesktopOnlyGuard
+      title="Flow Builder — Desktop only"
+      description="Der visuelle Flow Builder benötigt einen grösseren Bildschirm. Bitte öffne LocAI auf einem Desktop-Gerät."
+    >
     <div className="flex h-full flex-col">
       <div className="flex items-center justify-between border-b border-border/60 bg-card/50 px-4 py-2.5">
         <div>
@@ -1068,5 +1073,6 @@ export default function FlowPage() {
         onConfirm={handleDeleteTemplate}
       />
     </div>
+    </DesktopOnlyGuard>
   );
 }
