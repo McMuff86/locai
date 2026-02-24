@@ -27,7 +27,7 @@ import { deleteTemplate as deleteTemplateFromDb, loadAllTemplates, loadCurrentWo
 import { useFlowStore } from '@/stores/flowStore';
 import type { WorkflowStatus, WorkflowStreamEvent, WorkflowLogEvent } from '@/lib/agents/workflowTypes';
 import { saveFlowOutput } from '@/lib/flow/saveOutput';
-import type { FlowNodeKind, NodeRunStatus, OutputNodeData, SavedFlowTemplate, WorkflowRunSummary } from '@/lib/flow/types';
+import type { AgentNodeData, FlowNodeKind, InputNodeData, NodeRunStatus, OutputNodeData, SavedFlowTemplate, WorkflowRunSummary } from '@/lib/flow/types';
 import { buildTimelineFromEvents, type TimelineData } from '@/lib/flow/timeline';
 import { StepTimeline } from '@/components/flow/StepTimeline';
 import {
@@ -202,6 +202,22 @@ export default function FlowPage() {
       applyRunSummary(summary);
     },
     [applyRunSummary],
+  );
+
+  const handleRerun = useCallback(
+    (summary: WorkflowRunSummary) => {
+      if (summary.inputs) {
+        const { updateNodeConfig } = useFlowStore.getState();
+        for (const [nodeId, text] of Object.entries(summary.inputs)) {
+          updateNodeConfig(nodeId, { text });
+        }
+      }
+      // Schedule run on next tick so state updates propagate
+      setTimeout(() => {
+        handleRunRef.current();
+      }, 50);
+    },
+    [],
   );
 
   const handleOpenSaveDialog = useCallback(() => {
@@ -657,6 +673,23 @@ export default function FlowPage() {
       }
       setRunning(false);
       const fallbackCompletedAt = new Date().toISOString();
+      // Capture inputs from input nodes
+      const runInputs: Record<string, string> = {};
+      for (const node of workflow.graph.nodes) {
+        if (node.data.kind === 'input') {
+          runInputs[node.id] = (node.data as InputNodeData).config.text;
+        }
+      }
+
+      // Capture output result
+      const runOutput = streamBufferRef.current || undefined;
+
+      // Capture model info
+      const agentNode = workflow.graph.nodes.find((n) => n.data.kind === 'agent');
+      const runModel = agentNode?.data.kind === 'agent'
+        ? (agentNode.data as AgentNodeData).config.model
+        : undefined;
+
       addRunSummary({
         id: runId,
         status: finalStatus,
@@ -668,6 +701,9 @@ export default function FlowPage() {
         totalSteps,
         error: lastError,
         nodeStatuses: runNodeStatuses,
+        inputs: runInputs,
+        outputResult: runOutput,
+        modelInfo: runModel,
       });
 
       if (finalStatus === 'done' && compiled.outputNodeId) {
@@ -987,6 +1023,7 @@ export default function FlowPage() {
                 runs={workflow.runs}
                 selectedRunId={selectedRunId}
                 onSelectRun={handleSelectRun}
+                onRerun={handleRerun}
               />
             </TabsContent>
           </Tabs>

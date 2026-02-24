@@ -137,6 +137,14 @@ export interface WorkflowRunSummary {
     status: string;
     lane: number;
   }>;
+  /** Snapshot of input node texts at run time */
+  inputs?: Record<string, string>;
+  /** Final output text */
+  outputResult?: string;
+  /** Model used for the run */
+  modelInfo?: string;
+  /** Total tokens consumed (if available) */
+  tokenCount?: number;
 }
 
 export interface StoredWorkflow {

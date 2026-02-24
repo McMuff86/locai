@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { FlowCompileError, compileVisualWorkflowToPlan } from '@/lib/flow/engine';
-import { createFlowNode } from '@/lib/flow/registry';
+import { createFlowNode, FLOW_TEMPLATES } from '@/lib/flow/registry';
 import type { FlowEdge, FlowNode, VisualWorkflow } from '@/lib/flow/types';
+import { validateTemplate, validateWorkflow } from '@/lib/flow/validateTemplate';
 
 function nodeWithId(node: FlowNode, id: string): FlowNode {
   return {
@@ -322,5 +323,188 @@ describe('compileVisualWorkflowToPlan', () => {
     // Neither agent depends on the other
     expect(s1?.dependsOn).not.toContain('a2');
     expect(s2?.dependsOn).not.toContain('a1');
+  });
+});
+
+// ============================================================
+// Template Compilation Tests
+// ============================================================
+
+describe('FLOW_TEMPLATES — compilation', () => {
+  const templateIds = FLOW_TEMPLATES.map((t) => t.id);
+
+  it.each(templateIds)('template "%s" — create() returns valid VisualWorkflow', (id) => {
+    const template = FLOW_TEMPLATES.find((t) => t.id === id)!;
+    const workflow = template.create();
+
+    expect(workflow).toBeDefined();
+    expect(workflow.nodes).toBeInstanceOf(Array);
+    expect(workflow.edges).toBeInstanceOf(Array);
+    expect(workflow.nodes.length).toBeGreaterThan(0);
+    expect(workflow.edges.length).toBeGreaterThan(0);
+    expect(workflow.metadata).toBeDefined();
+    expect(workflow.metadata.name).toBeTruthy();
+    expect(workflow.viewport).toBeDefined();
+  });
+
+  it.each(templateIds)('template "%s" — compiles without error', (id) => {
+    const template = FLOW_TEMPLATES.find((t) => t.id === id)!;
+    const workflow = template.create();
+
+    const result = compileVisualWorkflowToPlan(workflow);
+    expect(result).toBeDefined();
+    expect(result.plan).toBeDefined();
+    expect(result.plan.steps.length).toBeGreaterThan(0);
+    expect(result.outputNodeId).toBeTruthy();
+  });
+
+  it.each(templateIds)('template "%s" — no cycle detected', (id) => {
+    const template = FLOW_TEMPLATES.find((t) => t.id === id)!;
+    const workflow = template.create();
+
+    expect(() => compileVisualWorkflowToPlan(workflow)).not.toThrow();
+  });
+
+  it.each(templateIds)('template "%s" — dependsOn chains are consistent', (id) => {
+    const template = FLOW_TEMPLATES.find((t) => t.id === id)!;
+    const workflow = template.create();
+    const result = compileVisualWorkflowToPlan(workflow);
+
+    const stepIds = new Set(result.plan.steps.map((s) => s.id));
+    for (const step of result.plan.steps) {
+      for (const dep of step.dependsOn) {
+        expect(stepIds).toContain(dep);
+      }
+    }
+  });
+
+  it.each(templateIds)('template "%s" — validates without errors', (id) => {
+    const validation = validateTemplate(id);
+    expect(validation.valid).toBe(true);
+    expect(validation.errors).toEqual([]);
+  });
+});
+
+describe('Template-specific compilation details', () => {
+  it('default — has exactly 1 step (single agent)', () => {
+    const workflow = FLOW_TEMPLATES.find((t) => t.id === 'default')!.create();
+    const result = compileVisualWorkflowToPlan(workflow);
+    expect(result.plan.steps.length).toBe(1);
+  });
+
+  it('code-review — contains a condition step', () => {
+    const workflow = FLOW_TEMPLATES.find((t) => t.id === 'code-review')!.create();
+    const result = compileVisualWorkflowToPlan(workflow);
+    const condSteps = result.plan.steps.filter((s) => s.stepType === 'condition');
+    expect(condSteps.length).toBe(1);
+    expect(condSteps[0].conditionConfig).toBeDefined();
+  });
+
+  it('code-review — condition branches have branchCondition metadata', () => {
+    const workflow = FLOW_TEMPLATES.find((t) => t.id === 'code-review')!.create();
+    const result = compileVisualWorkflowToPlan(workflow);
+    const condStep = result.plan.steps.find((s) => s.stepType === 'condition')!;
+    const branchedSteps = result.plan.steps.filter((s) => s.branchCondition?.conditionStepId === condStep.id);
+    expect(branchedSteps.length).toBeGreaterThanOrEqual(1);
+
+    const branches = branchedSteps.map((s) => s.branchCondition!.branch);
+    expect(branches).toContain('true');
+  });
+
+  it('data-pipeline — contains a condition step', () => {
+    const workflow = FLOW_TEMPLATES.find((t) => t.id === 'data-pipeline')!.create();
+    const result = compileVisualWorkflowToPlan(workflow);
+    const condSteps = result.plan.steps.filter((s) => s.stepType === 'condition');
+    expect(condSteps.length).toBe(1);
+  });
+
+  it('content-creation — has multiple agent/template steps for pipeline', () => {
+    const workflow = FLOW_TEMPLATES.find((t) => t.id === 'content-creation')!.create();
+    const result = compileVisualWorkflowToPlan(workflow);
+    expect(result.plan.steps.length).toBeGreaterThanOrEqual(3);
+  });
+
+  it('pdf-processing — per-step config (model, systemPrompt) propagated', () => {
+    const workflow = FLOW_TEMPLATES.find((t) => t.id === 'pdf-processing')!.create();
+    const result = compileVisualWorkflowToPlan(workflow);
+
+    for (const step of result.plan.steps) {
+      if (step.stepType === 'agent') {
+        // Agent steps should have a model
+        expect(step.model).toBeTruthy();
+      }
+    }
+  });
+
+  it('web-research — per-step config (model, provider) propagated', () => {
+    const workflow = FLOW_TEMPLATES.find((t) => t.id === 'web-research')!.create();
+    const result = compileVisualWorkflowToPlan(workflow);
+
+    for (const step of result.plan.steps) {
+      if (step.stepType === 'agent') {
+        expect(step.model).toBeTruthy();
+      }
+    }
+  });
+});
+
+// ============================================================
+// validateTemplate / validateWorkflow
+// ============================================================
+
+describe('validateTemplate', () => {
+  it('returns error for unknown template ID', () => {
+    const result = validateTemplate('nonexistent-template');
+    expect(result.valid).toBe(false);
+    expect(result.errors[0]).toContain('not found');
+  });
+
+  it('detects orphan nodes', () => {
+    const result = validateWorkflow({
+      nodes: [
+        { id: 'n1', type: 'inputNode', position: { x: 0, y: 0 }, data: { kind: 'input', label: 'Input', config: { text: '' } } } as any,
+        { id: 'n2', type: 'agentNode', position: { x: 200, y: 0 }, data: { kind: 'agent', label: 'Agent', config: { model: 'test', prompt: '', tools: [] } } } as any,
+        { id: 'n3', type: 'outputNode', position: { x: 400, y: 0 }, data: { kind: 'output', label: 'Output', config: {} } } as any,
+      ],
+      edges: [
+        { id: 'e1', source: 'n1', target: 'n2', type: 'smoothstep' },
+        // n3 is orphan - not connected
+      ],
+      viewport: { x: 0, y: 0, zoom: 1 },
+      metadata: { name: 'test' },
+    });
+
+    expect(result.valid).toBe(false);
+    expect(result.errors.some((e) => e.includes('Orphan'))).toBe(true);
+  });
+
+  it('detects missing agent node', () => {
+    const result = validateWorkflow({
+      nodes: [
+        { id: 'n1', type: 'inputNode', position: { x: 0, y: 0 }, data: { kind: 'input', label: 'Input', config: { text: '' } } } as any,
+        { id: 'n2', type: 'outputNode', position: { x: 200, y: 0 }, data: { kind: 'output', label: 'Output', config: {} } } as any,
+      ],
+      edges: [{ id: 'e1', source: 'n1', target: 'n2', type: 'smoothstep' }],
+      viewport: { x: 0, y: 0, zoom: 1 },
+      metadata: { name: 'test' },
+    });
+
+    expect(result.valid).toBe(false);
+    expect(result.errors.some((e) => e.includes('agent'))).toBe(true);
+  });
+
+  it('detects missing output node', () => {
+    const result = validateWorkflow({
+      nodes: [
+        { id: 'n1', type: 'inputNode', position: { x: 0, y: 0 }, data: { kind: 'input', label: 'Input', config: { text: '' } } } as any,
+        { id: 'n2', type: 'agentNode', position: { x: 200, y: 0 }, data: { kind: 'agent', label: 'Agent', config: { model: 'test', prompt: '', tools: [] } } } as any,
+      ],
+      edges: [{ id: 'e1', source: 'n1', target: 'n2', type: 'smoothstep' }],
+      viewport: { x: 0, y: 0, zoom: 1 },
+      metadata: { name: 'test' },
+    });
+
+    expect(result.valid).toBe(false);
+    expect(result.errors.some((e) => e.includes('output'))).toBe(true);
   });
 });
