@@ -429,8 +429,8 @@ describe('Template-specific compilation details', () => {
     const result = compileVisualWorkflowToPlan(workflow);
 
     for (const step of result.plan.steps) {
-      if (step.stepType === 'agent') {
-        // Agent steps should have a model
+      if (step.stepType === 'execute') {
+        // Execute steps should have a model
         expect(step.model).toBeTruthy();
       }
     }
@@ -441,7 +441,7 @@ describe('Template-specific compilation details', () => {
     const result = compileVisualWorkflowToPlan(workflow);
 
     for (const step of result.plan.steps) {
-      if (step.stepType === 'agent') {
+      if (step.stepType === 'execute') {
         expect(step.model).toBeTruthy();
       }
     }
