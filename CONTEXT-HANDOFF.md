@@ -24,3 +24,32 @@
 - `src/app/api/chat/agent/route.ts` — memory auto-inject for agent chat
 - `src/app/api/chat/agent/workflow/route.ts` — memory auto-inject + save with embeddings
 - `src/app/(app)/memories/page.tsx` — full memory management UI with prune button
+
+---
+
+## UX-5: Loading States + Error States (Sprint 6)
+**Branch:** `sprint6/ux-loading-error-states`
+**Date:** 2026-02-24
+
+### What was done
+1. **New reusable `LoadingState` component** (`src/components/ui/loading-state.tsx`):
+   - 4 variants: `spinner`, `skeleton`, `pulse`, `inline`
+   - Framer Motion AnimatePresence for smooth enter/exit
+   - Configurable rows/cards count, optional message
+
+2. **New reusable `ErrorState` component** (`src/components/ui/error-state.tsx`):
+   - 3 layout variants: `inline`, `card`, `full-page`
+   - 6 error types with German default messages: generic, network, not-found, permission, timeout, server
+   - Optional retry button, custom icons/messages
+   - Framer Motion animations
+
+3. **Applied to pages:**
+   - `memories/page.tsx` — replaced bare Loader2 with `LoadingState variant="pulse"`, added `ErrorState` with retry on fetch failure
+   - `flow/page.tsx` — replaced hydration spinner with `LoadingState`, replaced raw error text with `ErrorState variant="inline"`
+   - `settings/page.tsx` — replaced system info loading with `LoadingState variant="skeleton"`
+
+4. **Sprint file** — checked off all 3 UX-5 items
+
+### Key files
+- `src/components/ui/loading-state.tsx` — reusable loading component
+- `src/components/ui/error-state.tsx` — reusable error component

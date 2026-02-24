@@ -148,9 +148,9 @@
 ## 🔴 Prio 8: UI/UX Verbesserung
 
 ### UX-5: Generelles UI/UX Polish
-- [ ] Konsistente Animationen (Framer Motion überall)
-- [ ] Loading States für alle async Operationen
-- [ ] Error States mit hilfreichen Meldungen
+- [x] Konsistente Animationen (Framer Motion überall)
+- [x] Loading States für alle async Operationen
+- [x] Error States mit hilfreichen Meldungen
 - [x] Toast/Notification System vereinheitlichen
 - [x] Keyboard Shortcuts (Cmd+K, Cmd+N, etc.)
 - [ ] Dark/Light Theme Konsistenz prüfen
