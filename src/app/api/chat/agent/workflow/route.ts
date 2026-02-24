@@ -21,6 +21,7 @@ import { createServerProvider, getDefaultServerProvider } from '@/lib/providers/
 import type { WorkflowApiRequest, WorkflowPlan, WorkflowState } from '@/lib/agents/workflowTypes';
 import { WORKFLOW_DEFAULTS } from '@/lib/agents/workflowTypes';
 import { saveFlowHistoryEntry } from '@/lib/flow/history';
+import { saveMemory } from '@/lib/memory/store';
 import type { FlowHistoryEntry } from '@/lib/flow/history';
 import { apiError } from '../../../_utils/responses';
 
@@ -271,6 +272,24 @@ export async function POST(request: NextRequest) {
             await saveFlowHistoryEntry(historyEntry);
           } catch {
             // History saving is best-effort
+          }
+
+          // Auto-save workflow result as memory
+          try {
+            const memState = engine.getState();
+            if (memState.status === 'done' && memState.finalAnswer) {
+              const goal = memState.plan?.goal || message.slice(0, 100);
+              const summary = `Ziel: ${goal}\nErgebnis: ${memState.finalAnswer}`.slice(0, 500);
+              await saveMemory({
+                key: `workflow_result_${memState.id}`,
+                value: summary,
+                category: 'agent',
+                tags: ['workflow', 'auto'],
+                source: 'workflow',
+              });
+            }
+          } catch {
+            // Memory saving is best-effort
           }
 
           controller.close();
