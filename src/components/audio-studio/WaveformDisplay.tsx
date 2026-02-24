@@ -23,6 +23,10 @@ export function WaveformDisplay({ waveformData, onSeek }: WaveformDisplayProps) 
     setLoopEnabled, setLoopRegion,
   } = useStudioStore();
 
+  // For the rAF render loop we need the latest currentTime without re-creating the callback
+  const currentTimeRef = useRef(currentTime);
+  currentTimeRef.current = currentTime;
+
   useEffect(() => {
     const check = () => {
       isDarkRef.current = document.documentElement.classList.contains('dark');
@@ -49,7 +53,9 @@ export function WaveformDisplay({ waveformData, onSeek }: WaveformDisplayProps) 
     const w = rect.width;
     const h = rect.height;
     const barWidth = w / waveformData.length;
-    const progress = duration > 0 ? currentTime / duration : 0;
+    // Always read latest currentTime for smooth playhead during rAF
+    const time = currentTimeRef.current;
+    const progress = duration > 0 ? time / duration : 0;
     const rulerH = 18;
     const waveH = h - rulerH;
     const dark = isDarkRef.current;
@@ -169,7 +175,8 @@ export function WaveformDisplay({ waveformData, onSeek }: WaveformDisplayProps) 
       ctx.fillStyle = dark ? 'hsl(220 10% 50% / 0.3)' : 'hsl(220 10% 40% / 0.25)';
       ctx.fillRect(hx, rulerH, 1, waveH);
     }
-  }, [waveformData, currentTime, duration, loopEnabled, loopStart, loopEnd, hoverTime]);
+  // Note: currentTime is read via ref inside drawWaveform, not from closure
+  }, [waveformData, duration, loopEnabled, loopStart, loopEnd, hoverTime]);
 
   useEffect(() => {
     if (!waveformData) return;

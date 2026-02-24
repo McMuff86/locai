@@ -65,21 +65,31 @@ export function StudioControls() {
             Pitch
           </label>
           <span className="font-mono text-[10px] tabular-nums text-foreground/60">
-            {pitch > 0 ? `+${pitch}` : pitch} st
+            {pitch > 0 ? `+${pitch.toFixed(1)}` : pitch.toFixed(1)} st
           </span>
         </div>
         <Slider
-          min={-12}
-          max={12}
-          step={1}
+          min={-4}
+          max={4}
+          step={0.1}
           value={[pitch]}
-          onValueChange={([v]) => setPitch(v)}
+          onValueChange={([v]) => setPitch(Math.round(v * 10) / 10)}
         />
         <div className="flex justify-between text-[9px] text-muted-foreground/40 font-mono">
-          <span>-12</span>
+          <span>-4</span>
+          <span>-2</span>
           <span>0</span>
-          <span>+12</span>
+          <span>+2</span>
+          <span>+4</span>
         </div>
+        {pitch !== 0 && (
+          <button
+            onClick={() => setPitch(0)}
+            className="text-[9px] text-muted-foreground/50 hover:text-foreground/70 transition-colors"
+          >
+            Zurücksetzen
+          </button>
+        )}
       </div>
     </div>
   );
