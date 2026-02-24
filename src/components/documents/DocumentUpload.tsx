@@ -143,7 +143,7 @@ export const DocumentUpload = forwardRef<DocumentUploadHandle, DocumentUploadPro
         
         if (files.length === 0) return;
 
-        if (multiFile && files.length > 1) {
+        if (multiFile) {
           await handleMultipleFiles(files);
         } else {
           await handleFile(files[0]);
@@ -160,7 +160,7 @@ export const DocumentUpload = forwardRef<DocumentUploadHandle, DocumentUploadPro
 
         const fileArray = Array.from(files);
         
-        if (multiFile && fileArray.length > 1) {
+        if (multiFile) {
           await handleMultipleFiles(fileArray);
         } else {
           await handleFile(fileArray[0]);

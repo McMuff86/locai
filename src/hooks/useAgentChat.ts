@@ -54,6 +54,15 @@ interface StreamEventMemoryContext {
   memories: Array<{ key: string; value: string; category: string }>;
 }
 
+interface StreamEventFallback {
+  type: 'fallback';
+  originalProvider: string;
+  originalModel: string;
+  fallbackProvider: string;
+  fallbackModel: string;
+  reason: string;
+}
+
 type StreamEvent =
   | StreamEventToolCall
   | StreamEventToolResult
@@ -62,7 +71,8 @@ type StreamEvent =
   | StreamEventTurnStart
   | StreamEventTurnEnd
   | StreamEventPlan
-  | StreamEventMemoryContext;
+  | StreamEventMemoryContext
+  | StreamEventFallback;
 
 // ---------------------------------------------------------------------------
 // Hook options & return type
@@ -129,6 +139,8 @@ export interface UseAgentChatReturn {
   agentPlan: string | null;
   /** Memory context injected into the current run */
   memoryContext: Array<{ key: string; value: string; category: string }> | null;
+  /** Fallback info if a provider switch occurred */
+  fallbackInfo: { provider: string; model: string; reason: string } | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -156,6 +168,7 @@ export function useAgentChat(): UseAgentChatReturn {
   const [enablePlanning, setEnablePlanning] = useState(false);
   const [agentPlan, setAgentPlan] = useState<string | null>(null);
   const [memoryContext, setMemoryContext] = useState<Array<{ key: string; value: string; category: string }> | null>(null);
+  const [fallbackInfo, setFallbackInfo] = useState<{ provider: string; model: string; reason: string } | null>(null);
 
   const abortControllerRef = useRef<AbortController | null>(null);
 
@@ -344,6 +357,15 @@ export function useAgentChat(): UseAgentChatReturn {
 
             case 'memory_context': {
               setMemoryContext(event.memories);
+              break;
+            }
+
+            case 'fallback': {
+              setFallbackInfo({
+                provider: event.fallbackProvider,
+                model: event.fallbackModel,
+                reason: event.reason,
+              });
               break;
             }
 
