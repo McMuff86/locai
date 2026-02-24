@@ -7,6 +7,7 @@ import { useSettings } from '@/hooks/useSettings';
 import { useTheme } from 'next-themes';
 import { OllamaStatus } from '@/components/OllamaStatus';
 import { ComfyUIWidget } from '@/components/ComfyUIWidget';
+import { AceStepWidget } from '@/components/AceStepWidget';
 import {
   FolderOpen,
   Loader2,
@@ -843,6 +844,12 @@ export default function SettingsPage() {
             Audio Services
           </div>
           <div className="bg-card border border-border rounded-lg p-4 space-y-4">
+            {/* ACE-Step Widget */}
+            <AceStepWidget
+              aceStepPath={settings?.aceStepPath || ''}
+              aceStepUrl={settings?.aceStepUrl || 'http://localhost:8001'}
+            />
+
             {/* ACE-Step */}
             <div>
               <label className="block font-medium mb-1">ACE-Step URL</label>
@@ -852,7 +859,6 @@ export default function SettingsPage() {
                 onChange={(e) => handleInputChange('aceStepUrl', e.target.value)}
                 placeholder="http://localhost:8001"
               />
-              <HealthIndicator endpoint="/api/ace-step/health" label="ACE-Step" />
             </div>
 
             <div>

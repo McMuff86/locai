@@ -56,17 +56,27 @@ export async function POST(request: Request) {
       }
     }
 
+    // Fallback: try `uv run acestep-api` if no script found
     if (!startFile) {
-      const files = fs.readdirSync(normalizedPath).slice(0, 20);
-      return NextResponse.json(
-        {
-          success: false,
-          error: 'Could not find ACE-Step start script',
-          hint: 'Looking for: start_api_server.bat, start.bat, run.bat, or api_server.py',
-          foundFiles: files,
-        },
-        { status: 400 }
-      );
+      // Check if uv is available
+      try {
+        const { execFileSync } = await import('child_process');
+        execFileSync('uv', ['--version'], { timeout: 5000, stdio: 'pipe' });
+        startFile = 'uv run acestep-api';
+        startCommand = 'uv';
+        startArgs = ['run', 'acestep-api'];
+      } catch {
+        const files = fs.readdirSync(normalizedPath).slice(0, 20);
+        return NextResponse.json(
+          {
+            success: false,
+            error: 'Could not find ACE-Step start script or uv command',
+            hint: 'Looking for: start_api_server.bat, start.bat, run.bat, api_server.py, or uv',
+            foundFiles: files,
+          },
+          { status: 400 }
+        );
+      }
     }
 
     // Validate path has no shell metacharacters
