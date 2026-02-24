@@ -194,9 +194,11 @@ function computeRelevance(entry: MemoryEntry, queryTokens: string[]): number {
     if (tagStr.includes(token)) score += 3;
   }
 
-  // Recency boost: entries updated within last 24h get +1
-  const hoursAgo = (Date.now() - new Date(entry.updatedAt).getTime()) / (1000 * 60 * 60);
-  if (hoursAgo < 24) score += 1;
+  // Recency boost: entries updated within last 24h get +1 (only if there's already a keyword match)
+  if (score > 0) {
+    const hoursAgo = (Date.now() - new Date(entry.updatedAt).getTime()) / (1000 * 60 * 60);
+    if (hoursAgo < 24) score += 1;
+  }
 
   return score;
 }
