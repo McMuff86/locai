@@ -11,6 +11,11 @@ import "@syncfusion/ej2-popups/styles/tailwind-dark.css";
 import "@syncfusion/ej2-splitbuttons/styles/tailwind-dark.css";
 import "@syncfusion/ej2-pdfviewer/styles/tailwind-dark.css";
 
+import React, { useRef, useCallback } from "react";
+import { Download, Save, Loader2 } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { useToast } from "@/components/ui/use-toast";
+
 import {
   PdfViewerComponent,
   Toolbar,
@@ -31,11 +36,21 @@ import {
 interface SyncfusionPDFViewerProps {
   pdfUrl: string;
   fileName: string;
+  rootId?: string;
+  relativePath?: string;
 }
 
 export function SyncfusionPDFViewer({
   pdfUrl,
+  fileName,
+  rootId,
+  relativePath,
 }: SyncfusionPDFViewerProps) {
+  const pdfViewerRef = useRef<PdfViewerComponent>(null);
+  const [isSaving, setIsSaving] = React.useState(false);
+  const [isDownloading, setIsDownloading] = React.useState(false);
+  const { toast } = useToast();
+
   const absolutePdfUrl =
     typeof window !== "undefined"
       ? new URL(pdfUrl, window.location.origin).toString()
@@ -46,31 +61,163 @@ export function SyncfusionPDFViewer({
       ? `${window.location.origin}/ej2-pdfviewer-lib`
       : "/ej2-pdfviewer-lib";
 
+  const saveToWorkspace = useCallback(async () => {
+    if (!pdfViewerRef.current || !rootId || !relativePath) {
+      toast({
+        title: "Fehler",
+        description: "PDF Viewer nicht verfügbar oder fehlende Parameter.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsSaving(true);
+    try {
+      // Export the PDF with annotations as base64
+      const base64Data = await pdfViewerRef.current.exportAnnotationsAsBase64();
+      
+      // Create the new filename with "_annotated" suffix
+      const fileNameWithoutExt = fileName.replace(/\.pdf$/i, '');
+      const newFileName = `${fileNameWithoutExt}_annotated.pdf`;
+      const newPath = relativePath.replace(/\/[^\/]+$/, `/${newFileName}`);
+      
+      // Save to workspace using the API
+      const response = await fetch('/api/filebrowser/write', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          rootId,
+          path: newPath,
+          content: base64Data,
+          encoding: 'base64',
+        }),
+      });
+
+      const result = await response.json();
+      if (!response.ok || !result.success) {
+        throw new Error(result.error ?? 'Speichern fehlgeschlagen');
+      }
+
+      toast({
+        title: "Erfolgreich gespeichert",
+        description: `Annotierte PDF wurde als "${newFileName}" gespeichert.`,
+      });
+    } catch (error) {
+      console.error('Save to workspace error:', error);
+      toast({
+        title: "Fehler beim Speichern",
+        description: error instanceof Error ? error.message : 'Unbekannter Fehler',
+        variant: "destructive",
+      });
+    } finally {
+      setIsSaving(false);
+    }
+  }, [pdfViewerRef, rootId, relativePath, fileName, toast]);
+
+  const downloadAnnotated = useCallback(async () => {
+    if (!pdfViewerRef.current) {
+      toast({
+        title: "Fehler",
+        description: "PDF Viewer nicht verfügbar.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsDownloading(true);
+    try {
+      // Use Syncfusion's built-in download with annotations
+      const fileNameWithoutExt = fileName.replace(/\.pdf$/i, '');
+      const downloadFileName = `${fileNameWithoutExt}_annotated.pdf`;
+      
+      await pdfViewerRef.current.download(downloadFileName);
+      
+      toast({
+        title: "Download gestartet",
+        description: "Die annotierte PDF wird heruntergeladen.",
+      });
+    } catch (error) {
+      console.error('Download error:', error);
+      toast({
+        title: "Fehler beim Download",
+        description: error instanceof Error ? error.message : 'Unbekannter Fehler',
+        variant: "destructive",
+      });
+    } finally {
+      setIsDownloading(false);
+    }
+  }, [pdfViewerRef, fileName, toast]);
+
+  const canSaveToWorkspace = rootId === 'workspace' && relativePath;
+
   return (
-    <div className="h-full w-full">
-      <PdfViewerComponent
-        id="pdfViewer"
-        documentPath={absolutePdfUrl}
-        resourceUrl={resourceUrl}
-        style={{ height: "100%", width: "100%" }}
-      >
-        <Inject
-          services={[
-            Toolbar,
-            Magnification,
-            Navigation,
-            Annotation,
-            LinkAnnotation,
-            BookmarkView,
-            ThumbnailView,
-            Print,
-            TextSelection,
-            TextSearch,
-            FormFields,
-            FormDesigner,
-          ]}
-        />
-      </PdfViewerComponent>
+    <div className="h-full w-full flex flex-col">
+      {/* Annotation Controls */}
+      <div className="flex items-center gap-2 px-3 py-2 border-b border-border/30 bg-muted/15 flex-shrink-0">
+        <span className="text-xs text-muted-foreground font-medium mr-2">
+          PDF Annotationen:
+        </span>
+        
+        {canSaveToWorkspace && (
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-7 px-2 text-[11px]"
+            onClick={saveToWorkspace}
+            disabled={isSaving}
+          >
+            {isSaving ? (
+              <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+            ) : (
+              <Save className="h-3 w-3 mr-1" />
+            )}
+            In Workspace speichern
+          </Button>
+        )}
+
+        <Button
+          variant="ghost"
+          size="sm"
+          className="h-7 px-2 text-[11px]"
+          onClick={downloadAnnotated}
+          disabled={isDownloading}
+        >
+          {isDownloading ? (
+            <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+          ) : (
+            <Download className="h-3 w-3 mr-1" />
+          )}
+          Herunterladen
+        </Button>
+      </div>
+
+      {/* PDF Viewer */}
+      <div className="flex-1 min-h-0">
+        <PdfViewerComponent
+          ref={pdfViewerRef}
+          id="pdfViewer"
+          documentPath={absolutePdfUrl}
+          resourceUrl={resourceUrl}
+          style={{ height: "100%", width: "100%" }}
+        >
+          <Inject
+            services={[
+              Toolbar,
+              Magnification,
+              Navigation,
+              Annotation,
+              LinkAnnotation,
+              BookmarkView,
+              ThumbnailView,
+              Print,
+              TextSelection,
+              TextSearch,
+              FormFields,
+              FormDesigner,
+            ]}
+          />
+        </PdfViewerComponent>
+      </div>
     </div>
   );
 }
