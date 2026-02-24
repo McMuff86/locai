@@ -132,16 +132,16 @@
 - [x] Waveform-Visualisierung verbessern
 
 ### STUDIO-2: Music Generation Verbesserung
-- [ ] ACE-Step Integration optimieren (Prompts, Styles, Qualität)
+- [x] ACE-Step Integration optimieren (Prompts, Styles, Qualität)
 - [x] Preset-System für Genres/Stile
 - [x] Batch-Generation (mehrere Varianten auf einmal)
 - [x] Progress-Anzeige während Generierung
 
 ### STUDIO-3: Voice Clone fertig implementieren
-- [ ] Voice Clone Pipeline end-to-end
-- [ ] Upload eigene Voice Samples
-- [ ] TTS mit geklonter Stimme
-- [ ] Voice Library (gespeicherte Stimmen verwalten)
+- [x] Voice Clone Pipeline end-to-end
+- [x] Upload eigene Voice Samples
+- [x] TTS mit geklonter Stimme
+- [x] Voice Library (gespeicherte Stimmen verwalten)
 
 ---
 
