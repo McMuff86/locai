@@ -36,6 +36,7 @@ import {
   Key,
   Music,
 } from 'lucide-react';
+import { LoadingState } from '@/components/ui/loading-state';
 import { HealthIndicator } from '@/components/HealthIndicator';
 import { ProviderHealthWidget } from '@/components/providers/ProviderHealthWidget';
 import { ChatAvatar } from '@/components/chat/ChatAvatar';
@@ -1197,10 +1198,7 @@ export default function SettingsPage() {
           </div>
           <div className="bg-card border border-border rounded-lg p-4 space-y-4">
             {isLoadingStats && !systemStats ? (
-              <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                <Loader2 className="h-4 w-4 animate-spin" />
-                Lade Systeminformationen…
-              </div>
+              <LoadingState variant="skeleton" rows={4} />
             ) : systemStats ? (
               <>
                 {/* CPU */}
