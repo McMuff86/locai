@@ -9,7 +9,7 @@ import { HealthIndicator } from '@/components/HealthIndicator';
 import { AudioHistory, AudioHistoryHandle } from '@/components/audio/AudioHistory';
 import { useStudioStore } from '@/stores/studioStore';
 import { Button } from '@/components/ui/button';
-import { Loader2, Music, Volume2, Play, Headphones } from 'lucide-react';
+import { Loader2, Music, Volume2, Play, Headphones, Mic } from 'lucide-react';
 import dynamic from 'next/dynamic';
 
 const MusicGenerator = dynamic(
@@ -24,6 +24,11 @@ const TextToSpeech = dynamic(
 
 const AudioStudio = dynamic(
   () => import('@/components/audio-studio/AudioStudio').then(mod => ({ default: mod.AudioStudio })),
+  { ssr: false, loading: () => <div className="flex items-center justify-center p-8"><Loader2 className="h-6 w-6 animate-spin" /></div> },
+);
+
+const VoiceCloneTTS = dynamic(
+  () => import('@/components/audio-studio/VoiceCloneTTS').then(mod => ({ default: mod.VoiceCloneTTS })),
   { ssr: false, loading: () => <div className="flex items-center justify-center p-8"><Loader2 className="h-6 w-6 animate-spin" /></div> },
 );
 
@@ -143,7 +148,7 @@ export default function AudioPage() {
       <div className="flex-1 min-h-0 overflow-y-auto p-4">
         <div className="max-w-6xl mx-auto">
           <Tabs value={activeTab} onValueChange={setActiveTab}>
-            <TabsList className="w-full max-w-sm">
+            <TabsList className="w-full max-w-lg">
               <TabsTrigger value="music" className="gap-1.5">
                 <Music className="h-4 w-4" />
                 Musik
@@ -155,6 +160,10 @@ export default function AudioPage() {
               <TabsTrigger value="studio" className="gap-1.5">
                 <Headphones className="h-4 w-4" />
                 Studio
+              </TabsTrigger>
+              <TabsTrigger value="voice-clone" className="gap-1.5">
+                <Mic className="h-4 w-4" />
+                Voice Clone
               </TabsTrigger>
             </TabsList>
 
@@ -193,6 +202,12 @@ export default function AudioPage() {
 
             <TabsContent value="studio" className="mt-4">
               <AudioStudio />
+            </TabsContent>
+
+            <TabsContent value="voice-clone" className="mt-4">
+              <div className="max-w-3xl">
+                <VoiceCloneTTS onGenerated={handleGenerated} />
+              </div>
             </TabsContent>
           </Tabs>
         </div>
