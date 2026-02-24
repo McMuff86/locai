@@ -144,11 +144,8 @@ export function SyncfusionPDFViewer({
 
     setIsDownloading(true);
     try {
-      // Use Syncfusion's built-in download with annotations
-      const fileNameWithoutExt = fileName.replace(/\.pdf$/i, '');
-      const downloadFileName = `${fileNameWithoutExt}_annotated.pdf`;
-      
-      await pdfViewerRef.current.download(downloadFileName);
+      // Use Syncfusion's built-in download (no filename parameter)
+      await pdfViewerRef.current.download();
       
       toast({
         title: "Download gestartet",
@@ -164,7 +161,7 @@ export function SyncfusionPDFViewer({
     } finally {
       setIsDownloading(false);
     }
-  }, [pdfViewerRef, fileName, toast]);
+  }, [pdfViewerRef, toast]);
 
   const canSaveToWorkspace = rootId === 'workspace' && relativePath;
 
