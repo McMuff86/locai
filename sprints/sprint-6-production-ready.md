@@ -88,7 +88,7 @@
 ### UX-2: Flow Management
 - [x] Duplicate Flow
 - [x] Export/Import als JSON
-- [ ] Flow-Bibliothek (Community Templates?)
+- [x] Flow-Bibliothek (Community Templates?)
 
 ### UX-3: PDF Viewer
 - [x] Save-to-Workspace für Syncfusion Annotationen
