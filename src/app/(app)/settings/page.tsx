@@ -8,6 +8,7 @@ import { useTheme } from 'next-themes';
 import { OllamaStatus } from '@/components/OllamaStatus';
 import { ComfyUIWidget } from '@/components/ComfyUIWidget';
 import { AceStepWidget } from '@/components/AceStepWidget';
+import { QwenTTSWidget } from '@/components/QwenTTSWidget';
 import {
   FolderOpen,
   Loader2,
@@ -263,7 +264,7 @@ export default function SettingsPage() {
 
   // ── Helpers ────────────────────────────────────────────────────────────
 
-  const pickFolder = async (type: 'comfyPath' | 'outputPath' | 'notesPath' | 'agentWorkspace' | 'aceStepPath') => {
+  const pickFolder = async (type: 'comfyPath' | 'outputPath' | 'notesPath' | 'agentWorkspace' | 'aceStepPath' | 'qwenTTSPath') => {
     setIsPickingFolder(type);
     try {
       const response = await fetch('/api/folder-picker', {
@@ -283,6 +284,8 @@ export default function SettingsPage() {
             updateSettings({ agentWorkspacePath: path });
           } else if (type === 'aceStepPath') {
             updateSettings({ aceStepPath: path });
+          } else if (type === 'qwenTTSPath') {
+            updateSettings({ qwenTTSPath: path });
           } else {
             updateSettings({ notesPath: path });
           }
@@ -887,6 +890,12 @@ export default function SettingsPage() {
 
             <div className="border-t border-border pt-4" />
 
+            {/* Qwen3-TTS Widget */}
+            <QwenTTSWidget
+              qwenTTSPath={settings?.qwenTTSPath || ''}
+              qwenTTSUrl={settings?.qwenTTSUrl || 'http://localhost:7861'}
+            />
+
             {/* Qwen3-TTS */}
             <div>
               <label className="block font-medium mb-1">Qwen3-TTS URL</label>
@@ -896,7 +905,30 @@ export default function SettingsPage() {
                 onChange={(e) => handleInputChange('qwenTTSUrl', e.target.value)}
                 placeholder="http://localhost:7861"
               />
-              <HealthIndicator endpoint="/api/qwen-tts/health" label="Qwen3-TTS" />
+            </div>
+
+            <div>
+              <label className="block font-medium mb-1">Qwen3-TTS Installationspfad</label>
+              <p className="text-sm text-muted-foreground mb-2">Pfad zur Qwen3-TTS Installation (für Auto-Start)</p>
+              <div className="flex gap-2">
+                <Input
+                  value={settings?.qwenTTSPath || ''}
+                  onChange={(e) => handleInputChange('qwenTTSPath', e.target.value)}
+                  placeholder="C:\qwen3-tts"
+                />
+                <Button
+                  variant="outline"
+                  size="icon"
+                  onClick={() => pickFolder('qwenTTSPath' as Parameters<typeof pickFolder>[0])}
+                  disabled={isPickingFolder === 'qwenTTSPath'}
+                >
+                  {isPickingFolder === 'qwenTTSPath' ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <FolderOpen className="h-4 w-4" />
+                  )}
+                </Button>
+              </div>
             </div>
 
             <div className="border-t border-border pt-4" />

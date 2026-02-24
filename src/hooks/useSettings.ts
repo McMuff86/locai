@@ -47,6 +47,8 @@ export interface AppSettings {
   aceStepPath: string;
   aceStepAutoStart: boolean;
   qwenTTSUrl: string;
+  qwenTTSPath: string;
+  qwenTTSAutoStart: boolean;
 }
 
 const DEFAULT_SETTINGS: AppSettings = {
@@ -75,6 +77,8 @@ const DEFAULT_SETTINGS: AppSettings = {
   aceStepPath: '',
   aceStepAutoStart: false,
   qwenTTSUrl: 'http://localhost:7861',
+  qwenTTSPath: '',
+  qwenTTSAutoStart: false,
 };
 
 export interface UseSettingsReturn {
