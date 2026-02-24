@@ -36,6 +36,7 @@ import {
 import { cn } from '@/lib/utils';
 import type { Document } from '@/lib/documents/types';
 import { IndexStatus, DocumentType } from '@/lib/documents/types';
+import { ChunkPreview } from './ChunkPreview';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -251,6 +252,9 @@ export function DocumentCard({ document: doc, onDelete, onRename, onCopy }: Docu
           </div>
           {doc.status === IndexStatus.Error && doc.error && (
             <p className="text-xs text-red-500 mt-1 truncate">{doc.error}</p>
+          )}
+          {doc.status === IndexStatus.Ready && doc.chunkCount > 0 && (
+            <ChunkPreview documentId={doc.id} chunkCount={doc.chunkCount} />
           )}
         </div>
 
