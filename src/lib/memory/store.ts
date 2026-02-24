@@ -146,6 +146,53 @@ export async function saveMemory(
   return entry;
 }
 
+export async function updateMemory(
+  id: string,
+  updates: {
+    key?: string;
+    value?: string;
+    category?: MemoryCategory;
+    tags?: string[];
+  },
+  basePath?: string,
+): Promise<MemoryEntry | null> {
+  const store = await loadMemoryStore(basePath);
+  const idx = store.entries.findIndex(e => e.id === id);
+  if (idx < 0) return null;
+
+  const now = new Date().toISOString();
+  const entry = store.entries[idx];
+
+  if (updates.key !== undefined) entry.key = updates.key;
+  if (updates.value !== undefined) entry.value = updates.value;
+  if (updates.category !== undefined) entry.category = updates.category;
+  if (updates.tags !== undefined) entry.tags = updates.tags;
+  entry.updatedAt = now;
+
+  // Re-generate embedding if key or value changed
+  if (updates.key !== undefined || updates.value !== undefined) {
+    try {
+      entry.embedding = await generateEmbedding(`${entry.key}: ${entry.value}`);
+    } catch {
+      // best-effort
+    }
+  }
+
+  store.entries[idx] = entry;
+  await saveMemoryStore(store, basePath);
+
+  await appendLog({
+    timestamp: now,
+    action: 'update',
+    entryId: entry.id,
+    key: entry.key,
+    value: entry.value,
+    category: entry.category,
+  }, basePath);
+
+  return entry;
+}
+
 export async function deleteMemory(id: string, basePath?: string): Promise<boolean> {
   const store = await loadMemoryStore(basePath);
   const entry = store.entries.find(e => e.id === id);
