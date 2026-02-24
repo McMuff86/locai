@@ -26,7 +26,19 @@ export function Equalizer() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const [draggingBand, setDraggingBand] = useState<number | null>(null);
+  const isDarkRef = useRef(true);
   const { eqBands, setEqBand } = useStudioStore();
+
+  // Detect theme
+  useEffect(() => {
+    const check = () => {
+      isDarkRef.current = document.documentElement.classList.contains('dark');
+    };
+    check();
+    const obs = new MutationObserver(check);
+    obs.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
+    return () => obs.disconnect();
+  }, []);
 
   const draw = useCallback(() => {
     const canvas = canvasRef.current;
@@ -43,13 +55,22 @@ export function Equalizer() {
 
     const w = rect.width;
     const h = rect.height;
+    const dark = isDarkRef.current;
 
     // Background
-    ctx.fillStyle = 'oklch(0.07 0.005 240)';
+    const bgGrad = ctx.createLinearGradient(0, 0, 0, h);
+    if (dark) {
+      bgGrad.addColorStop(0, 'hsl(220 15% 6%)');
+      bgGrad.addColorStop(1, 'hsl(220 15% 4%)');
+    } else {
+      bgGrad.addColorStop(0, 'hsl(220 15% 97%)');
+      bgGrad.addColorStop(1, 'hsl(220 15% 94%)');
+    }
+    ctx.fillStyle = bgGrad;
     ctx.fillRect(0, 0, w, h);
 
-    // Grid lines (horizontal — gain)
-    ctx.strokeStyle = 'oklch(0.18 0.005 240)';
+    // Grid lines
+    ctx.strokeStyle = dark ? 'hsl(220 10% 15%)' : 'hsl(220 10% 85%)';
     ctx.lineWidth = 0.5;
     for (let g = MIN_GAIN; g <= MAX_GAIN; g += 3) {
       const y = gainToY(g, h);
@@ -60,7 +81,7 @@ export function Equalizer() {
     }
 
     // Zero line
-    ctx.strokeStyle = 'oklch(0.25 0.005 240)';
+    ctx.strokeStyle = dark ? 'hsl(220 10% 22%)' : 'hsl(220 10% 72%)';
     ctx.lineWidth = 1;
     const zeroY = gainToY(0, h);
     ctx.beginPath();
@@ -69,20 +90,20 @@ export function Equalizer() {
     ctx.stroke();
 
     // Grid labels
-    ctx.fillStyle = 'oklch(0.35 0.01 240)';
+    ctx.fillStyle = dark ? 'hsl(220 10% 35%)' : 'hsl(220 10% 55%)';
     ctx.font = '9px "Geist Mono", ui-monospace, monospace';
     ctx.textAlign = 'right';
     for (const g of [-12, -6, 0, 6, 12]) {
       ctx.fillText(`${g > 0 ? '+' : ''}${g}`, w - 4, gainToY(g, h) - 3);
     }
 
-    // Frequency curve
+    // Frequency curve points
     const points = eqBands.map((band) => ({
       x: freqToX(band.frequency, w),
       y: gainToY(band.gain, h),
     }));
 
-    // Draw filled area
+    // Filled area
     ctx.beginPath();
     ctx.moveTo(0, zeroY);
     ctx.lineTo(points[0].x, points[0].y);
@@ -97,13 +118,19 @@ export function Equalizer() {
     ctx.closePath();
 
     const gradient = ctx.createLinearGradient(0, 0, 0, h);
-    gradient.addColorStop(0, 'oklch(0.75 0.17 182 / 0.15)');
-    gradient.addColorStop(0.5, 'oklch(0.75 0.17 182 / 0.05)');
-    gradient.addColorStop(1, 'oklch(0.75 0.17 182 / 0.15)');
+    if (dark) {
+      gradient.addColorStop(0, 'hsl(172 70% 55% / 0.12)');
+      gradient.addColorStop(0.5, 'hsl(172 70% 55% / 0.03)');
+      gradient.addColorStop(1, 'hsl(172 70% 55% / 0.12)');
+    } else {
+      gradient.addColorStop(0, 'hsl(172 60% 40% / 0.15)');
+      gradient.addColorStop(0.5, 'hsl(172 60% 40% / 0.04)');
+      gradient.addColorStop(1, 'hsl(172 60% 40% / 0.15)');
+    }
     ctx.fillStyle = gradient;
     ctx.fill();
 
-    // Draw curve line
+    // Curve line
     ctx.beginPath();
     ctx.moveTo(points[0].x, points[0].y);
     for (let i = 1; i < points.length; i++) {
@@ -112,11 +139,14 @@ export function Equalizer() {
       const cpx = (prev.x + curr.x) / 2;
       ctx.bezierCurveTo(cpx, prev.y, cpx, curr.y, curr.x, curr.y);
     }
-    ctx.strokeStyle = 'oklch(0.75 0.17 182 / 0.8)';
+    ctx.strokeStyle = dark ? 'hsl(172 70% 55% / 0.8)' : 'hsl(172 60% 40% / 0.8)';
     ctx.lineWidth = 2;
     ctx.stroke();
 
-    // Draw control points
+    // Control points
+    const primaryColor = dark ? 'hsl(172 70% 55%)' : 'hsl(172 60% 40%)';
+    const primaryLight = dark ? 'hsl(172 70% 70%)' : 'hsl(172 60% 50%)';
+
     points.forEach((p, i) => {
       const isActive = draggingBand === i;
 
@@ -124,28 +154,28 @@ export function Equalizer() {
       if (isActive || eqBands[i].gain !== 0) {
         ctx.beginPath();
         ctx.arc(p.x, p.y, isActive ? 14 : 10, 0, Math.PI * 2);
-        ctx.fillStyle = 'oklch(0.75 0.17 182 / 0.1)';
+        ctx.fillStyle = dark ? 'hsl(172 70% 55% / 0.08)' : 'hsl(172 60% 40% / 0.1)';
         ctx.fill();
       }
 
       // Point
       ctx.beginPath();
       ctx.arc(p.x, p.y, isActive ? 7 : 5, 0, Math.PI * 2);
-      ctx.fillStyle = isActive ? 'oklch(0.85 0.17 182)' : 'oklch(0.75 0.17 182)';
+      ctx.fillStyle = isActive ? primaryLight : primaryColor;
       ctx.fill();
-      ctx.strokeStyle = 'oklch(0.90 0.05 182)';
+      ctx.strokeStyle = dark ? 'hsl(172 50% 80%)' : 'hsl(172 40% 70%)';
       ctx.lineWidth = 1.5;
       ctx.stroke();
 
       // Label
-      ctx.fillStyle = 'oklch(0.55 0.02 240)';
+      ctx.fillStyle = dark ? 'hsl(220 10% 45%)' : 'hsl(220 10% 50%)';
       ctx.font = '9px "Geist Mono", ui-monospace, monospace';
       ctx.textAlign = 'center';
       ctx.fillText(BAND_LABELS[i], p.x, h - 4);
 
-      // Gain value when active
+      // Gain value
       if (isActive || eqBands[i].gain !== 0) {
-        ctx.fillStyle = 'oklch(0.75 0.17 182)';
+        ctx.fillStyle = primaryColor;
         ctx.fillText(`${eqBands[i].gain > 0 ? '+' : ''}${eqBands[i].gain}dB`, p.x, p.y - 12);
       }
     });
@@ -201,7 +231,7 @@ export function Equalizer() {
     <div ref={containerRef} className="relative w-full h-full min-h-[100px]">
       <canvas
         ref={canvasRef}
-        className="w-full h-full cursor-pointer rounded-md"
+        className="w-full h-full cursor-pointer rounded-lg"
         onMouseDown={handleMouseDown}
         onMouseMove={handleMouseMove}
         onMouseUp={handleMouseUp}
