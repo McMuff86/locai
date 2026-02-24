@@ -39,8 +39,29 @@ import type { CanvasWindow } from '@/hooks/useFileCanvas';
 import { MIN_WINDOW_SIZE } from '@/hooks/useFileCanvas';
 import dynamic from 'next/dynamic';
 import type { FilePreviewType } from '@/lib/filebrowser/types';
-import { ImageEditor } from './ImageEditor';
-import { WaveformPlayer } from '@/components/audio/WaveformPlayer';
+const ImageEditor = dynamic(
+  () => import('./ImageEditor').then(mod => ({ default: mod.ImageEditor })),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="flex items-center justify-center h-full">
+        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+      </div>
+    ),
+  },
+);
+
+const WaveformPlayer = dynamic(
+  () => import('@/components/audio/WaveformPlayer').then(mod => ({ default: mod.WaveformPlayer })),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="flex items-center justify-center h-full">
+        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+      </div>
+    ),
+  },
+);
 
 const PDFViewer = dynamic(
   () => import('./PDFViewer').then(mod => ({ default: mod.PDFViewer })),

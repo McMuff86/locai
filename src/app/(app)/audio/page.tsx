@@ -6,13 +6,26 @@ import { useAudioGenerator } from '@/hooks/useAudioGenerator';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { HealthIndicator } from '@/components/HealthIndicator';
-import { MusicGenerator } from '@/components/audio/MusicGenerator';
-import { TextToSpeech } from '@/components/audio/TextToSpeech';
 import { AudioHistory, AudioHistoryHandle } from '@/components/audio/AudioHistory';
-import { AudioStudio } from '@/components/audio-studio/AudioStudio';
 import { useStudioStore } from '@/stores/studioStore';
 import { Button } from '@/components/ui/button';
 import { Loader2, Music, Volume2, Play, Headphones } from 'lucide-react';
+import dynamic from 'next/dynamic';
+
+const MusicGenerator = dynamic(
+  () => import('@/components/audio/MusicGenerator').then(mod => ({ default: mod.MusicGenerator })),
+  { ssr: false, loading: () => <div className="flex items-center justify-center p-8"><Loader2 className="h-6 w-6 animate-spin" /></div> },
+);
+
+const TextToSpeech = dynamic(
+  () => import('@/components/audio/TextToSpeech').then(mod => ({ default: mod.TextToSpeech })),
+  { ssr: false, loading: () => <div className="flex items-center justify-center p-8"><Loader2 className="h-6 w-6 animate-spin" /></div> },
+);
+
+const AudioStudio = dynamic(
+  () => import('@/components/audio-studio/AudioStudio').then(mod => ({ default: mod.AudioStudio })),
+  { ssr: false, loading: () => <div className="flex items-center justify-center p-8"><Loader2 className="h-6 w-6 animate-spin" /></div> },
+);
 
 export default function AudioPage() {
   const { settings, isLoaded } = useSettings();

@@ -4,8 +4,18 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import dynamic from 'next/dynamic';
 import { Files, FolderTree } from 'lucide-react';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
-import { FileBrowser } from '@/components/filebrowser/FileBrowser';
 import { useFileCanvas } from '@/hooks/useFileCanvas';
+
+const FileBrowser = dynamic(
+  () => import('@/components/filebrowser/FileBrowser').then((mod) => ({ default: mod.FileBrowser })),
+  {
+    loading: () => (
+      <div className="h-full flex items-center justify-center text-sm text-muted-foreground">
+        Lade Dateien...
+      </div>
+    ),
+  },
+);
 import type { FileEntry } from '@/lib/filebrowser/types';
 
 const DocumentManager = dynamic(

@@ -6,14 +6,23 @@ import { FolderOpen, FileText, Settings, Radar } from 'lucide-react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { 
-  KnowledgeGraph,
-  KnowledgeGraph2D,
+import {
   GraphControls,
   GraphTextView,
   GraphSearch,
   NodeDetailPanel,
 } from '@/components/notes';
+import dynamic from 'next/dynamic';
+
+const KnowledgeGraph = dynamic(
+  () => import('@/components/notes/KnowledgeGraph').then(mod => ({ default: mod.KnowledgeGraph })),
+  { ssr: false },
+);
+
+const KnowledgeGraph2D = dynamic(
+  () => import('@/components/notes/KnowledgeGraph2D').then(mod => ({ default: mod.KnowledgeGraph2D })),
+  { ssr: false },
+);
 import { useNotesContext } from '../layout';
 import type { ForceGraphMethods } from 'react-force-graph-3d';
 import type { GraphNode, GraphLink, GraphViewMode, GraphData } from '@/components/notes/types';
