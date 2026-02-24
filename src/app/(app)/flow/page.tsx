@@ -680,7 +680,6 @@ export default function FlowPage() {
           runInputs[node.id] = (node.data as InputNodeData).config.text;
         }
       }
-
       // Capture output result
       const runOutput = streamBufferRef.current || undefined;
 
