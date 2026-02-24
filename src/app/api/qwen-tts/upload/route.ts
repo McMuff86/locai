@@ -1,6 +1,7 @@
-import { mkdirSync, writeFileSync } from 'fs';
+import { mkdirSync, writeFileSync, unlinkSync } from 'fs';
 import { homedir } from 'os';
 import path from 'path';
+import { execFileSync } from 'child_process';
 import { apiError, apiSuccess } from '../../_utils/responses';
 import { assertLocalRequest } from '../../_utils/security';
 
@@ -73,7 +74,29 @@ export async function POST(request: Request) {
     const buffer = Buffer.from(await file.arrayBuffer());
     writeFileSync(filePath, buffer);
 
-    return apiSuccess({ filePath });
+    // Auto-convert webm/ogg to wav for better TTS compatibility
+    let finalPath = filePath;
+    if (ext === 'webm' || ext === 'ogg') {
+      const wavFilename = filename.replace(`.${ext}`, '.wav');
+      const wavPath = path.join(REFERENCES_DIR, wavFilename);
+      try {
+        execFileSync('ffmpeg', [
+          '-i', filePath,
+          '-ar', '24000',    // 24kHz sample rate (good for TTS)
+          '-ac', '1',        // mono
+          '-y',              // overwrite
+          wavPath,
+        ], { timeout: 30000, stdio: 'pipe' });
+        // Remove original webm, use wav
+        try { unlinkSync(filePath); } catch { /* ignore */ }
+        finalPath = wavPath;
+      } catch {
+        // ffmpeg not available or failed — keep original file
+        console.warn('ffmpeg conversion failed, keeping original format');
+      }
+    }
+
+    return apiSuccess({ filePath: finalPath });
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Upload failed';
     return apiError(message, 500);
