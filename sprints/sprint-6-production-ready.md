@@ -55,7 +55,7 @@
 ### MEM-4: Workflow Memory
 - [x] Nach jedem Workflow: Ergebnis + Learnings automatisch als Memory speichern
 - [x] "Welches Modell war schnell für PDF-Zusammenfassung?" → Memory recall
-- [ ] Flow-Templates können auf vergangene Runs zugreifen
+- [x] Flow-Templates können auf vergangene Runs zugreifen
 
 ---
 
