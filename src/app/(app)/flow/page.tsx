@@ -44,14 +44,11 @@ const RunHistoryPanel = dynamic(
   () => import('@/components/flow/RunHistoryPanel').then(mod => ({ default: mod.RunHistoryPanel })),
   { ssr: false },
 );
-<<<<<<< HEAD
 
 const FlowLibraryDialog = dynamic(
   () => import('@/components/flow/FlowLibraryDialog').then(mod => ({ default: mod.FlowLibraryDialog })),
   { ssr: false },
 );
-=======
->>>>>>> origin/sprint6/mem4-flow-template-history
 import { DesktopOnlyGuard } from '@/components/ui/desktop-only-guard';
 import { FlowCompileError, compileVisualWorkflowToPlan } from '@/lib/flow/engine';
 import { FLOW_TEMPLATES, type FlowTemplateId } from '@/lib/flow/registry';
