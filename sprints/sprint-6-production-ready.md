@@ -95,8 +95,8 @@
 - [ ] Annotation Download verifizieren
 
 ### UX-4: Responsive
-- [ ] Tablet-Support (min-width 768px)
-- [ ] Mobile: read-only View
+- [x] Tablet-Support (min-width 768px)
+- [x] Mobile: read-only View
 
 ---
 
@@ -104,11 +104,11 @@
 
 ### RAG-1: Chunk-Vorschau
 - [ ] Document Details: Chunks anzeigen (nicht nur Count)
-- [ ] Chunk-Navigation: zu Chunk im Dokument springen
+- [x] Chunk-Navigation: zu Chunk im Dokument springen
 
 ### RAG-2: Drag & Drop Fix
-- [ ] TS Config Issues fixen
-- [ ] Multi-File Upload + Chat Drag & Drop wiren
+- [x] TS Config Issues fixen
+- [x] Multi-File Upload + Chat Drag & Drop wiren
 
 ---
 
