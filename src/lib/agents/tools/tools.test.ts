@@ -80,7 +80,7 @@ describe('write_file', () => {
     const filePath = path.join(tmpDir, 'existing.txt');
     await fs.writeFile(filePath, 'original', 'utf-8');
 
-    const result = await write({ path: filePath, content: 'overwrite attempt' });
+    const result = await write({ path: filePath, content: 'overwrite attempt', mode: 'create' });
 
     expect(result.success).toBe(false);
     expect(result.error).toContain('already exists');
