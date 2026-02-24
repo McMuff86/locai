@@ -8,7 +8,8 @@ import {
   getDefaultOptions
 } from './templates';
 import { MessageContent, MessageImageContent } from '../types/chat';
-import { ollamaFetch } from './ollama-agent';
+// Keep-alive agents initialized via side-effect import in API routes
+const ollamaFetch: typeof fetch = (...args: Parameters<typeof fetch>) => fetch(...args);
 
 const DEFAULT_OLLAMA_HOST = 'http://localhost:11434';
 const SETTINGS_STORAGE_KEY = 'locai-settings';
