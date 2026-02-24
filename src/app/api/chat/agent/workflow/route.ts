@@ -283,7 +283,7 @@ export async function POST(request: NextRequest) {
               await saveMemory({
                 key: `workflow_result_${memState.id}`,
                 value: summary,
-                category: 'agent',
+                category: 'project_context',
                 tags: ['workflow', 'auto'],
                 source: 'workflow',
               });
