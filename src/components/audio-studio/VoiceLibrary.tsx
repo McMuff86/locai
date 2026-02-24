@@ -12,6 +12,7 @@ import {
   Plus, Trash2, Edit3, Play, Pause, Loader2, Mic, Upload, Check,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { AudioRecorder } from './AudioRecorder';
 
 interface Voice {
   id: string;
@@ -227,25 +228,40 @@ export function VoiceLibrary({ selectedVoiceId, onSelectVoice }: VoiceLibraryPro
                     <span className="truncate">{uploadedFileName}</span>
                   </div>
                 ) : (
-                  <label className="flex items-center justify-center gap-2 border border-dashed border-border/60 rounded-lg px-4 py-6 cursor-pointer hover:bg-muted/20 transition-colors">
-                    {uploading ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : (
-                      <Upload className="h-4 w-4 text-muted-foreground" />
-                    )}
-                    <span className="text-sm text-muted-foreground">
-                      {uploading ? 'Wird hochgeladen...' : 'Audio-Datei hochladen'}
-                    </span>
-                    <input
-                      type="file"
-                      accept="audio/*"
-                      className="hidden"
-                      onChange={(e) => {
-                        const file = e.target.files?.[0];
-                        if (file) handleUpload(file);
+                  <div className="space-y-2">
+                    <label className="flex items-center justify-center gap-2 border border-dashed border-border/60 rounded-lg px-4 py-4 cursor-pointer hover:bg-muted/20 transition-colors">
+                      {uploading ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <Upload className="h-4 w-4 text-muted-foreground" />
+                      )}
+                      <span className="text-sm text-muted-foreground">
+                        {uploading ? 'Wird hochgeladen...' : 'Audio-Datei hochladen'}
+                      </span>
+                      <input
+                        type="file"
+                        accept="audio/*"
+                        className="hidden"
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (file) handleUpload(file);
+                        }}
+                      />
+                    </label>
+                    <div className="relative flex items-center justify-center">
+                      <div className="absolute inset-0 flex items-center">
+                        <span className="w-full border-t border-border/40" />
+                      </div>
+                      <span className="relative bg-background px-2 text-[10px] text-muted-foreground/60 uppercase">oder</span>
+                    </div>
+                    <AudioRecorder
+                      maxDuration={30}
+                      onRecordingComplete={async (blob) => {
+                        const file = new File([blob], `recording-${Date.now()}.webm`, { type: blob.type });
+                        await handleUpload(file);
                       }}
                     />
-                  </label>
+                  </div>
                 )}
               </div>
               <div>
