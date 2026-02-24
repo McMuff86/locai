@@ -73,34 +73,52 @@ export function SyncfusionPDFViewer({
 
     setIsSaving(true);
     try {
-      // Export the PDF with annotations as base64
-      const base64Data = await pdfViewerRef.current.exportAnnotationsAsBase64String();
-      
       // Create the new filename with "_annotated" suffix
       const fileNameWithoutExt = fileName.replace(/\.pdf$/i, '');
       const newFileName = `${fileNameWithoutExt}_annotated.pdf`;
-      const newPath = relativePath.replace(/\/[^\/]+$/, `/${newFileName}`);
       
-      // Save to workspace using the API
-      const response = await fetch('/api/filebrowser/write', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          rootId,
-          path: newPath,
-          content: base64Data,
-          encoding: 'base64',
-        }),
-      });
+      // Use Syncfusion's saveAsBlob with callback to capture the blob
+      await new Promise<void>((resolve, reject) => {
+        pdfViewerRef.current?.saveAsBlob().then((blob: Blob) => {
+          // Convert blob to base64
+          const reader = new FileReader();
+          reader.onload = async () => {
+            try {
+              const base64 = reader.result as string;
+              // Remove data URL prefix to get just the base64 string
+              const base64Data = base64.split(',')[1];
+              
+              const newPath = relativePath.replace(/\/[^\/]+$/, `/${newFileName}`);
+              
+              // Save to workspace using the API
+              const response = await fetch('/api/filebrowser/write', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  rootId,
+                  path: newPath,
+                  content: base64Data,
+                  encoding: 'base64',
+                }),
+              });
 
-      const result = await response.json();
-      if (!response.ok || !result.success) {
-        throw new Error(result.error ?? 'Speichern fehlgeschlagen');
-      }
+              const result = await response.json();
+              if (!response.ok || !result.success) {
+                throw new Error(result.error ?? 'Speichern fehlgeschlagen');
+              }
 
-      toast({
-        title: "Erfolgreich gespeichert",
-        description: `Annotierte PDF wurde als "${newFileName}" gespeichert.`,
+              toast({
+                title: "Erfolgreich gespeichert",
+                description: `Annotierte PDF wurde als "${newFileName}" gespeichert.`,
+              });
+              resolve();
+            } catch (error) {
+              reject(error);
+            }
+          };
+          reader.onerror = () => reject(new Error('Fehler beim Lesen der PDF'));
+          reader.readAsDataURL(blob);
+        }).catch(reject);
       });
     } catch (error) {
       console.error('Save to workspace error:', error);
