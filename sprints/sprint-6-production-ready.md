@@ -156,18 +156,18 @@
 - [ ] Dark/Light Theme Konsistenz prüfen
 
 ### UX-6: Navigation & Layout
-- [ ] Sidebar optimieren (Collapsible, Badges)
-- [ ] Breadcrumbs wo sinnvoll
-- [ ] Quick-Switch zwischen Bereichen
+- [x] Sidebar optimieren (Collapsible, Badges für Memories + Flows)
+- [x] Breadcrumbs wo sinnvoll (auto-generated Breadcrumb component)
+- [x] Quick-Switch zwischen Bereichen (Global Cmd+K Command Palette)
 
 ---
 
 ## 🟡 Prio 9: Performance
 
 ### PERF-1: Performance Optimierung
-- [ ] Bundle Size analysieren und reduzieren
-- [ ] Lazy Loading für schwere Komponenten (PDF Viewer, Studio)
-- [ ] API Response Caching wo sinnvoll
+- [x] Bundle Size analysieren und reduzieren
+- [x] Lazy Loading für schwere Komponenten (PDF Viewer, Studio, Image Editor, Knowledge Graph)
+- [x] API Response Caching wo sinnvoll (models 30s cache, health check 30s interval)
 - [ ] Ollama Connection Pooling / Keep-Alive
 - [ ] Memory Leaks identifizieren und fixen
 - [ ] Lighthouse Score messen und optimieren

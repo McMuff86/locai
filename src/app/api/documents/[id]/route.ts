@@ -39,9 +39,13 @@ export async function GET(
 
     return apiSuccess({
       document: doc,
-      chunks: embeddings.map((e) => ({
+      chunks: embeddings.map((e, i) => ({
         id: e.id,
-        preview: e.chunk.slice(0, 200) + (e.chunk.length > 200 ? '...' : ''),
+        index: i,
+        preview: e.chunk.slice(0, 200) + (e.chunk.length > 200 ? '…' : ''),
+        content: e.chunk,
+        charCount: e.chunk.length,
+        tokenEstimate: Math.ceil(e.chunk.length / 4),
         model: e.model,
         createdAt: e.createdAt,
       })),
