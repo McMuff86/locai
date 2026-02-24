@@ -135,7 +135,7 @@ const ProcessItem = ({
   const styles = {
     ollama: { bg: 'bg-emerald-500/10', border: 'border-emerald-500/20', icon: '🦙', label: 'Ollama' },
     comfyui: { bg: 'bg-purple-500/10', border: 'border-purple-500/20', icon: '🎨', label: 'ComfyUI' },
-    other: { bg: 'bg-gray-500/10', border: 'border-gray-500/20', icon: '📦', label: 'Other' }
+    other: { bg: 'bg-muted/50', border: 'border-border', icon: '📦', label: 'Other' }
   };
   
   const style = styles[process.type];

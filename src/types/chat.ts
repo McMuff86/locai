@@ -59,7 +59,7 @@ export const TAG_COLORS: Record<string, { bg: string; text: string; border: stri
   'privat': { bg: 'bg-pink-500/20', text: 'text-pink-400', border: 'border-pink-500/30' },
   'ideen': { bg: 'bg-yellow-500/20', text: 'text-yellow-400', border: 'border-yellow-500/30' },
   'wichtig': { bg: 'bg-orange-500/20', text: 'text-orange-400', border: 'border-orange-500/30' },
-  'archiv': { bg: 'bg-gray-500/20', text: 'text-gray-400', border: 'border-gray-500/30' },
+  'archiv': { bg: 'bg-muted', text: 'text-muted-foreground', border: 'border-border' },
 };
 
 // Get color for a tag (with fallback)

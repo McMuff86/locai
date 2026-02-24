@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useEffect, useMemo } from 'react';
+import { useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import { NoteSummary, SemanticLink, GraphData, GraphSettings, defaultGraphSettings } from '../types';
 
 async function loadPersistedSettings(): Promise<GraphSettings> {
@@ -63,6 +63,7 @@ export function useGraph({ basePath, notes, embeddingModel }: UseGraphOptions): 
   const [semanticThreshold, setSemanticThreshold] = useState(0.75);
   const [isGeneratingEmbeddings, setIsGeneratingEmbeddings] = useState(false);
   const [embeddingsStatus, setEmbeddingsStatus] = useState<string | null>(null);
+  const embeddingsTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [graphSettings, setGraphSettings] = useState<GraphSettings>(defaultGraphSettings);
 
   // Load persisted settings from server on mount
@@ -196,7 +197,8 @@ export function useGraph({ basePath, notes, embeddingModel }: UseGraphOptions): 
       await fetchSemanticLinks();
       
       if (finalProcessed > 0) {
-        setTimeout(() => setEmbeddingsStatus(null), 4000);
+        if (embeddingsTimerRef.current) clearTimeout(embeddingsTimerRef.current);
+        embeddingsTimerRef.current = setTimeout(() => setEmbeddingsStatus(null), 4000);
       }
     } catch (err) {
       const errorMsg = err instanceof Error ? err.message : 'Unbekannter Fehler';

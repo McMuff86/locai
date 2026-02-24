@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useRef, useEffect } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import rehypeRaw from 'rehype-raw';
@@ -30,7 +30,7 @@ const langColorMap: Record<string, string> = {
   css:         'bg-pink-400',
   html:        'bg-orange-400',
   json:        'bg-yellow-300',
-  markdown:    'bg-gray-400',
+  markdown:    'bg-muted-foreground',
   rust:        'bg-orange-600',
   go:          'bg-cyan-400',
   sql:         'bg-purple-400',
@@ -45,19 +45,25 @@ const langColorMap: Record<string, string> = {
   yaml:        'bg-amber-400',
   toml:        'bg-amber-400',
   xml:         'bg-green-300',
-  text:        'bg-zinc-500',
+  text:        'bg-muted-foreground',
 };
 
 // ── Copy Button with animation ────────────────────────────────────
 
 function CopyButton({ code }: { code: string }) {
   const [copied, setCopied] = useState(false);
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    return () => { if (timerRef.current) clearTimeout(timerRef.current); };
+  }, []);
 
   const handleCopy = useCallback(async () => {
     try {
       await navigator.clipboard.writeText(code);
       setCopied(true);
-      setTimeout(() => setCopied(false), 1500);
+      if (timerRef.current) clearTimeout(timerRef.current);
+      timerRef.current = setTimeout(() => setCopied(false), 1500);
     } catch (err) {
       console.error('Failed to copy:', err);
     }
@@ -113,7 +119,7 @@ interface CodeBlockProps {
 
 function CodeBlock({ language, code }: CodeBlockProps) {
   const [wrapped, setWrapped] = useState(false);
-  const colorClass = langColorMap[language] ?? 'bg-zinc-500';
+  const colorClass = langColorMap[language] ?? 'bg-muted-foreground';
   const displayLabel = language || 'text';
   const lineCount = code.split('\n').length;
   const showLineNumbers = lineCount > 10;
@@ -124,7 +130,7 @@ function CodeBlock({ language, code }: CodeBlockProps) {
       <div
         className={cn(
           'flex items-center justify-between px-3 py-2',
-          'bg-zinc-900/90 dark:bg-black/70',
+          'bg-muted dark:bg-black/70',
           'border-b border-border/30',
         )}
       >
@@ -142,7 +148,7 @@ function CodeBlock({ language, code }: CodeBlockProps) {
       </div>
 
       {/* Code body */}
-      <div className={cn('overflow-x-auto bg-zinc-950/90 dark:bg-black/80')}>
+      <div className={cn('overflow-x-auto bg-muted/80 dark:bg-black/80')}>
         <SyntaxHighlighter
           style={oneDark as any}
           language={language || 'text'}

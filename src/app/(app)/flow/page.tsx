@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ChevronDown, Copy, Download, FileText, GripHorizontal, Loader2, Play, Plus, Save, Square, Trash2, Upload, X } from 'lucide-react';
+import { BookOpen, ChevronDown, Copy, Download, FileText, GripHorizontal, Loader2, Play, Plus, Save, Square, Trash2, Upload, X } from 'lucide-react';
 import { LoadingState } from '@/components/ui/loading-state';
 import { ErrorState } from '@/components/ui/error-state';
 import { Button } from '@/components/ui/button';
@@ -42,6 +42,11 @@ const NodePalette = dynamic(
 
 const RunHistoryPanel = dynamic(
   () => import('@/components/flow/RunHistoryPanel').then(mod => ({ default: mod.RunHistoryPanel })),
+  { ssr: false },
+);
+
+const FlowLibraryDialog = dynamic(
+  () => import('@/components/flow/FlowLibraryDialog').then(mod => ({ default: mod.FlowLibraryDialog })),
   { ssr: false },
 );
 import { DesktopOnlyGuard } from '@/components/ui/desktop-only-guard';
@@ -99,6 +104,7 @@ export default function FlowPage() {
   const [showLastRunInfo, setShowLastRunInfo] = useState(true);
   const [isSaveDialogOpen, setIsSaveDialogOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<SavedFlowTemplate | null>(null);
+  const [isLibraryOpen, setIsLibraryOpen] = useState(false);
   const [timelineData, setTimelineData] = useState<TimelineData | null>(null);
   const timelineEventsRef = useRef<Array<{ stepId: string; label: string; type: 'start' | 'end'; timestampMs: number; status?: string }>>([]);
   const logEntriesRef = useRef<LogEntry[]>([]);
@@ -788,6 +794,17 @@ export default function FlowPage() {
         </div>
 
         <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-8 gap-1.5"
+            disabled={isRunning}
+            onClick={() => setIsLibraryOpen(true)}
+          >
+            <BookOpen className="h-3.5 w-3.5" />
+            Bibliothek
+          </Button>
+
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button
@@ -1005,7 +1022,7 @@ export default function FlowPage() {
           <ConfigPanel />
         </div>
 
-        <section className="flex shrink-0 flex-col border-t border-border/60 bg-zinc-900/40" style={{ height: bottomPanelHeight }}>
+        <section className="flex shrink-0 flex-col border-t border-border/60 bg-card/40" style={{ height: bottomPanelHeight }}>
           {/* Resize handle */}
           <div
             onPointerDown={handleBottomPanelResize}
@@ -1071,6 +1088,11 @@ export default function FlowPage() {
         onOpenChange={(open) => { if (!open) setDeleteTarget(null); }}
         templateName={deleteTarget?.name ?? ''}
         onConfirm={handleDeleteTemplate}
+      />
+      <FlowLibraryDialog
+        open={isLibraryOpen}
+        onOpenChange={setIsLibraryOpen}
+        onSelectTemplate={handleLoadTemplate}
       />
     </div>
     </DesktopOnlyGuard>

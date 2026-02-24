@@ -191,7 +191,7 @@ export function ConfigPanel() {
 
   if (!selectedNode) {
     return (
-      <aside className="relative h-full border-l border-border/60 bg-zinc-900/70 p-4 pl-5" style={{ width: panelWidth }}>
+      <aside className="relative h-full border-l border-border/60 bg-card/70 p-4 pl-5" style={{ width: panelWidth }}>
         {resizeHandle}
         <h2 className="text-sm font-semibold tracking-wide">Config</h2>
         <p className="mt-2 text-xs text-muted-foreground">
@@ -202,7 +202,7 @@ export function ConfigPanel() {
   }
 
   return (
-    <aside className="relative flex h-full flex-col border-l border-border/60 bg-zinc-900/70 p-4 pl-5" style={{ width: panelWidth }}>
+    <aside className="relative flex h-full flex-col border-l border-border/60 bg-card/70 p-4 pl-5" style={{ width: panelWidth }}>
       {resizeHandle}
       <h2 className="shrink-0 text-sm font-semibold tracking-wide">Config</h2>
 

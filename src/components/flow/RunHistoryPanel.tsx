@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AlertCircle, CheckCircle2, Clock3, Copy, GitCompareArrows, Play, Timer, X } from 'lucide-react';
 import { AnimatePresence, motion } from 'framer-motion';
 import type { WorkflowRunSummary } from '@/lib/flow/types';
@@ -136,6 +136,11 @@ function ComparisonView({
 
 export function RunHistoryPanel({ runs, selectedRunId, onSelectRun, onRerun }: RunHistoryPanelProps) {
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const copyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    return () => { if (copyTimerRef.current) clearTimeout(copyTimerRef.current); };
+  }, []);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [showComparison, setShowComparison] = useState(false);
 
@@ -144,7 +149,8 @@ export function RunHistoryPanel({ runs, selectedRunId, onSelectRun, onRerun }: R
     if (!run.error) return;
     navigator.clipboard.writeText(run.error);
     setCopiedId(run.id);
-    setTimeout(() => setCopiedId(null), 1500);
+    if (copyTimerRef.current) clearTimeout(copyTimerRef.current);
+    copyTimerRef.current = setTimeout(() => setCopiedId(null), 1500);
   }, []);
 
   const handleToggleSelect = useCallback((e: React.MouseEvent, runId: string) => {

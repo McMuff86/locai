@@ -8,14 +8,14 @@ const STATUS_COLORS: Record<TimelineEntry['status'], string> = {
   running: 'bg-cyan-500/80',
   success: 'bg-emerald-500/80',
   error: 'bg-red-500/80',
-  skipped: 'bg-zinc-500/50',
+  skipped: 'bg-muted-foreground/50',
 };
 
 const STATUS_BORDER_COLORS: Record<TimelineEntry['status'], string> = {
   running: 'border-cyan-400/60',
   success: 'border-emerald-400/60',
   error: 'border-red-400/60',
-  skipped: 'border-zinc-400/40',
+  skipped: 'border-muted-foreground/40',
 };
 
 function formatMs(ms: number): string {
@@ -92,15 +92,15 @@ function TimelineBar({
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
     >
-      <span className="truncate px-1.5 font-medium text-white/90">
+      <span className="truncate px-1.5 font-medium text-foreground/90">
         {entry.label}
       </span>
-      <span className="ml-auto shrink-0 px-1.5 text-white/60">
+      <span className="ml-auto shrink-0 px-1.5 text-muted-foreground">
         {formatMs(entry.durationMs)}
       </span>
 
       {isHovered && (
-        <div className="absolute -top-8 left-0 z-10 whitespace-nowrap rounded bg-zinc-800 px-2 py-1 text-[10px] text-white shadow-lg">
+        <div className="absolute -top-8 left-0 z-10 whitespace-nowrap rounded bg-popover px-2 py-1 text-[10px] text-popover-foreground shadow-lg">
           {entry.label} | {entry.status} | {formatMs(entry.durationMs)}
         </div>
       )}
