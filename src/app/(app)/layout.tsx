@@ -21,7 +21,10 @@ import {
   Terminal,
   Music,
   Brain,
+  Keyboard,
 } from 'lucide-react';
+import { useGlobalShortcuts } from '@/hooks/useGlobalShortcuts';
+import { KeyboardShortcutsDialog } from '@/components/KeyboardShortcutsDialog';
 import Link from 'next/link';
 import NextImage from 'next/image';
 import { MigrationBanner } from '@/components/MigrationBanner';
@@ -159,6 +162,11 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   const [showMobileNav, setShowMobileNav] = useState(false);
   const [mounted, setMounted] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
+  const [shortcutsOpen, setShortcutsOpen] = useState(false);
+
+  useGlobalShortcuts({
+    onToggleShortcutsDialog: () => setShortcutsOpen((v) => !v),
+  });
 
   useEffect(() => {
     setMounted(true);
@@ -296,8 +304,34 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           ))}
         </div>
 
-        {/* Bottom: Collapse + Theme */}
+        {/* Bottom: Shortcuts + Collapse + Theme */}
         <div className={`pb-4 space-y-1 flex-shrink-0 ${collapsed ? 'px-1' : 'px-2'}`}>
+          {/* Keyboard shortcuts */}
+          <SideTooltip label="Tastaturkürzel" enabled={collapsed}>
+            <button
+              onClick={() => setShortcutsOpen(true)}
+              className={`flex items-center gap-3 px-3 py-2 w-full rounded-lg text-muted-foreground hover:bg-muted/50 hover:text-foreground transition-colors ${
+                collapsed ? 'justify-center px-0' : ''
+              }`}
+            >
+              <Keyboard className="h-5 w-5 flex-shrink-0" />
+              <AnimatePresence initial={false}>
+                {!collapsed && (
+                  <motion.span
+                    key="shortcuts-label"
+                    initial={{ opacity: 0, x: -8 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    exit={{ opacity: 0, x: -8 }}
+                    transition={{ duration: 0.15 }}
+                    className="text-sm whitespace-nowrap overflow-hidden"
+                  >
+                    Kürzel
+                  </motion.span>
+                )}
+              </AnimatePresence>
+            </button>
+          </SideTooltip>
+
           {/* Collapse toggle */}
           <SideTooltip label="Ausklappen" enabled={collapsed}>
             <button
@@ -421,6 +455,9 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           {children}
         </div>
       </main>
+
+      {/* Keyboard shortcuts dialog */}
+      <KeyboardShortcutsDialog open={shortcutsOpen} onOpenChange={setShortcutsOpen} />
     </div>
   );
 }
