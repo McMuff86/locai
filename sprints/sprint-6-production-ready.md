@@ -8,52 +8,52 @@
 ## 🔴 Prio 1: Workflow Engine Hardening
 
 ### ENGINE-1: Per-Node Settings durchreichen
-- [ ] Temperature + maxIterations aus AgentNodeConfig im Flow-Compiler auslesen
-- [ ] `compileVisualWorkflowToPlan()` erweitern: per-Step Config in compiled Plan
-- [ ] Workflow-API per-Step Config an `executeAgentLoop()` durchreichen
-- [ ] UI Felder (ConfigPanel) sind bereits da (Sprint 5, commit 4a8b049)
+- [x] Temperature + maxIterations aus AgentNodeConfig im Flow-Compiler auslesen
+- [x] `compileVisualWorkflowToPlan()` erweitern: per-Step Config in compiled Plan
+- [x] Workflow-API per-Step Config an `executeAgentLoop()` durchreichen
+- [x] UI Felder (ConfigPanel) sind bereits da (Sprint 5, commit 4a8b049)
 
 ### ENGINE-2: write_file Overwrite Default
-- [ ] `write_file` Tool: Default `mode: "overwrite"` wenn File existiert
-- [ ] Oder: Agent bekommt Option "overwrite" direkt im Tool-Schema
+- [x] `write_file` Tool: Default `mode: "overwrite"` wenn File existiert
+- [x] Oder: Agent bekommt Option "overwrite" direkt im Tool-Schema
 
 ### ENGINE-3: Step-Tool-Isolation
-- [ ] Agent soll Tools nur im zugewiesenen Step nutzen (Step 1 "read" soll nicht write_file callen)
-- [ ] Option: `enabledTools` per Step statt global
+- [x] Agent soll Tools nur im zugewiesenen Step nutzen (Step 1 "read" soll nicht write_file callen)
+- [x] Option: `enabledTools` per Step statt global
 
 ### ENGINE-4: Flow Builder Streaming
 - [x] Live-Output im Output-Node während Workflow läuft (auto-scroll, typing indicator, expand toggle, per-step label, token counter)
 - [x] Streaming-Events in der Flow-UI anzeigen (nicht nur Logs)
 
 ### ENGINE-5: Template Testing
-- [ ] Alle 7 Flow-Templates mit lokalen Modellen (qwen3, phi4) durchlaufen
-- [ ] Bugs fixen, Prompts optimieren
-- [ ] Dokumentation: welches Modell für welchen Template-Typ empfohlen
+- [x] Alle 7 Flow-Templates mit lokalen Modellen (qwen3, phi4) durchlaufen
+- [x] Bugs fixen, Prompts optimieren
+- [x] Dokumentation: welches Modell für welchen Template-Typ empfohlen
 
 ---
 
 ## 🔴 Prio 2: Memory System
 
 ### MEM-1: Architecture
-- [ ] Memory als eigene RAG-Collection (nutzt existierendes Embedding-System)
-- [ ] 3 Memory-Typen: Conversation, Agent (Workflow-Ergebnisse), User Preferences
-- [ ] Memory Store: `lib/memory/` (save, recall, search, prune)
+- [x] Memory als eigene RAG-Collection (nutzt existierendes Embedding-System)
+- [x] 3 Memory-Typen: Conversation, Agent (Workflow-Ergebnisse), User Preferences
+- [x] Memory Store: `lib/memory/` (save, recall, search, prune)
 - [ ] Auto-Prune: alte/irrelevante Memories nach X Tagen archivieren
 
 ### MEM-2: Auto-Inject
-- [ ] Relevante Memories automatisch in Chat-Kontext injizieren
-- [ ] Semantic Search über Memory-Collection bei jedem Chat-Request
+- [x] Relevante Memories automatisch in Chat-Kontext injizieren
+- [x] Semantic Search über Memory-Collection bei jedem Chat-Request
 - [ ] Max Token Budget für Memory-Injection (z.B. 2000 Tokens)
 - [ ] Confidence Threshold: nur Memories mit Score > 0.7 injizieren
 
 ### MEM-3: Memory Management UI
-- [ ] Memory-Seite: alle gespeicherten Memories durchsuchen/bearbeiten/löschen
-- [ ] Memory-Badge im Chat: "3 Memories verwendet" (expandable)
-- [ ] Memory aus Chat erstellen: "Merke dir das" → save_memory Tool
-- [ ] Memory-Timeline: chronologische Ansicht
+- [x] Memory-Seite: alle gespeicherten Memories durchsuchen/bearbeiten/löschen
+- [x] Memory-Badge im Chat: "3 Memories verwendet" (expandable)
+- [x] Memory aus Chat erstellen: "Merke dir das" → save_memory Tool
+- [x] Memory-Timeline: chronologische Ansicht
 
 ### MEM-4: Workflow Memory
-- [ ] Nach jedem Workflow: Ergebnis + Learnings automatisch als Memory speichern
+- [x] Nach jedem Workflow: Ergebnis + Learnings automatisch als Memory speichern
 - [ ] "Welches Modell war schnell für PDF-Zusammenfassung?" → Memory recall
 - [ ] Flow-Templates können auf vergangene Runs zugreifen
 
@@ -62,13 +62,13 @@
 ## 🟡 Prio 3: Provider-Flexibilität
 
 ### PROV-1: Multi-Provider Flows
-- [ ] Ein Flow kann verschiedene Provider pro Agent-Node nutzen
-- [ ] z.B. Ollama (lokal) für Read, Claude/GPT für Analyse
-- [ ] Provider-Selector im Agent-Node ConfigPanel (bereits vorhanden, muss wired werden)
+- [x] Ein Flow kann verschiedene Provider pro Agent-Node nutzen
+- [x] z.B. Ollama (lokal) für Read, Claude/GPT für Analyse
+- [x] Provider-Selector im Agent-Node ConfigPanel (bereits vorhanden, muss wired werden)
 
 ### PROV-2: OpenAI Provider Integration
-- [ ] OpenAI API Key Config in Settings
-- [ ] GPT-4.1/GPT-5 als Alternative für Workflows
+- [x] OpenAI API Key Config in Settings
+- [x] GPT-4.1/GPT-5 als Alternative für Workflows
 - [ ] Automatic Fallback: wenn Ollama langsam → Cloud-Provider
 
 ### PROV-3: Provider Health Dashboard
@@ -81,13 +81,13 @@
 ## 🟡 Prio 4: UX & Polish
 
 ### UX-1: Flow History
-- [ ] Gespeicherte Workflow-Runs mit Ergebnissen durchblättern
-- [ ] Run vergleichen (Modell A vs B für gleichen Flow)
-- [ ] Re-Run Button
+- [x] Gespeicherte Workflow-Runs mit Ergebnissen durchblättern
+- [x] Run vergleichen (Modell A vs B für gleichen Flow)
+- [x] Re-Run Button
 
 ### UX-2: Flow Management
-- [ ] Duplicate Flow
-- [ ] Export/Import als JSON
+- [x] Duplicate Flow
+- [x] Export/Import als JSON
 - [ ] Flow-Bibliothek (Community Templates?)
 
 ### UX-3: PDF Viewer
@@ -115,12 +115,12 @@
 ## 🟢 Prio 6: Infrastruktur
 
 ### INFRA-1: Production Scripts
-- [ ] `scripts/start-prod.ps1` — One-Click Build + Start für Windows
-- [ ] Environment Check: Node, Ollama, Ports
+- [x] `scripts/start-prod.ps1` — One-Click Build + Start für Windows
+- [x] Environment Check: Node, Ollama, Ports
 
 ### INFRA-2: Backup/Restore
-- [ ] Workspace + Settings + Memories exportieren als ZIP
-- [ ] Import/Restore Funktion
+- [x] Workspace + Settings + Memories exportieren als ZIP
+- [x] Import/Restore Funktion
 
 ---
 
@@ -151,8 +151,8 @@
 - [ ] Konsistente Animationen (Framer Motion überall)
 - [ ] Loading States für alle async Operationen
 - [ ] Error States mit hilfreichen Meldungen
-- [ ] Toast/Notification System vereinheitlichen
-- [ ] Keyboard Shortcuts (Cmd+K, Cmd+N, etc.)
+- [x] Toast/Notification System vereinheitlichen
+- [x] Keyboard Shortcuts (Cmd+K, Cmd+N, etc.)
 - [ ] Dark/Light Theme Konsistenz prüfen
 
 ### UX-6: Navigation & Layout
