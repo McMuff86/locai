@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { X, Loader2, Copy, Check, Info } from 'lucide-react';
 import { Button } from '../ui/button';
@@ -18,12 +18,20 @@ export function MetadataPanel({
   onClose,
 }: MetadataPanelProps) {
   const [copiedPrompt, setCopiedPrompt] = useState(false);
+  const copyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (copyTimerRef.current) clearTimeout(copyTimerRef.current);
+    };
+  }, []);
 
   const copyPrompt = async () => {
     if (metadata?.positivePrompt) {
       await navigator.clipboard.writeText(metadata.positivePrompt);
       setCopiedPrompt(true);
-      setTimeout(() => setCopiedPrompt(false), 2000);
+      if (copyTimerRef.current) clearTimeout(copyTimerRef.current);
+      copyTimerRef.current = setTimeout(() => setCopiedPrompt(false), 2000);
     }
   };
 
