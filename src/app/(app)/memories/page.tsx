@@ -12,6 +12,8 @@ import {
   Clock,
   List,
 } from "lucide-react";
+import { LoadingState } from "@/components/ui/loading-state";
+import { ErrorState } from "@/components/ui/error-state";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -215,6 +217,7 @@ export default function MemoriesPage() {
   // State
   const [memories, setMemories] = useState<MemoryEntry[]>([]);
   const [loading, setLoading] = useState(true);
+  const [fetchError, setFetchError] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [searching, setSearching] = useState(false);
   const [showCreate, setShowCreate] = useState(false);
@@ -245,6 +248,7 @@ export default function MemoriesPage() {
 
   const fetchMemories = useCallback(async () => {
     setLoading(true);
+    setFetchError(false);
     try {
       const res = await fetch("/api/memories?limit=100");
       const data = await res.json();
@@ -256,6 +260,7 @@ export default function MemoriesPage() {
         setMemories(sorted);
       }
     } catch {
+      setFetchError(true);
       toast({ title: "Fehler", description: "Memories konnten nicht geladen werden", variant: "destructive" });
     } finally {
       setLoading(false);
@@ -475,9 +480,14 @@ export default function MemoriesPage() {
       {/* Memory List / Timeline */}
       <div className="flex-1 overflow-y-auto min-h-0">
         {loading ? (
-          <div className="flex items-center justify-center py-12">
-            <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-          </div>
+          <LoadingState variant="pulse" cards={4} message="Memories laden..." className="p-4" />
+        ) : fetchError ? (
+          <ErrorState
+            type="network"
+            variant="card"
+            onRetry={fetchMemories}
+            className="m-4"
+          />
         ) : memories.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-12 text-center">
             <Brain className="h-12 w-12 text-muted-foreground/40 mb-3" />

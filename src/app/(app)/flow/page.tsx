@@ -2,6 +2,8 @@
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ChevronDown, Copy, Download, FileText, GripHorizontal, Loader2, Play, Plus, Save, Square, Trash2, Upload, X } from 'lucide-react';
+import { LoadingState } from '@/components/ui/loading-state';
+import { ErrorState } from '@/components/ui/error-state';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -744,10 +746,7 @@ export default function FlowPage() {
   if (!isHydrated) {
     return (
       <div className="flex h-full items-center justify-center">
-        <div className="inline-flex items-center gap-2 text-sm text-muted-foreground">
-          <Loader2 className="h-4 w-4 animate-spin" />
-          Flow wird geladen...
-        </div>
+        <LoadingState variant="spinner" message="Flow wird geladen..." />
       </div>
     );
   }
@@ -945,7 +944,7 @@ export default function FlowPage() {
                   Warnings: {compileWarnings.join(' | ')}
                 </div>
               )}
-              {runError && <div className="mb-1 text-red-300">Run Error: {runError}</div>}
+              {runError && <ErrorState type="generic" variant="inline" message={runError} className="mb-1" />}
               {showLastRunInfo && lastRun && (
                 <div className="text-muted-foreground">
                   Last run: {lastRun.status} | {lastRun.durationMs ?? 0} ms | {lastRun.startedAt}
