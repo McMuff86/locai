@@ -196,6 +196,109 @@ describe('compileVisualWorkflowToPlan', () => {
     expect(result.plan.steps.some((s) => s.stepType === 'condition')).toBe(true);
   });
 
+  it('propagates per-node temperature and maxIterations', () => {
+    const input = nodeWithId(createFlowNode('input', { x: 0, y: 0 }), 'input-1');
+    const agent = nodeWithId(createFlowNode('agent', { x: 200, y: 0 }), 'agent-1');
+    // Set per-node settings
+    if (agent.data.kind === 'agent') {
+      agent.data.config.temperature = 0.3;
+      agent.data.config.maxIterations = 5;
+    }
+    const output = nodeWithId(createFlowNode('output', { x: 400, y: 0 }), 'output-1');
+
+    const workflow = makeWorkflow(
+      [input, agent, output],
+      [
+        { id: 'e1', source: 'input-1', target: 'agent-1', type: 'smoothstep' },
+        { id: 'e2', source: 'agent-1', target: 'output-1', type: 'smoothstep' },
+      ],
+    );
+
+    const result = compileVisualWorkflowToPlan(workflow);
+    const step = result.plan.steps.find((s) => s.id === 'agent-1');
+
+    expect(step?.temperature).toBe(0.3);
+    expect(step?.maxIterations).toBe(5);
+  });
+
+  it('propagates per-node provider', () => {
+    const input = nodeWithId(createFlowNode('input', { x: 0, y: 0 }), 'input-1');
+    const agent = nodeWithId(createFlowNode('agent', { x: 200, y: 0 }), 'agent-1');
+    if (agent.data.kind === 'agent') {
+      agent.data.config.provider = 'anthropic';
+      agent.data.config.model = 'claude-sonnet-4-20250514';
+    }
+    const output = nodeWithId(createFlowNode('output', { x: 400, y: 0 }), 'output-1');
+
+    const workflow = makeWorkflow(
+      [input, agent, output],
+      [
+        { id: 'e1', source: 'input-1', target: 'agent-1', type: 'smoothstep' },
+        { id: 'e2', source: 'agent-1', target: 'output-1', type: 'smoothstep' },
+      ],
+    );
+
+    const result = compileVisualWorkflowToPlan(workflow);
+    const step = result.plan.steps.find((s) => s.id === 'agent-1');
+
+    expect(step?.provider).toBe('anthropic');
+    expect(step?.model).toBe('claude-sonnet-4-20250514');
+  });
+
+  it('isolates enabledTools per step', () => {
+    const input = nodeWithId(createFlowNode('input', { x: 0, y: 0 }), 'in');
+    const agent1 = nodeWithId(createFlowNode('agent', { x: 200, y: 0 }), 'a1');
+    const agent2 = nodeWithId(createFlowNode('agent', { x: 400, y: 0 }), 'a2');
+    const output = nodeWithId(createFlowNode('output', { x: 600, y: 0 }), 'out');
+
+    if (agent1.data.kind === 'agent') {
+      agent1.data.config.tools = ['web_search'];
+    }
+    if (agent2.data.kind === 'agent') {
+      agent2.data.config.tools = ['file_read', 'file_write'];
+    }
+
+    const workflow = makeWorkflow(
+      [input, agent1, agent2, output],
+      [
+        { id: 'e1', source: 'in', target: 'a1', type: 'smoothstep' },
+        { id: 'e2', source: 'a1', target: 'a2', type: 'smoothstep' },
+        { id: 'e3', source: 'a2', target: 'out', type: 'smoothstep' },
+      ],
+    );
+
+    const result = compileVisualWorkflowToPlan(workflow);
+    const s1 = result.plan.steps.find((s) => s.id === 'a1');
+    const s2 = result.plan.steps.find((s) => s.id === 'a2');
+
+    expect(s1?.expectedTools).toEqual(['web_search']);
+    expect(s2?.expectedTools).toEqual(['file_read', 'file_write']);
+    // Global enabledTools should contain all
+    expect(result.enabledTools).toEqual(expect.arrayContaining(['web_search', 'file_read', 'file_write']));
+  });
+
+  it('propagates systemPrompt per agent node', () => {
+    const input = nodeWithId(createFlowNode('input', { x: 0, y: 0 }), 'input-1');
+    const agent = nodeWithId(createFlowNode('agent', { x: 200, y: 0 }), 'agent-1');
+    if (agent.data.kind === 'agent') {
+      agent.data.config.systemPrompt = 'You are a helpful coding assistant.';
+    }
+    const output = nodeWithId(createFlowNode('output', { x: 400, y: 0 }), 'output-1');
+
+    const workflow = makeWorkflow(
+      [input, agent, output],
+      [
+        { id: 'e1', source: 'input-1', target: 'agent-1', type: 'smoothstep' },
+        { id: 'e2', source: 'agent-1', target: 'output-1', type: 'smoothstep' },
+      ],
+    );
+
+    const result = compileVisualWorkflowToPlan(workflow);
+    const step = result.plan.steps.find((s) => s.id === 'agent-1');
+
+    expect(step?.systemPrompt).toBe('You are a helpful coding assistant.');
+  });
+
   it('parallel graph: two agents after same input have no mutual dependsOn', () => {
     const input = nodeWithId(createFlowNode('input', { x: 0, y: 0 }), 'in');
     const agent1 = nodeWithId(createFlowNode('agent', { x: 200, y: -60 }), 'a1');

@@ -164,9 +164,15 @@ export async function POST(request: NextRequest) {
     }
 
     // Memory Auto-Inject: load relevant memories and prepend as system context
+    let injectedMemories: Array<{ key: string; value: string; category: string }> = [];
     try {
       const relevantMemories = await getRelevantMemories(message, 10);
       if (relevantMemories.length > 0) {
+        injectedMemories = relevantMemories.map(m => ({
+          key: m.key,
+          value: m.value,
+          category: m.category,
+        }));
         messages.unshift({
           role: 'system',
           content: `Bekannte Informationen über den Benutzer:\n${formatMemories(relevantMemories)}`,
