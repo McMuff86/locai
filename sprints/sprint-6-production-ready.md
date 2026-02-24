@@ -133,9 +133,9 @@
 
 ### STUDIO-2: Music Generation Verbesserung
 - [ ] ACE-Step Integration optimieren (Prompts, Styles, Qualität)
-- [ ] Preset-System für Genres/Stile
-- [ ] Batch-Generation (mehrere Varianten auf einmal)
-- [ ] Progress-Anzeige während Generierung
+- [x] Preset-System für Genres/Stile
+- [x] Batch-Generation (mehrere Varianten auf einmal)
+- [x] Progress-Anzeige während Generierung
 
 ### STUDIO-3: Voice Clone fertig implementieren
 - [ ] Voice Clone Pipeline end-to-end
@@ -176,8 +176,8 @@
 
 ## Definition of Done
 
-- [ ] Alle Tests grün (`npm run preflight`)
-- [ ] Memory System funktional (save + recall + auto-inject)
-- [ ] Mindestens 1 Flow-Template end-to-end mit lokalem Modell getestet
+- [x] Alle Tests grün (`npm run preflight`)
+- [x] Memory System funktional (save + recall + auto-inject)
+- [x] Mindestens 1 Flow-Template end-to-end mit lokalem Modell getestet
 - [ ] CONTEXT-HANDOFF.md aktuell
-- [ ] Keine TypeScript Errors
+- [x] Keine TypeScript Errors
