@@ -64,19 +64,27 @@ export function VoiceLibrary({ selectedVoiceId, onSelectVoice }: VoiceLibraryPro
 
   useEffect(() => { fetchVoices(); }, [fetchVoices]);
 
+  const [uploadError, setUploadError] = useState('');
+
   const handleUpload = useCallback(async (file: File) => {
     setUploading(true);
+    setUploadError('');
     try {
       const formData = new FormData();
       formData.append('file', file);
       const res = await fetch('/api/qwen-tts/upload', { method: 'POST', body: formData });
       const data = await res.json();
-      if (data.success) {
+      if (data.success && data.filePath) {
         setUploadedFilePath(data.filePath);
         setUploadedFileName(file.name);
+      } else {
+        setUploadError(data.error || 'Upload fehlgeschlagen');
       }
-    } catch { /* ignore */ }
-    finally { setUploading(false); }
+    } catch (err) {
+      setUploadError('Upload fehlgeschlagen – Verbindungsfehler');
+    } finally {
+      setUploading(false);
+    }
   }, []);
 
   const handleTranscribe = useCallback(async () => {
@@ -222,6 +230,9 @@ export function VoiceLibrary({ selectedVoiceId, onSelectVoice }: VoiceLibraryPro
               </div>
               <div>
                 <label className="text-xs font-medium text-muted-foreground mb-1 block">Referenz-Audio *</label>
+                {uploadError && (
+                  <div className="text-xs text-destructive bg-destructive/10 p-2 rounded mb-2">{uploadError}</div>
+                )}
                 {uploadedFileName ? (
                   <div className="flex items-center gap-2 text-sm text-muted-foreground bg-muted/30 rounded-lg px-3 py-2">
                     <Check className="h-4 w-4 text-green-500" />

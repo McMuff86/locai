@@ -50,8 +50,8 @@ export async function POST(request: Request) {
       return apiError('No audio file provided', 400);
     }
 
-    // MIME type check
-    const mimeType = file.type;
+    // MIME type check (strip codec suffix e.g. "audio/webm;codecs=opus" → "audio/webm")
+    const mimeType = file.type.split(';')[0].trim();
     if (!ALLOWED_MIME_TYPES.has(mimeType)) {
       return apiError(`Unsupported file type: ${mimeType}`, 400);
     }
