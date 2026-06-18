@@ -23,7 +23,7 @@ import {
   useNotes,
   useNoteSearch,
 } from '@/components/notes';
-import { useNotesContext } from './layout';
+import { useNotesContext } from '@/components/notes/NotesContext';
 import type { ProviderType } from '@/lib/providers/types';
 
 export default function NotesPage() {
@@ -463,4 +463,3 @@ export default function NotesPage() {
     </div>
   );
 }
-

@@ -8,6 +8,7 @@ const withBundleAnalyzer = withBundleAnalyzerInit({
 const nextConfig: NextConfig = {
   transpilePackages: ['@mcmuff86/pdf-core'],
   serverExternalPackages: ['pdf-parse', 'xlsx'],
+  outputFileTracingRoot: process.cwd(),
 };
 
 export default withBundleAnalyzer(nextConfig);

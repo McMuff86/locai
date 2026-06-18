@@ -23,7 +23,7 @@ const KnowledgeGraph2D = dynamic(
   () => import('@/components/notes/KnowledgeGraph2D').then(mod => ({ default: mod.KnowledgeGraph2D })),
   { ssr: false },
 );
-import { useNotesContext } from '../layout';
+import { useNotesContext } from '@/components/notes/NotesContext';
 import type { ForceGraphMethods } from 'react-force-graph-3d';
 import type { GraphNode, GraphLink, GraphViewMode, GraphData } from '@/components/notes/types';
 
