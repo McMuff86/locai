@@ -5,6 +5,8 @@
 // Compatible with Ollama's tool-calling API (v0.3+).
 // ============================================================================
 
+import type { ToolGatewayExecutionContext } from './toolGateway';
+
 // ---------------------------------------------------------------------------
 // JSON Schema subset for tool parameter definitions
 // ---------------------------------------------------------------------------
@@ -123,6 +125,8 @@ export interface AgentOptions {
   chatOptions?: Record<string, unknown>;
   /** Optional log callback for streaming logs to the workflow engine */
   onLog?: (message: string, level: 'info' | 'warn' | 'error') => void;
+  /** Optional governance context for tool gateway audit/approval handling */
+  toolGatewayContext?: ToolGatewayExecutionContext;
 }
 
 /** Default agent execution limits */

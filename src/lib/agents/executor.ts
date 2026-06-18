@@ -292,7 +292,7 @@ export async function* executeAgentLoop(
         const toolStart = Date.now();
         console.log(`[Executor] 🔧 Tool "${call.name}" started (args: ${JSON.stringify(call.arguments).slice(0, 120)})`);
         onLog?.(`Tool "${call.name}" started`, 'info');
-        const result = await registry.execute(call, signal);
+        const result = await registry.execute(call, signal, options.toolGatewayContext);
         const toolDuration = ((Date.now() - toolStart) / 1000).toFixed(1);
         console.log(`[Executor] ${result.success ? '✅' : '❌'} Tool "${call.name}" ${result.success ? 'completed' : 'failed'} (${toolDuration}s)${result.error ? ` — ${result.error}` : ''}`);
         onLog?.(`Tool "${call.name}" ${result.success ? 'completed' : 'failed'} (${toolDuration}s)${result.error ? ` — ${result.error}` : ''}`, result.success ? 'info' : 'error');
@@ -337,7 +337,7 @@ export async function* executeAgentLoop(
       const toolStart = Date.now();
       console.log(`[Executor] 🔧 Tool "${call.name}" started (args: ${JSON.stringify(call.arguments).slice(0, 120)})`);
       onLog?.(`Tool "${call.name}" started`, 'info');
-      const result = await registry.execute(call, signal);
+      const result = await registry.execute(call, signal, options.toolGatewayContext);
       const toolDuration = ((Date.now() - toolStart) / 1000).toFixed(1);
       console.log(`[Executor] ${result.success ? '✅' : '❌'} Tool "${call.name}" ${result.success ? 'completed' : 'failed'} (${toolDuration}s)${result.error ? ` — ${result.error}` : ''}`);
       onLog?.(`Tool "${call.name}" ${result.success ? 'completed' : 'failed'} (${toolDuration}s)${result.error ? ` — ${result.error}` : ''}`, result.success ? 'info' : 'error');

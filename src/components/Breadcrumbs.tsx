@@ -15,6 +15,7 @@ const SEGMENT_LABELS: Record<string, string> = {
   graph: "Graph",
   terminal: "Terminal",
   memories: "Memories",
+  workspace: "Workspace",
   flow: "Flow",
   settings: "Einstellungen",
 };

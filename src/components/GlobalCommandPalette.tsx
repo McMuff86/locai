@@ -19,6 +19,7 @@ import {
   FileText,
   Terminal,
   Brain,
+  Briefcase,
   Workflow,
   Settings,
 } from "lucide-react";
@@ -34,6 +35,7 @@ interface CommandItem {
 }
 
 const COMMANDS: CommandItem[] = [
+  { id: "workspace", label: "Workspace", description: "Projekte und Artefakte", href: "/workspace", icon: Briefcase, keywords: ["project", "artifact", "genspark"] },
   { id: "flow", label: "Flow", description: "Workflow Editor", href: "/flow", icon: Workflow, keywords: ["workflow", "agent", "pipeline"] },
   { id: "chat", label: "Chat", description: "KI-Chat", href: "/chat", icon: MessageSquare, keywords: ["nachricht", "message", "ai"] },
   { id: "search", label: "Suche", description: "Dokumente durchsuchen", href: "/search", icon: Search, keywords: ["find", "query"] },

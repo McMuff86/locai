@@ -13,6 +13,18 @@ import {
   ToolCategory,
 } from './types';
 import { normalizeToolArgs } from './paramNormalizer';
+import {
+  getApprovalDecision,
+  getToolGatewayEntry,
+  redactForLedger,
+  summarizeToolResultForLedger,
+  type ToolGatewayExecutionContext,
+} from './toolGateway';
+import {
+  completeRunLedgerEntry,
+  createRunLedgerEntry,
+} from '@/lib/workspace/store';
+import type { ToolGatewayEntry } from '@/lib/workspace/types';
 
 // ---------------------------------------------------------------------------
 // ToolRegistry Class
@@ -20,6 +32,18 @@ import { normalizeToolArgs } from './paramNormalizer';
 
 export class ToolRegistry {
   private tools = new Map<string, RegisteredTool>();
+
+  private async completeLedgerBestEffort(
+    ledgerId: string | null,
+    input: Parameters<typeof completeRunLedgerEntry>[1],
+  ): Promise<void> {
+    if (!ledgerId) return;
+    try {
+      await completeRunLedgerEntry(ledgerId, input);
+    } catch {
+      // Ledger writes are best-effort; preserve the tool execution result.
+    }
+  }
 
   /**
    * Register a tool in the registry.
@@ -120,11 +144,25 @@ export class ToolRegistry {
   }
 
   /**
+   * Return gateway metadata for governance, approvals and audit UI.
+   */
+  listGatewayEntries(enabledNames?: string[]): ToolGatewayEntry[] {
+    const entries = enabledNames
+      ? Array.from(this.tools.values()).filter((t) =>
+          enabledNames.includes(t.definition.name)
+        )
+      : Array.from(this.tools.values());
+
+    return entries.map((t) => getToolGatewayEntry(t));
+  }
+
+  /**
    * Execute a tool call and return the result.
    */
   async execute(
     call: ToolCall,
     signal?: AbortSignal,
+    gatewayContext?: ToolGatewayExecutionContext,
   ): Promise<ToolResult> {
     const tool = this.tools.get(call.name);
 
@@ -137,20 +175,72 @@ export class ToolRegistry {
       };
     }
 
+    const gatewayEntry = getToolGatewayEntry(tool);
+    const approvalDecision = getApprovalDecision(gatewayEntry, gatewayContext);
+    let ledgerId: string | null = null;
+
+    if (gatewayContext?.projectId) {
+      try {
+        const ledger = await createRunLedgerEntry({
+          projectId: gatewayContext.projectId,
+          artifactId: gatewayContext.artifactId,
+          runId: gatewayContext.runId || call.id,
+          requestSummary: gatewayContext.requestSummary || `Tool call: ${call.name}`,
+          toolId: gatewayEntry.id,
+          toolSource: gatewayEntry.source,
+          capabilityScopes: gatewayEntry.capabilityScopes,
+          approvalPolicy: gatewayEntry.approvalPolicy,
+          approvalDecision,
+          redactedArguments: redactForLedger(call.arguments),
+        });
+        ledgerId = ledger.id;
+      } catch {
+        // Ledger writes are best-effort; tool execution should not fail because
+        // audit storage is unavailable.
+      }
+    }
+
+    if (approvalDecision === 'denied') {
+      const deniedResult: ToolResult = {
+        callId: call.id,
+        content: '',
+        error: `Tool "${call.name}" requires approval (${gatewayEntry.approvalPolicy})`,
+        success: false,
+      };
+      await this.completeLedgerBestEffort(ledgerId, {
+        success: false,
+        error: deniedResult.error,
+        redactedResult: summarizeToolResultForLedger(deniedResult),
+      });
+      return deniedResult;
+    }
+
     try {
       const normalizedArgs = normalizeToolArgs(call.name, call.arguments);
       const result = await tool.handler(normalizedArgs, signal);
       // Ensure callId matches
-      return { ...result, callId: call.id };
+      const normalizedResult = { ...result, callId: call.id };
+      await this.completeLedgerBestEffort(ledgerId, {
+        success: normalizedResult.success,
+        error: normalizedResult.error,
+        redactedResult: summarizeToolResultForLedger(normalizedResult),
+      });
+      return normalizedResult;
     } catch (err) {
       const message =
         err instanceof Error ? err.message : 'Tool execution failed';
-      return {
+      const failedResult: ToolResult = {
         callId: call.id,
         content: '',
         error: message,
         success: false,
       };
+      await this.completeLedgerBestEffort(ledgerId, {
+        success: false,
+        error: message,
+        redactedResult: summarizeToolResultForLedger(failedResult),
+      });
+      return failedResult;
     }
   }
 

@@ -9,6 +9,7 @@ import {
   Image,
   FileText,
   Files,
+  Briefcase,
   Moon,
   Sun,
   Menu,
@@ -37,7 +38,10 @@ import { motion, AnimatePresence } from 'framer-motion';
 const navSections = [
   {
     label: 'Start',
-    items: [{ href: '/flow', label: 'Flow', icon: Workflow }],
+    items: [
+      { href: '/workspace', label: 'Workspace', icon: Briefcase },
+      { href: '/flow', label: 'Flow', icon: Workflow },
+    ],
   },
   {
     label: 'Tools',

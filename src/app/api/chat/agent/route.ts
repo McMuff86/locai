@@ -18,6 +18,7 @@ import type { AgentOptions } from '@/lib/agents/types';
 import { createServerProvider, getDefaultServerProvider, wrapWithFallback } from '@/lib/providers/server';
 import { FallbackProvider, type FallbackConfig } from '@/lib/providers/fallback';
 import { apiError } from '../../_utils/responses';
+import type { ToolCapabilityScope } from '@/lib/workspace/types';
 
 // ---------------------------------------------------------------------------
 // Default agent system prompt (always injected in agent mode)
@@ -82,6 +83,16 @@ interface AgentRequestBody {
   apiKey?: string;
   /** Fallback configuration (PROV-2) */
   fallbackConfig?: FallbackConfig;
+  /** Optional workspace project for run ledger entries */
+  workspaceProjectId?: string;
+  /** Optional artifact for run ledger entries */
+  workspaceArtifactId?: string;
+  /** Enforce approval policies instead of audit-only logging */
+  enforceToolApprovals?: boolean;
+  /** Tool ids approved for this request/session */
+  approvedToolIds?: string[];
+  /** Capability scopes approved for this request/session */
+  approvedCapabilityScopes?: ToolCapabilityScope[];
 }
 
 // ---------------------------------------------------------------------------
@@ -105,6 +116,11 @@ export async function POST(request: NextRequest) {
       provider: providerType,
       apiKey,
       fallbackConfig,
+      workspaceProjectId,
+      workspaceArtifactId,
+      enforceToolApprovals = false,
+      approvedToolIds,
+      approvedCapabilityScopes,
     } = body;
 
     if (!message?.trim()) {
@@ -232,6 +248,16 @@ export async function POST(request: NextRequest) {
       enabledTools,
       enablePlanning,
       chatOptions: agentChatOptions,
+      toolGatewayContext: workspaceProjectId
+        ? {
+            projectId: workspaceProjectId,
+            artifactId: workspaceArtifactId,
+            requestSummary: message.slice(0, 240),
+            approvalMode: enforceToolApprovals ? 'enforce' : 'audit',
+            approvedToolIds,
+            approvedCapabilityScopes,
+          }
+        : undefined,
     };
 
     // Create a ReadableStream for NDJSON streaming
