@@ -31,6 +31,7 @@ import {
   loadActiveWorkflow,
   clearActiveWorkflow,
 } from '@/lib/agents/workflowPersistence';
+import type { ToolCapabilityScope } from '@/lib/workspace/types';
 
 // ---------------------------------------------------------------------------
 // Internal state shape
@@ -64,6 +65,11 @@ export interface WorkflowSendOptions {
   host?: string;
   presetId?: string;
   conversationId?: string;
+  workspaceProjectId?: string;
+  workspaceArtifactId?: string;
+  enforceToolApprovals?: boolean;
+  approvedToolIds?: string[];
+  approvedCapabilityScopes?: ToolCapabilityScope[];
 }
 
 export interface UseWorkflowChatReturn {
@@ -404,6 +410,11 @@ export function useWorkflowChat(): UseWorkflowChatReturn {
         host: options?.host,
         conversationHistory: options?.conversationHistory ?? [],
         presetId: options?.presetId,
+        workspaceProjectId: options?.workspaceProjectId,
+        workspaceArtifactId: options?.workspaceArtifactId,
+        enforceToolApprovals: options?.enforceToolApprovals,
+        approvedToolIds: options?.approvedToolIds,
+        approvedCapabilityScopes: options?.approvedCapabilityScopes,
       };
 
       try {

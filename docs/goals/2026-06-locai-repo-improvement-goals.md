@@ -88,6 +88,24 @@ Validation after these changes:
 - `npm test`: passes, 337 tests.
 - Local dev routes checked: `/chat` and `/workspace` return HTTP 200.
 
+### Third /goals Pass: Workflow Artifact Context
+
+Implemented after the Chat Workspace Bridge:
+
+- Workflow Engine runs now accept the same workspace project/artifact context as classic agent runs.
+- Workflow tool calls pass workspace/governance context into the Tool Gateway, so run-ledger entries can link to a selected artifact.
+- Chat workflow mode can create a pending workspace artifact before execution and update it with the final workflow answer.
+- Workflow mode forwards audit/enforce approval state and approved capability scopes to the workflow API.
+- Parallel workflow cancellation now closes the async event channel on abort instead of waiting for another step event.
+- Added focused coverage that verifies WorkflowEngine propagates workspace ledger context into step tool calls.
+
+Validation after these changes:
+
+- `npm run typecheck`: passes.
+- `npm run lint`: passes with existing repo warnings.
+- `npm test`: passes, 24 files / 338 tests.
+- `npm run build`: passes.
+
 ---
 
 ## Improvement Goals
@@ -125,9 +143,9 @@ Done when:
 Done when:
 
 - [x] Chat can create a project/artifact from a prompt.
-- [ ] Agent workflows can append/update an artifact.
+- [x] Agent workflows can append/update an artifact from Chat workflow mode.
 - [x] Run ledger entries appear in `/workspace` after actual tool use when a workspace project/artifact is selected.
-- [x] Artifact content supports conversation source links and model provenance for captured chat answers.
+- [x] Artifact content supports conversation source links and model provenance for captured chat and workflow answers.
 - Workspace UI has empty-state onboarding and clear export/savepoint actions.
 
 ### SAFETY-001: Turn Tool Gateway Metadata Into UX
@@ -138,6 +156,7 @@ Done when:
 Done when:
 
 - [x] Chat exposes audit/enforce mode and capability-scope approvals for agent runs.
+- [x] Chat workflow mode forwards audit/enforce mode and capability-scope approvals to workflow runs.
 - [ ] Flow shows required tool scopes before execution.
 - [ ] Session/per-call approvals can be granted with a dedicated confirmation UI.
 - [x] Denied tool calls return understandable errors through the existing tool-result stream.

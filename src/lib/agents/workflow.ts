@@ -15,7 +15,7 @@
 import { executeAgentLoop, AgentLoopParams } from './executor';
 import { ToolRegistry } from './registry';
 import type { ChatProvider, ChatMessage, ProviderType } from '../providers/types';
-import { createServerProvider, getDefaultServerProvider } from '../providers/server';
+import { createServerProvider } from '../providers/server';
 import {
   WorkflowStatus,
   WorkflowPlan,
@@ -32,6 +32,7 @@ import {
 } from './workflowTypes';
 import { DagScheduler } from './dagScheduler';
 import { AsyncEventChannel } from './asyncEventChannel';
+import type { ToolGatewayExecutionContext } from './toolGateway';
 
 // ---------------------------------------------------------------------------
 // WorkflowEngine Options
@@ -54,6 +55,8 @@ export interface WorkflowEngineOptions {
   conversationId?: string;
   /** Optional externally compiled plan (e.g. visual flow) */
   initialPlan?: WorkflowPlan;
+  /** Optional workspace/governance context for tool ledger and approvals */
+  toolGatewayContext?: ToolGatewayExecutionContext;
   /** Ollama host override (deprecated — use provider) */
   host?: string;
 }
@@ -243,6 +246,7 @@ export class WorkflowEngine {
   private registry: ToolRegistry;
   private provider: ChatProvider;
   private abortController: AbortController;
+  private toolGatewayContext?: ToolGatewayExecutionContext;
   private logBuffer: WorkflowLogEvent[] = [];
 
   constructor(options: WorkflowEngineOptions) {
@@ -259,6 +263,7 @@ export class WorkflowEngine {
     this.registry = registry;
     this.messages = messages;
     this.provider = provider;
+    this.toolGatewayContext = options.toolGatewayContext;
     this.abortController = new AbortController();
 
     // Merge config with defaults
@@ -463,7 +468,10 @@ export class WorkflowEngine {
       } else {
         // Multiple steps ready — execute in parallel via channel
         const channel = new AsyncEventChannel<WorkflowStreamEvent>();
+        const closeChannelOnAbort = () => channel.close();
         let pendingCount = toExecute.length;
+
+        this.abortController.signal.addEventListener('abort', closeChannelOnAbort, { once: true });
 
         for (const stepId of toExecute) {
           scheduler.markRunning(stepId);
@@ -486,9 +494,16 @@ export class WorkflowEngine {
         }
 
         // Yield events as they arrive from parallel steps
-        for await (const event of channel) {
-          yield event;
-          if (this.isAborted()) break;
+        try {
+          for await (const event of channel) {
+            yield event;
+            if (this.isAborted()) {
+              channel.close();
+              break;
+            }
+          }
+        } finally {
+          this.abortController.signal.removeEventListener('abort', closeChannelOnAbort);
         }
       }
     }
@@ -1191,6 +1206,13 @@ export class WorkflowEngine {
         enabledTools: stepTools,
         signal: stepAbort.signal,
         chatOptions: { temperature: stepTemperature },
+        toolGatewayContext: this.toolGatewayContext
+          ? {
+              ...this.toolGatewayContext,
+              runId: this.state.id,
+              requestSummary: `${this.state.plan?.goal || this.state.userMessage}: ${planStep.description}`,
+            }
+          : undefined,
         onLog: (message, level) => {
           this.bufferLog(level, message, planStep.id);
         },

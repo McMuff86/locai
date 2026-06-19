@@ -8,6 +8,8 @@
 // importiert.
 // ============================================================================
 
+import type { ToolCapabilityScope } from '@/lib/workspace/types';
+
 // ---------------------------------------------------------------------------
 // Workflow Status (State Machine)
 // ---------------------------------------------------------------------------
@@ -473,6 +475,11 @@ export interface WorkflowApiRequest {
   host?: string;
   conversationHistory?: Array<{ role: string; content: string }>;
   presetId?: string;
+  workspaceProjectId?: string;
+  workspaceArtifactId?: string;
+  enforceToolApprovals?: boolean;
+  approvedToolIds?: string[];
+  approvedCapabilityScopes?: ToolCapabilityScope[];
 }
 
 // ---------------------------------------------------------------------------

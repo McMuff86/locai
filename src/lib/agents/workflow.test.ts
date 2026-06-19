@@ -10,6 +10,11 @@ import { WorkflowEngine } from './workflow';
 import { ToolRegistry } from './registry';
 import type { ChatProvider, ChatMessage, ChatResponse, ChatOptions } from '../providers/types';
 
+vi.mock('@/lib/workspace/store', () => ({
+  createRunLedgerEntry: vi.fn(async () => ({ id: 'ledger-test' })),
+  completeRunLedgerEntry: vi.fn(async () => null),
+}));
+
 // ---------------------------------------------------------------------------
 // Mock ChatProvider
 // ---------------------------------------------------------------------------
@@ -31,6 +36,8 @@ class MockChatProvider implements ChatProvider {
   }
 
   async chat(messages: ChatMessage[], options: ChatOptions): Promise<ChatResponse> {
+    void messages;
+    void options;
     if (this.responseIndex >= this.responses.length) {
       return { content: 'No more responses', finishReason: 'stop' };
     }
@@ -153,8 +160,9 @@ describe('WorkflowEngine', () => {
       });
 
       // Access the private provider field to verify it's our custom one
-      expect((engine as any).provider).toBe(customProvider);
-      expect((engine as any).provider.name).toBe('MockProvider');
+      const inspectedEngine = engine as unknown as { provider: ChatProvider };
+      expect(inspectedEngine.provider).toBe(customProvider);
+      expect(inspectedEngine.provider.name).toBe('MockProvider');
     });
   });
 
@@ -203,7 +211,7 @@ describe('WorkflowEngine', () => {
 
       let eventCount = 0;
       for await (const event of engine.run()) {
-        eventCount++;
+        eventCount += event.type ? 1 : 0;
         if (eventCount > 50) break; // Safety limit
       }
 
@@ -211,6 +219,85 @@ describe('WorkflowEngine', () => {
       expect(finalState.status).toBe('done');
       expect(finalState.plan).not.toBeNull();
       expect(finalState.steps.length).toBeGreaterThan(0);
+    });
+
+    it('passes workspace gateway context into step tool calls', async () => {
+      const { createRunLedgerEntry, completeRunLedgerEntry } = await import('@/lib/workspace/store');
+      vi.mocked(createRunLedgerEntry).mockClear();
+      vi.mocked(completeRunLedgerEntry).mockClear();
+
+      mockProvider.setResponses([
+        {
+          content: JSON.stringify({
+            goal: 'Ledger workflow',
+            steps: [
+              {
+                id: 'step-1',
+                description: 'Call test tool',
+                expectedTools: ['test_tool'],
+                dependsOn: [],
+                successCriteria: 'Tool called'
+              }
+            ],
+            maxSteps: 1
+          }),
+          finishReason: 'stop'
+        },
+        {
+          content: '',
+          finishReason: 'stop',
+          toolCalls: [
+            {
+              id: 'tc-ledger',
+              function: {
+                name: 'test_tool',
+                arguments: { message: 'hello ledger' }
+              }
+            }
+          ]
+        },
+        {
+          content: 'Tool completed.',
+          finishReason: 'stop'
+        },
+        {
+          content: 'Workflow completed.',
+          finishReason: 'stop'
+        }
+      ]);
+
+      const engine = new WorkflowEngine({
+        message: 'Run a ledger-backed workflow',
+        messages,
+        model: 'test-model',
+        registry,
+        provider: mockProvider,
+        toolGatewayContext: {
+          projectId: 'project-1',
+          artifactId: 'artifact-1',
+          approvalMode: 'audit',
+        },
+        config: {
+          enableReflection: false
+        }
+      });
+
+      for await (const event of engine.run()) {
+        if (event.type === 'workflow_end') break;
+      }
+
+      const finalState = engine.getState();
+      expect(finalState.status).toBe('done');
+      expect(createRunLedgerEntry).toHaveBeenCalledWith(expect.objectContaining({
+        projectId: 'project-1',
+        artifactId: 'artifact-1',
+        runId: finalState.id,
+        requestSummary: 'Ledger workflow: Call test tool',
+        toolId: 'test_tool',
+      }));
+      expect(completeRunLedgerEntry).toHaveBeenCalledWith('ledger-test', expect.objectContaining({
+        success: true,
+      }));
     });
   });
 

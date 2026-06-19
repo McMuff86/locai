@@ -140,7 +140,12 @@ function summarizeTextForTitle(content: string): string {
   return firstLine.length > 72 ? `${firstLine.slice(0, 72)}...` : firstLine;
 }
 
-function buildCapturedArtifactContent(prompt: string, answer: string, model?: string): string {
+function buildCapturedArtifactContent(
+  prompt: string,
+  answer: string,
+  model?: string,
+  sourceLabel = 'Agent Antwort',
+): string {
   const modelLine = model ? `\nModel: ${model}\n` : '';
   return [
     `# ${summarizeTextForTitle(prompt)}`,
@@ -149,7 +154,7 @@ function buildCapturedArtifactContent(prompt: string, answer: string, model?: st
     '',
     prompt,
     '',
-    '## Antwort',
+    `## ${sourceLabel}`,
     '',
     answer,
     modelLine,
@@ -465,6 +470,7 @@ function ChatPageContent() {
     projectId: string,
     prompt: string,
     answer: string,
+    sourceLabel = 'Chat-Agent-Antwort',
   ): Promise<WorkspaceArtifactWithContent | null> => {
     try {
       const data = await fetchWorkspaceJson<WorkspaceArtifactResponse>(
@@ -476,8 +482,8 @@ function ChatPageContent() {
             projectId,
             type: 'research_brief',
             title: summarizeTextForTitle(prompt),
-            description: 'Aus Chat-Agent-Antwort erzeugt',
-            content: buildCapturedArtifactContent(prompt, answer, selectedModel),
+            description: `Aus ${sourceLabel} erzeugt`,
+            content: buildCapturedArtifactContent(prompt, answer, selectedModel, sourceLabel),
             sourceRefs: [{
               kind: 'conversation',
               title: conversation.title || 'Chat',
@@ -509,6 +515,7 @@ function ChatPageContent() {
     artifactId: string,
     prompt: string,
     answer: string,
+    sourceLabel = 'Chat-Agent-Antwort',
   ): Promise<WorkspaceArtifactWithContent | null> => {
     try {
       const data = await fetchWorkspaceJson<WorkspaceArtifactResponse>(
@@ -517,14 +524,14 @@ function ChatPageContent() {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            content: buildCapturedArtifactContent(prompt, answer, selectedModel),
+            content: buildCapturedArtifactContent(prompt, answer, selectedModel, sourceLabel),
             modelProvenance: selectedModel
               ? [{
                   provider: 'ollama',
                   model: selectedModel,
                   role: 'assistant',
                   createdAt: new Date().toISOString(),
-                  note: 'Captured from chat agent response',
+                  note: `Captured from ${sourceLabel}`,
                 }]
               : undefined,
           }),
@@ -871,6 +878,19 @@ function ChatPageContent() {
       addMessage(userMessage);
 
       if (workflowMode) {
+        let workspaceArtifactIdForRun = selectedWorkspaceArtifactId || undefined;
+        const workspaceProjectIdForRun = selectedWorkspaceProjectId || undefined;
+
+        if (workspaceCaptureEnabled && workspaceProjectIdForRun && !workspaceArtifactIdForRun) {
+          const artifact = await createWorkspaceArtifactFromChat(
+            workspaceProjectIdForRun,
+            content,
+            '_Workflow run pending..._',
+            'Workflow-Agent-Antwort',
+          );
+          workspaceArtifactIdForRun = artifact?.id;
+        }
+
         // Workflow Engine mode: use new endpoint
         resetWorkflow();
         const finalContent = await sendWorkflowMessage(content, {
@@ -880,6 +900,10 @@ function ChatPageContent() {
           host: settings?.ollamaHost,
           presetId: activePreset ?? undefined,
           conversationId: conversation.id,
+          workspaceProjectId: workspaceProjectIdForRun,
+          workspaceArtifactId: workspaceArtifactIdForRun,
+          enforceToolApprovals,
+          approvedCapabilityScopes,
         });
 
         if (finalContent) {
@@ -891,6 +915,24 @@ function ChatPageContent() {
             modelName: selectedModel,
           };
           addMessage(botMessage);
+        }
+
+        if (finalContent && workspaceCaptureEnabled && workspaceProjectIdForRun) {
+          if (workspaceArtifactIdForRun) {
+            await updateWorkspaceArtifactFromChat(
+              workspaceArtifactIdForRun,
+              content,
+              finalContent,
+              'Workflow-Agent-Antwort',
+            );
+          } else {
+            await createWorkspaceArtifactFromChat(
+              workspaceProjectIdForRun,
+              content,
+              finalContent,
+              'Workflow-Agent-Antwort',
+            );
+          }
         }
       } else {
         let workspaceArtifactIdForRun = selectedWorkspaceArtifactId || undefined;

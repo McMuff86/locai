@@ -18,8 +18,8 @@ import { getPresetById } from '@/lib/agents/presets';
 import { resolveWorkspacePath } from '@/lib/settings/store';
 import type { ChatMessage, ProviderType } from '@/lib/providers/types';
 import { createServerProvider, getDefaultServerProvider, wrapWithFallback } from '@/lib/providers/server';
-import { FallbackProvider, type FallbackConfig } from '@/lib/providers/fallback';
-import type { WorkflowApiRequest, WorkflowPlan, WorkflowState } from '@/lib/agents/workflowTypes';
+import type { FallbackConfig } from '@/lib/providers/fallback';
+import type { WorkflowApiRequest, WorkflowPlan } from '@/lib/agents/workflowTypes';
 import { WORKFLOW_DEFAULTS } from '@/lib/agents/workflowTypes';
 import { saveFlowHistoryEntry } from '@/lib/flow/history';
 import { saveMemoryWithEmbedding } from '@/lib/memory/store';
@@ -131,6 +131,11 @@ export async function POST(request: NextRequest) {
       conversationHistory = [],
       presetId,
       initialPlan,
+      workspaceProjectId,
+      workspaceArtifactId,
+      enforceToolApprovals = false,
+      approvedToolIds,
+      approvedCapabilityScopes,
     } = body;
 
     if (!message?.trim()) {
@@ -223,6 +228,16 @@ export async function POST(request: NextRequest) {
       host,
       provider: chatProvider,
       initialPlan: resolvedInitialPlan,
+      toolGatewayContext: workspaceProjectId
+        ? {
+            projectId: workspaceProjectId,
+            artifactId: workspaceArtifactId,
+            requestSummary: message.slice(0, 200),
+            approvalMode: enforceToolApprovals ? 'enforce' : 'audit',
+            approvedToolIds,
+            approvedCapabilityScopes,
+          }
+        : undefined,
       config: {
         enabledTools: resolvedTools,
         maxSteps: resolvedMaxSteps,

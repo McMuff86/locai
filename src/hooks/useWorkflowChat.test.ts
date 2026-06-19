@@ -3,7 +3,6 @@ import { checkActiveWorkflow } from './useWorkflowChat';
 import type {
   WorkflowState,
   WorkflowStatus,
-  WorkflowPlan,
 } from '@/lib/agents/workflowTypes';
 
 // ---------------------------------------------------------------------------
@@ -264,6 +263,10 @@ describe('useWorkflowChat Utilities', () => {
         enableReflection: true,
         host: 'localhost',
         conversationHistory: [],
+        workspaceProjectId: 'project-123',
+        workspaceArtifactId: 'artifact-456',
+        enforceToolApprovals: true,
+        approvedCapabilityScopes: ['read_local_files', 'write_local_files'],
       };
 
       expect(apiRequest.message).toBeDefined();
@@ -273,6 +276,10 @@ describe('useWorkflowChat Utilities', () => {
       expect(typeof apiRequest.enablePlanning).toBe('boolean');
       expect(typeof apiRequest.enableReflection).toBe('boolean');
       expect(Array.isArray(apiRequest.conversationHistory)).toBe(true);
+      expect(apiRequest.workspaceProjectId).toBe('project-123');
+      expect(apiRequest.workspaceArtifactId).toBe('artifact-456');
+      expect(apiRequest.enforceToolApprovals).toBe(true);
+      expect(Array.isArray(apiRequest.approvedCapabilityScopes)).toBe(true);
     });
 
     it('validates API request with minimal options', () => {
