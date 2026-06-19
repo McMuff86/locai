@@ -120,12 +120,25 @@ async function writeJson(filePath: string, value: unknown): Promise<void> {
   await fs.rename(tmpPath, filePath);
 }
 
+async function quarantineCorruptJson(filePath: string): Promise<void> {
+  try {
+    const quarantinePath = `${filePath}.corrupt-${Date.now()}`;
+    await fs.rename(filePath, quarantinePath);
+  } catch {
+    // Recovery is best-effort. The caller can continue as if the file is absent.
+  }
+}
+
 async function readJson<T>(filePath: string): Promise<T | null> {
   try {
     const raw = await fs.readFile(filePath, 'utf-8');
     return JSON.parse(raw) as T;
   } catch (err) {
     if ((err as NodeJS.ErrnoException).code === 'ENOENT') return null;
+    if (err instanceof SyntaxError) {
+      await quarantineCorruptJson(filePath);
+      return null;
+    }
     throw err;
   }
 }

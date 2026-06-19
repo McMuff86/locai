@@ -105,4 +105,16 @@ describe('workspace store', () => {
     expect(await deleteProject(project.id, root)).toBe(true);
     expect(await listProjects(root)).toEqual([]);
   });
+
+  it('quarantines corrupt JSON files and continues with an empty store', async () => {
+    const indexPath = path.join(root, 'index.json');
+    await fs.mkdir(root, { recursive: true });
+    await fs.writeFile(indexPath, '{ broken json', 'utf-8');
+
+    await expect(listProjects(root)).resolves.toEqual([]);
+
+    const files = await fs.readdir(root);
+    expect(files.some((file) => file.startsWith('index.json.corrupt-'))).toBe(true);
+    await expect(fs.stat(indexPath)).rejects.toMatchObject({ code: 'ENOENT' });
+  });
 });

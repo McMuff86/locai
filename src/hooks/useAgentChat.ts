@@ -4,6 +4,7 @@ import { useState, useCallback, useRef } from 'react';
 import { AgentTurn, ToolCall, ToolResult } from '@/lib/agents/types';
 import type { AgentPreset } from '@/lib/agents/presets';
 import { BUILTIN_TOOL_NAMES } from '@/lib/agents/tools/names';
+import type { ToolCapabilityScope } from '@/lib/workspace/types';
 
 // ---------------------------------------------------------------------------
 // Stream event types coming from /api/chat/agent (NDJSON)
@@ -63,6 +64,13 @@ interface StreamEventFallback {
   reason: string;
 }
 
+interface StreamEventFallbackTriggered {
+  type: 'fallback_triggered';
+  actualProvider: string;
+  actualModel: string;
+  reason: string;
+}
+
 type StreamEvent =
   | StreamEventToolCall
   | StreamEventToolResult
@@ -72,7 +80,8 @@ type StreamEvent =
   | StreamEventTurnEnd
   | StreamEventPlan
   | StreamEventMemoryContext
-  | StreamEventFallback;
+  | StreamEventFallback
+  | StreamEventFallbackTriggered;
 
 // ---------------------------------------------------------------------------
 // Hook options & return type
@@ -90,6 +99,16 @@ export interface AgentSendOptions {
   presetId?: string;
   /** Whether to enable planning step */
   enablePlanning?: boolean;
+  /** Workspace project for run ledger entries and artifact context */
+  workspaceProjectId?: string;
+  /** Workspace artifact for run ledger entries */
+  workspaceArtifactId?: string;
+  /** Enforce tool approval policies instead of audit-only logging */
+  enforceToolApprovals?: boolean;
+  /** Tool ids approved for this request */
+  approvedToolIds?: string[];
+  /** Capability scopes approved for this request */
+  approvedCapabilityScopes?: ToolCapabilityScope[];
 }
 
 export interface UseAgentChatReturn {
@@ -244,6 +263,11 @@ export function useAgentChat(): UseAgentChatReturn {
           host: options?.host,
           presetId: activePreset ?? options?.presetId,
           enablePlanning: options?.enablePlanning ?? enablePlanning,
+          workspaceProjectId: options?.workspaceProjectId,
+          workspaceArtifactId: options?.workspaceArtifactId,
+          enforceToolApprovals: options?.enforceToolApprovals,
+          approvedToolIds: options?.approvedToolIds,
+          approvedCapabilityScopes: options?.approvedCapabilityScopes,
         }),
         signal: controller.signal,
       });
@@ -364,6 +388,15 @@ export function useAgentChat(): UseAgentChatReturn {
               setFallbackInfo({
                 provider: event.fallbackProvider,
                 model: event.fallbackModel,
+                reason: event.reason,
+              });
+              break;
+            }
+
+            case 'fallback_triggered': {
+              setFallbackInfo({
+                provider: event.actualProvider,
+                model: event.actualModel,
                 reason: event.reason,
               });
               break;

@@ -11,7 +11,21 @@ import { SetupCard, IMAGE_PROMPT } from "@/components/chat/SetupCard";
 import { ConversationSidebar } from "@/components/chat/sidebar";
 import { RAGToggle } from "@/components/chat/RAGToggle";
 import { Button } from "@/components/ui/button";
-import { GripVertical } from "lucide-react";
+import {
+  Briefcase,
+  Check,
+  GripVertical,
+  Loader2,
+  Save,
+  ShieldCheck,
+} from "lucide-react";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 // Hooks
 import { useModels } from "@/hooks/useModels";
@@ -28,6 +42,12 @@ import { Message } from "@/types/chat";
 import { getModelSystemContent, deleteOllamaModel } from "@/lib/ollama";
 import { useToast } from "@/components/ui/use-toast";
 import { IMAGE_ANALYSIS_PROMPT } from "@/lib/prompt-templates";
+import type {
+  ToolCapabilityScope,
+  WorkspaceArtifact,
+  WorkspaceArtifactWithContent,
+  WorkspaceProject,
+} from "@/lib/workspace/types";
 
 const ModelPullDialog = dynamic(
   () => import("@/components/ModelPullDialog").then((mod) => mod.ModelPullDialog),
@@ -72,6 +92,68 @@ interface OpenFileInAgentPayload {
   filename: string;
   previewSnippet: string;
   previewTruncated: boolean;
+}
+
+interface WorkspaceProjectsResponse {
+  success: boolean;
+  projects?: WorkspaceProject[];
+  error?: string;
+}
+
+interface WorkspaceArtifactsResponse {
+  success: boolean;
+  artifacts?: WorkspaceArtifact[];
+  error?: string;
+}
+
+interface WorkspaceArtifactResponse {
+  success: boolean;
+  artifact?: WorkspaceArtifactWithContent;
+  error?: string;
+}
+
+const NO_WORKSPACE_PROJECT = '__no_workspace_project__';
+const NO_WORKSPACE_ARTIFACT = '__no_workspace_artifact__';
+
+const APPROVAL_SCOPE_OPTIONS: Array<{ scope: ToolCapabilityScope; label: string }> = [
+  { scope: 'read_local_files', label: 'Read' },
+  { scope: 'write_local_files', label: 'Write' },
+  { scope: 'network_read', label: 'Net' },
+  { scope: 'shell_command', label: 'Shell' },
+  { scope: 'code_execution', label: 'Code' },
+];
+
+async function fetchWorkspaceJson<T>(url: string, init?: RequestInit): Promise<T> {
+  const response = await fetch(url, init);
+  const data = await response.json();
+  if (!response.ok || data?.success === false) {
+    throw new Error(data?.error || `Request failed: ${response.status}`);
+  }
+  return data as T;
+}
+
+function summarizeTextForTitle(content: string): string {
+  const firstLine = content
+    .split('\n')
+    .map((line) => line.trim())
+    .find(Boolean) || 'Agent Antwort';
+  return firstLine.length > 72 ? `${firstLine.slice(0, 72)}...` : firstLine;
+}
+
+function buildCapturedArtifactContent(prompt: string, answer: string, model?: string): string {
+  const modelLine = model ? `\nModel: ${model}\n` : '';
+  return [
+    `# ${summarizeTextForTitle(prompt)}`,
+    '',
+    '## Prompt',
+    '',
+    prompt,
+    '',
+    '## Antwort',
+    '',
+    answer,
+    modelLine,
+  ].join('\n');
 }
 
 function buildOpenFileAgentPrompt(payload: OpenFileInAgentPayload): string {
@@ -255,8 +337,270 @@ function ChatPageContent() {
   const [prefillMessage, setPrefillMessage] = useState('');
   const [prefillVersion, setPrefillVersion] = useState(0);
   const [pendingOpenFilePrompt, setPendingOpenFilePrompt] = useState<string | null>(null);
+  const [workspaceProjects, setWorkspaceProjects] = useState<WorkspaceProject[]>([]);
+  const [workspaceArtifacts, setWorkspaceArtifacts] = useState<WorkspaceArtifact[]>([]);
+  const [selectedWorkspaceProjectId, setSelectedWorkspaceProjectId] = useState<string | null>(null);
+  const [selectedWorkspaceArtifactId, setSelectedWorkspaceArtifactId] = useState<string | null>(null);
+  const [workspaceCaptureEnabled, setWorkspaceCaptureEnabled] = useState(false);
+  const [enforceToolApprovals, setEnforceToolApprovals] = useState(false);
+  const [approvedCapabilityScopes, setApprovedCapabilityScopes] = useState<ToolCapabilityScope[]>([
+    'read_local_files',
+    'write_local_files',
+    'network_read',
+  ]);
+  const [isWorkspaceSaving, setIsWorkspaceSaving] = useState(false);
+  const [isWorkspaceLoading, setIsWorkspaceLoading] = useState(false);
   const chatInputRef = useRef<HTMLTextAreaElement>(null);
   const sidebarRef = useRef<HTMLDivElement>(null);
+
+  const selectedWorkspaceProject = useMemo(
+    () => workspaceProjects.find((project) => project.id === selectedWorkspaceProjectId) || null,
+    [selectedWorkspaceProjectId, workspaceProjects],
+  );
+
+  const selectedWorkspaceArtifact = useMemo(
+    () => workspaceArtifacts.find((artifact) => artifact.id === selectedWorkspaceArtifactId) || null,
+    [selectedWorkspaceArtifactId, workspaceArtifacts],
+  );
+
+  const lastAssistantText = useMemo(() => {
+    for (let index = conversation.messages.length - 1; index >= 0; index -= 1) {
+      const message = conversation.messages[index];
+      if (message.role === 'assistant' && typeof message.content === 'string' && message.content.trim()) {
+        return message.content;
+      }
+    }
+    return '';
+  }, [conversation.messages]);
+
+  const loadWorkspaceProjects = useCallback(async () => {
+    setIsWorkspaceLoading(true);
+    try {
+      const data = await fetchWorkspaceJson<WorkspaceProjectsResponse>('/api/workspace/projects');
+      const projects = data.projects || [];
+      setWorkspaceProjects(projects);
+      setSelectedWorkspaceProjectId((current) => {
+        if (current && projects.some((project) => project.id === current)) return current;
+        return projects[0]?.id || null;
+      });
+    } catch (err) {
+      toast({
+        title: 'Workspace nicht geladen',
+        description: err instanceof Error ? err.message : 'Projekte konnten nicht geladen werden.',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsWorkspaceLoading(false);
+    }
+  }, [toast]);
+
+  const loadWorkspaceArtifacts = useCallback(async (projectId: string) => {
+    try {
+      const data = await fetchWorkspaceJson<WorkspaceArtifactsResponse>(
+        `/api/workspace/artifacts?projectId=${encodeURIComponent(projectId)}`,
+      );
+      const artifacts = data.artifacts || [];
+      setWorkspaceArtifacts(artifacts);
+      setSelectedWorkspaceArtifactId((current) => {
+        if (current && artifacts.some((artifact) => artifact.id === current)) return current;
+        return null;
+      });
+    } catch (err) {
+      toast({
+        title: 'Artefakte nicht geladen',
+        description: err instanceof Error ? err.message : 'Artefakte konnten nicht geladen werden.',
+        variant: 'destructive',
+      });
+    }
+  }, [toast]);
+
+  useEffect(() => {
+    void loadWorkspaceProjects();
+  }, [loadWorkspaceProjects]);
+
+  useEffect(() => {
+    if (!selectedWorkspaceProjectId) {
+      setWorkspaceArtifacts([]);
+      setSelectedWorkspaceArtifactId(null);
+      return;
+    }
+    void loadWorkspaceArtifacts(selectedWorkspaceProjectId);
+  }, [loadWorkspaceArtifacts, selectedWorkspaceProjectId]);
+
+  const createWorkspaceProjectFromConversation = useCallback(async (): Promise<WorkspaceProject | null> => {
+    const fallbackName = selectedModel ? `Chat mit ${selectedModel}` : 'Chat Workspace';
+    const name = conversation.title && conversation.title !== 'New Conversation'
+      ? conversation.title
+      : fallbackName;
+
+    try {
+      const data = await fetchWorkspaceJson<{ success: boolean; project: WorkspaceProject }>(
+        '/api/workspace/projects',
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            name,
+            description: 'Aus dem Chat erstellt',
+            tags: ['chat'],
+          }),
+        },
+      );
+      setWorkspaceProjects((current) => [data.project, ...current]);
+      setSelectedWorkspaceProjectId(data.project.id);
+      setWorkspaceCaptureEnabled(true);
+      toast({ title: 'Workspace-Projekt erstellt', description: data.project.name });
+      return data.project;
+    } catch (err) {
+      toast({
+        title: 'Projekt konnte nicht erstellt werden',
+        description: err instanceof Error ? err.message : 'Unbekannter Fehler',
+        variant: 'destructive',
+      });
+      return null;
+    }
+  }, [conversation.title, selectedModel, toast]);
+
+  const createWorkspaceArtifactFromChat = useCallback(async (
+    projectId: string,
+    prompt: string,
+    answer: string,
+  ): Promise<WorkspaceArtifactWithContent | null> => {
+    try {
+      const data = await fetchWorkspaceJson<WorkspaceArtifactResponse>(
+        '/api/workspace/artifacts',
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            projectId,
+            type: 'research_brief',
+            title: summarizeTextForTitle(prompt),
+            description: 'Aus Chat-Agent-Antwort erzeugt',
+            content: buildCapturedArtifactContent(prompt, answer, selectedModel),
+            sourceRefs: [{
+              kind: 'conversation',
+              title: conversation.title || 'Chat',
+              uri: `/chat?load=${conversation.id}`,
+              capturedAt: new Date().toISOString(),
+              reliability: 'high',
+            }],
+          }),
+        },
+      );
+
+      if (data.artifact) {
+        setWorkspaceArtifacts((current) => [data.artifact!, ...current]);
+        setSelectedWorkspaceArtifactId(data.artifact.id);
+        return data.artifact;
+      }
+      return null;
+    } catch (err) {
+      toast({
+        title: 'Artefakt konnte nicht erstellt werden',
+        description: err instanceof Error ? err.message : 'Unbekannter Fehler',
+        variant: 'destructive',
+      });
+      return null;
+    }
+  }, [conversation.id, conversation.title, selectedModel, toast]);
+
+  const updateWorkspaceArtifactFromChat = useCallback(async (
+    artifactId: string,
+    prompt: string,
+    answer: string,
+  ): Promise<WorkspaceArtifactWithContent | null> => {
+    try {
+      const data = await fetchWorkspaceJson<WorkspaceArtifactResponse>(
+        `/api/workspace/artifacts/${encodeURIComponent(artifactId)}`,
+        {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            content: buildCapturedArtifactContent(prompt, answer, selectedModel),
+            modelProvenance: selectedModel
+              ? [{
+                  provider: 'ollama',
+                  model: selectedModel,
+                  role: 'assistant',
+                  createdAt: new Date().toISOString(),
+                  note: 'Captured from chat agent response',
+                }]
+              : undefined,
+          }),
+        },
+      );
+      if (data.artifact) {
+        setWorkspaceArtifacts((current) =>
+          current.map((artifact) =>
+            artifact.id === data.artifact?.id
+              ? {
+                  ...artifact,
+                  updatedAt: data.artifact.updatedAt,
+                  runIds: data.artifact.runIds,
+                  savepointIds: data.artifact.savepointIds,
+                  sourceRefs: data.artifact.sourceRefs,
+                }
+              : artifact,
+          ),
+        );
+      }
+      return data.artifact || null;
+    } catch (err) {
+      toast({
+        title: 'Artefakt konnte nicht aktualisiert werden',
+        description: err instanceof Error ? err.message : 'Unbekannter Fehler',
+        variant: 'destructive',
+      });
+      return null;
+    }
+  }, [selectedModel, toast]);
+
+  const saveLastAssistantToWorkspace = useCallback(async () => {
+    const projectId = selectedWorkspaceProjectId;
+    if (!projectId || !lastAssistantText.trim()) return;
+
+    setIsWorkspaceSaving(true);
+    const prompt = conversation.messages
+      .filter((message) => message.role === 'user' && typeof message.content === 'string')
+      .at(-1)?.content;
+
+    try {
+      if (selectedWorkspaceArtifactId) {
+        await updateWorkspaceArtifactFromChat(
+          selectedWorkspaceArtifactId,
+          typeof prompt === 'string' ? prompt : 'Chat Antwort',
+          lastAssistantText,
+        );
+      } else {
+        await createWorkspaceArtifactFromChat(
+          projectId,
+          typeof prompt === 'string' ? prompt : 'Chat Antwort',
+          lastAssistantText,
+        );
+      }
+      toast({ title: 'Antwort gespeichert', description: selectedWorkspaceProject?.name || 'Workspace' });
+    } finally {
+      setIsWorkspaceSaving(false);
+    }
+  }, [
+    conversation.messages,
+    createWorkspaceArtifactFromChat,
+    lastAssistantText,
+    selectedWorkspaceArtifactId,
+    selectedWorkspaceProject?.name,
+    selectedWorkspaceProjectId,
+    toast,
+    updateWorkspaceArtifactFromChat,
+  ]);
+
+  const toggleApprovalScope = useCallback((scope: ToolCapabilityScope) => {
+    setApprovedCapabilityScopes((current) =>
+      current.includes(scope)
+        ? current.filter((entry) => entry !== scope)
+        : [...current, scope],
+    );
+  }, []);
 
   const handleDocumentUploadInChat = useCallback(
     async (file: File) => {
@@ -299,42 +643,6 @@ function ChatPageContent() {
     };
   }, [isResizing, resize, stopResizing]);
 
-  // ── Keyboard shortcuts ────────────────────────────────────────
-  const shortcuts: KeyboardShortcut[] = useMemo(() => [
-    {
-      key: 'n',
-      ctrl: true,
-      action: () => handleNewConversation(),
-      description: 'New conversation'
-    },
-    {
-      key: 's',
-      ctrl: true,
-      action: () => handleSaveConversation(),
-      description: 'Save conversation'
-    },
-    {
-      key: 'Escape',
-      action: () => {
-        if (isStreaming) stopStreaming();
-      },
-      description: 'Stop generating'
-    },
-    {
-      key: 'b',
-      ctrl: true,
-      action: () => setShowSidebar(prev => !prev),
-      description: 'Toggle conversation sidebar'
-    },
-    {
-      key: '/',
-      action: () => chatInputRef.current?.focus(),
-      description: 'Focus chat input'
-    }
-  ], [isStreaming, stopStreaming]);
-
-  useKeyboardShortcuts(shortcuts);
-  
   // ── Prompt state ──────────────────────────────────────────────
   const [defaultPrompt, setDefaultPrompt] = useState<string>("");
   const [customPrompt, setCustomPrompt] = useState<string>("");
@@ -451,6 +759,42 @@ function ChatPageContent() {
     return () => window.removeEventListener('locai:new-chat', handler);
   }, [handleNewConversation]);
 
+  // ── Keyboard shortcuts ────────────────────────────────────────
+  const shortcuts: KeyboardShortcut[] = useMemo(() => [
+    {
+      key: 'n',
+      ctrl: true,
+      action: () => handleNewConversation(),
+      description: 'New conversation'
+    },
+    {
+      key: 's',
+      ctrl: true,
+      action: () => handleSaveConversation(),
+      description: 'Save conversation'
+    },
+    {
+      key: 'Escape',
+      action: () => {
+        if (isStreaming) stopStreaming();
+      },
+      description: 'Stop generating'
+    },
+    {
+      key: 'b',
+      ctrl: true,
+      action: () => setShowSidebar(prev => !prev),
+      description: 'Toggle conversation sidebar'
+    },
+    {
+      key: '/',
+      action: () => chatInputRef.current?.focus(),
+      description: 'Focus chat input'
+    }
+  ], [handleNewConversation, handleSaveConversation, isStreaming, stopStreaming]);
+
+  useKeyboardShortcuts(shortcuts);
+
   // ── Start conversation ────────────────────────────────────────
 
   const handleStartConversation = useCallback(() => {
@@ -549,6 +893,18 @@ function ChatPageContent() {
           addMessage(botMessage);
         }
       } else {
+        let workspaceArtifactIdForRun = selectedWorkspaceArtifactId || undefined;
+        const workspaceProjectIdForRun = selectedWorkspaceProjectId || undefined;
+
+        if (workspaceCaptureEnabled && workspaceProjectIdForRun && !workspaceArtifactIdForRun) {
+          const artifact = await createWorkspaceArtifactFromChat(
+            workspaceProjectIdForRun,
+            content,
+            '_Agent run pending..._',
+          );
+          workspaceArtifactIdForRun = artifact?.id;
+        }
+
         // Classic agent mode: send through agent pipeline
         const finalContent = await sendAgentMessage(content, {
           conversationHistory: history,
@@ -557,6 +913,10 @@ function ChatPageContent() {
           host: settings?.ollamaHost,
           presetId: activePreset ?? undefined,
           enablePlanning,
+          workspaceProjectId: workspaceProjectIdForRun,
+          workspaceArtifactId: workspaceArtifactIdForRun,
+          enforceToolApprovals,
+          approvedCapabilityScopes,
         });
 
         // Add the final bot message to conversation
@@ -570,6 +930,14 @@ function ChatPageContent() {
             ...(memoryContext && memoryContext.length > 0 ? { memoryContext } : {}),
           };
           addMessage(botMessage);
+        }
+
+        if (finalContent && workspaceCaptureEnabled && workspaceProjectIdForRun) {
+          if (workspaceArtifactIdForRun) {
+            await updateWorkspaceArtifactFromChat(workspaceArtifactIdForRun, content, finalContent);
+          } else {
+            await createWorkspaceArtifactFromChat(workspaceProjectIdForRun, content, finalContent);
+          }
         }
       }
       return;
@@ -592,7 +960,32 @@ function ChatPageContent() {
       { ragEnabled }
     );
   // eslint-disable-next-line react-hooks/exhaustive-deps -- cancelWorkflow is stable (ref-based)
-  }, [sendMessage, conversation, selectedModel, addMessage, setSelectedModel, visionModels, toast, isAgentMode, sendAgentMessage, enabledTools, ragEnabled, settings?.ollamaHost, activePreset, enablePlanning, workflowMode, sendWorkflowMessage, resetWorkflow]);
+  }, [
+    sendMessage,
+    conversation,
+    selectedModel,
+    addMessage,
+    setSelectedModel,
+    visionModels,
+    toast,
+    isAgentMode,
+    sendAgentMessage,
+    enabledTools,
+    ragEnabled,
+    settings?.ollamaHost,
+    activePreset,
+    enablePlanning,
+    workflowMode,
+    sendWorkflowMessage,
+    resetWorkflow,
+    selectedWorkspaceArtifactId,
+    selectedWorkspaceProjectId,
+    workspaceCaptureEnabled,
+    createWorkspaceArtifactFromChat,
+    updateWorkspaceArtifactFromChat,
+    enforceToolApprovals,
+    approvedCapabilityScopes,
+  ]);
 
   // ── Load conversation from URL ────────────────────────────────
 
@@ -950,6 +1343,145 @@ function ChatPageContent() {
                   >
                     {isWorkflowRunning ? 'Workflow stoppen' : isAgentLoading ? 'Agent stoppen' : 'Stop Generating'}
                   </Button>
+                </div>
+              )}
+
+              {/* Workspace bridge */}
+              {isAgentMode && (
+                <div className="border-t border-border/40 px-3 py-2 lg:px-5">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <div className="flex min-w-[220px] items-center gap-2">
+                      <Briefcase className="h-4 w-4 text-muted-foreground" />
+                      <Select
+                        value={selectedWorkspaceProjectId || NO_WORKSPACE_PROJECT}
+                        onValueChange={(value) => {
+                          const nextProjectId = value === NO_WORKSPACE_PROJECT ? null : value;
+                          setSelectedWorkspaceProjectId(nextProjectId);
+                          setSelectedWorkspaceArtifactId(null);
+                        }}
+                        disabled={isWorkspaceLoading}
+                      >
+                        <SelectTrigger size="sm" className="w-[220px]">
+                          <SelectValue placeholder="Workspace" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value={NO_WORKSPACE_PROJECT}>Kein Projekt</SelectItem>
+                          {workspaceProjects.map((project) => (
+                            <SelectItem key={project.id} value={project.id}>
+                              {project.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <Select
+                      value={selectedWorkspaceArtifactId || NO_WORKSPACE_ARTIFACT}
+                      onValueChange={(value) => {
+                        setSelectedWorkspaceArtifactId(value === NO_WORKSPACE_ARTIFACT ? null : value);
+                      }}
+                      disabled={!selectedWorkspaceProjectId || workspaceArtifacts.length === 0}
+                    >
+                      <SelectTrigger size="sm" className="w-[220px]">
+                        <SelectValue placeholder="Artefakt" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value={NO_WORKSPACE_ARTIFACT}>Kein Artefakt</SelectItem>
+                        {workspaceArtifacts.map((artifact) => (
+                          <SelectItem key={artifact.id} value={artifact.id}>
+                            {artifact.title}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      onClick={() => void createWorkspaceProjectFromConversation()}
+                      disabled={isWorkspaceSaving || isWorkspaceLoading}
+                      title="Workspace-Projekt aus dieser Konversation erstellen"
+                    >
+                      <Briefcase className="h-4 w-4" />
+                      Neu
+                    </Button>
+
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant={workspaceCaptureEnabled ? 'default' : 'outline'}
+                      onClick={() => setWorkspaceCaptureEnabled((current) => !current)}
+                      disabled={!selectedWorkspaceProjectId}
+                      title="Agent-Antwort als Workspace-Artefakt erfassen"
+                    >
+                      <Check className="h-4 w-4" />
+                      Capture
+                    </Button>
+
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      onClick={() => void saveLastAssistantToWorkspace()}
+                      disabled={!selectedWorkspaceProjectId || !lastAssistantText.trim() || isWorkspaceSaving}
+                      title="Letzte Antwort im Workspace speichern"
+                    >
+                      {isWorkspaceSaving ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <Save className="h-4 w-4" />
+                      )}
+                      Speichern
+                    </Button>
+
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant={enforceToolApprovals ? 'default' : 'outline'}
+                      onClick={() => setEnforceToolApprovals((current) => !current)}
+                      title="Tool-Approvals erzwingen"
+                    >
+                      <ShieldCheck className="h-4 w-4" />
+                      {enforceToolApprovals ? 'Enforce' : 'Audit'}
+                    </Button>
+
+                    {enforceToolApprovals && (
+                      <div className="flex flex-wrap items-center gap-1">
+                        {APPROVAL_SCOPE_OPTIONS.map((option) => {
+                          const active = approvedCapabilityScopes.includes(option.scope);
+                          return (
+                            <Button
+                              key={option.scope}
+                              type="button"
+                              size="sm"
+                              variant={active ? 'secondary' : 'outline'}
+                              onClick={() => toggleApprovalScope(option.scope)}
+                              className="h-8 px-2"
+                            >
+                              {option.label}
+                            </Button>
+                          );
+                        })}
+                      </div>
+                    )}
+
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => router.push('/workspace')}
+                      title="Workspace öffnen"
+                    >
+                      Workspace
+                    </Button>
+
+                    {selectedWorkspaceArtifact && (
+                      <span className="max-w-[260px] truncate text-xs text-muted-foreground">
+                        {selectedWorkspaceArtifact.title}
+                      </span>
+                    )}
+                  </div>
                 </div>
               )}
               

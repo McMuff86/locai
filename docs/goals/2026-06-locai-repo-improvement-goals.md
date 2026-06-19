@@ -71,13 +71,30 @@ Validation after these changes:
 - `npm test`: passes, 336 tests.
 - `npm run build`: passes, `/workspace` builds.
 
+### Second /goals Pass: Chat Workspace Bridge
+
+Implemented after the initial audit:
+
+- Chat now has a compact Workspace bridge for selecting/creating a project, selecting an artifact, toggling capture, saving the last assistant answer, and opening `/workspace`.
+- Classic agent runs can pass `workspaceProjectId` and `workspaceArtifactId` into the existing tool gateway context, so real tool calls create run-ledger entries.
+- Capture mode creates a workspace artifact before an agent run and updates it with the final answer afterwards, tying tool ledger entries to the artifact.
+- Chat exposes a first approval UX: audit/enforce mode plus capability-scope toggles for read, write, network, shell, and code execution.
+- Workspace JSON reads now quarantine corrupt files instead of failing the whole store load.
+
+Validation after these changes:
+
+- `npm run typecheck`: passes.
+- `npm run lint`: passes with existing repo warnings; the previous `src/app/(app)/chat/page.tsx` hook dependency warning is fixed.
+- `npm test`: passes, 337 tests.
+- Local dev routes checked: `/chat` and `/workspace` return HTTP 200.
+
 ---
 
 ## Improvement Goals
 
 ### GATE-001: Make Quality Gates Trustworthy
 
-**Status:** in progress  
+**Status:** in progress
 **Why:** Preflight must be reliable before adding broader agent automation.
 
 Done when:
@@ -90,7 +107,7 @@ Done when:
 
 ### GATE-002: Reduce Lint Noise
 
-**Status:** proposed  
+**Status:** in progress
 **Why:** A noisy linter is almost the same as no linter.
 
 Done when:
@@ -102,39 +119,40 @@ Done when:
 
 ### WORKSPACE-001: Finish Workspace Core Integration
 
-**Status:** in progress  
+**Status:** in progress
 **Why:** The workspace layer exists, but it is not yet the default output surface.
 
 Done when:
 
-- Chat can create a project/artifact from a prompt.
-- Agent workflows can append/update an artifact.
-- Run ledger entries appear in `/workspace` after actual tool use.
-- Artifact content supports source links and model provenance.
+- [x] Chat can create a project/artifact from a prompt.
+- [ ] Agent workflows can append/update an artifact.
+- [x] Run ledger entries appear in `/workspace` after actual tool use when a workspace project/artifact is selected.
+- [x] Artifact content supports conversation source links and model provenance for captured chat answers.
 - Workspace UI has empty-state onboarding and clear export/savepoint actions.
 
 ### SAFETY-001: Turn Tool Gateway Metadata Into UX
 
-**Status:** proposed  
+**Status:** in progress
 **Why:** Approval policy without a user approval flow is only half a safety model.
 
 Done when:
 
-- Chat and Flow show required tool scopes before execution.
-- Session/per-call approvals can be granted in UI.
-- Denied tool calls are understandable to the user.
+- [x] Chat exposes audit/enforce mode and capability-scope approvals for agent runs.
+- [ ] Flow shows required tool scopes before execution.
+- [ ] Session/per-call approvals can be granted with a dedicated confirmation UI.
+- [x] Denied tool calls return understandable errors through the existing tool-result stream.
 - Settings exposes tool registry and approval defaults.
 
 ### DATA-001: Consolidate Local Storage Strategy
 
-**Status:** proposed  
+**Status:** in progress
 **Why:** Local-first is only useful if storage is understandable, recoverable, and portable.
 
 Done when:
 
 - `~/.locai` storage areas are documented in one place.
 - JSON stores have schema/version validation.
-- Corrupted stores recover or quarantine bad files.
+- [x] Corrupted workspace JSON files recover by quarantine.
 - Backup/restore includes projects, artifacts, memory, conversations, workflows, settings, audio/image indexes.
 
 ### DOCS-001: Make Docs Match Reality
@@ -166,7 +184,8 @@ Done when:
 ## Recommended Next Slice
 
 1. Commit the gate fixes from this audit.
-2. Add a small chat action: "save last answer as workspace artifact".
-3. Wire agent tool ledger entries into the workspace UI with a real sample flow.
-4. Reduce the highest-signal lint warnings in `notes`, `chat`, and workspace files.
-5. Generate/update API route docs automatically.
+2. Run full validation (`npm run lint`, `npm test`, optional build when the dev server is not writing `.next`).
+3. Add the same workspace artifact context to Workflow Engine mode.
+4. Replace scope toggles with a proper per-call approval dialog.
+5. Reduce the highest-signal lint warnings in `notes`, `chat`, and workspace files.
+6. Generate/update API route docs automatically.
