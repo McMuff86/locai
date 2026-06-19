@@ -34,7 +34,7 @@ export const DEFAULT_FALLBACK_CONFIG: FallbackConfig = {
   enabled: false,
   timeoutMs: 30000,
   fallbackProvider: 'openai',
-  fallbackModel: 'gpt-4o-mini',
+  fallbackModel: 'gpt-5.4-mini',
 };
 
 // ---------------------------------------------------------------------------

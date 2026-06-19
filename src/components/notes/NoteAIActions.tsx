@@ -13,6 +13,7 @@ const PROVIDER_LABELS: Record<ProviderType, string> = {
   anthropic: 'Anthropic',
   openai: 'OpenAI',
   openrouter: 'OpenRouter',
+  google: 'Google Gemini',
 };
 
 interface NoteAIActionsProps {

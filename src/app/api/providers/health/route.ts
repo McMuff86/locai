@@ -3,8 +3,13 @@
 // ============================================================================
 
 import { NextResponse } from 'next/server';
-import { ProviderType } from '@/lib/providers/types';
-import { createServerProvider } from '@/lib/providers/server';
+import { ProviderAuthMode, ProviderCredentialSource, ProviderType } from '@/lib/providers/types';
+import {
+  createServerProvider,
+  getProviderLabel,
+  getServerProviderCredentialStatus,
+} from '@/lib/providers/server';
+import { PROVIDER_TYPES } from '@/lib/providers';
 
 export interface ProviderHealth {
   name: string;
@@ -12,6 +17,9 @@ export interface ProviderHealth {
   status: 'online' | 'offline' | 'degraded';
   latencyMs: number;
   models: string[];
+  authMode: ProviderAuthMode;
+  credentialSource: ProviderCredentialSource;
+  supportsOAuth: boolean;
   error?: string;
 }
 
@@ -25,22 +33,19 @@ export interface HealthResponse {
 
 async function checkProvider(type: ProviderType): Promise<ProviderHealth> {
   const provider = createServerProvider(type);
-
-  const labels: Record<ProviderType, string> = {
-    ollama: 'Ollama',
-    anthropic: 'Anthropic',
-    openai: 'OpenAI',
-    openrouter: 'OpenRouter',
-  };
+  const auth = getServerProviderCredentialStatus(type);
 
   if (!provider) {
     return {
-      name: labels[type],
+      name: getProviderLabel(type),
       type,
       status: 'offline',
       latencyMs: -1,
       models: [],
-      error: type === 'ollama' ? 'Not reachable' : 'No API key configured',
+      authMode: auth.authMode,
+      credentialSource: auth.source,
+      supportsOAuth: auth.supportsOAuth,
+      error: type === 'ollama' ? 'Not reachable' : auth.note || 'No provider credential configured',
     };
   }
 
@@ -50,29 +55,33 @@ async function checkProvider(type: ProviderType): Promise<ProviderHealth> {
     const latencyMs = Math.round(performance.now() - start);
 
     return {
-      name: labels[type],
+      name: getProviderLabel(type),
       type,
       status: models.length > 0 ? 'online' : 'degraded',
       latencyMs,
       models: models.map((m) => m.name || m.id),
+      authMode: auth.authMode,
+      credentialSource: auth.source,
+      supportsOAuth: auth.supportsOAuth,
     };
   } catch (err) {
     const latencyMs = Math.round(performance.now() - start);
     return {
-      name: labels[type],
+      name: getProviderLabel(type),
       type,
       status: 'offline',
       latencyMs,
       models: [],
+      authMode: auth.authMode,
+      credentialSource: auth.source,
+      supportsOAuth: auth.supportsOAuth,
       error: err instanceof Error ? err.message : 'Unknown error',
     };
   }
 }
 
 export async function GET() {
-  const types: ProviderType[] = ['ollama', 'anthropic', 'openai', 'openrouter'];
-
-  const providers = await Promise.all(types.map(checkProvider));
+  const providers = await Promise.all(PROVIDER_TYPES.map(checkProvider));
 
   // Recommendations: fast = lowest latency online provider's first model
   const online = providers.filter((p) => p.status === 'online' && p.models.length > 0);

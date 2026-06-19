@@ -10,6 +10,7 @@ import {
   ChatResponse,
   StreamChunk,
   ModelInfo,
+  ProviderAuthMode,
   ProviderType,
   ToolCallRequest,
 } from './types';
@@ -90,17 +91,66 @@ function extractToolCalls(
 
 const PROVIDER_PRESETS: Record<
   string,
-  { baseUrl: string; name: string; modelsEndpoint: boolean }
+  { baseUrl: string; name: string; modelsEndpoint: boolean; fallbackModels: ModelInfo[] }
 > = {
   openai: {
     baseUrl: 'https://api.openai.com/v1',
     name: 'OpenAI',
     modelsEndpoint: true,
+    fallbackModels: [
+      {
+        id: 'gpt-5.5',
+        name: 'GPT-5.5',
+        provider: 'openai',
+        contextLength: 1_000_000,
+        capabilities: ['text', 'vision', 'tools', 'reasoning', 'long_context'],
+        frontierTier: 'frontier',
+      },
+      {
+        id: 'gpt-5.4',
+        name: 'GPT-5.4',
+        provider: 'openai',
+        contextLength: 1_000_000,
+        capabilities: ['text', 'vision', 'tools', 'reasoning', 'long_context'],
+        frontierTier: 'frontier',
+      },
+      {
+        id: 'gpt-5.4-mini',
+        name: 'GPT-5.4 mini',
+        provider: 'openai',
+        contextLength: 400_000,
+        capabilities: ['text', 'vision', 'tools', 'reasoning', 'long_context'],
+        frontierTier: 'balanced',
+      },
+    ],
   },
   openrouter: {
     baseUrl: 'https://openrouter.ai/api/v1',
     name: 'OpenRouter',
     modelsEndpoint: true,
+    fallbackModels: [
+      {
+        id: 'openai/gpt-5.5',
+        name: 'OpenAI GPT-5.5',
+        provider: 'openrouter',
+        capabilities: ['text', 'vision', 'tools', 'reasoning', 'long_context'],
+        frontierTier: 'frontier',
+      },
+      {
+        id: 'anthropic/claude-fable-5',
+        name: 'Claude Fable 5',
+        provider: 'openrouter',
+        capabilities: ['text', 'vision', 'tools', 'reasoning', 'long_context'],
+        frontierTier: 'frontier',
+      },
+      {
+        id: 'google/gemini-3.1-pro-preview',
+        name: 'Gemini 3.1 Pro Preview',
+        provider: 'openrouter',
+        capabilities: ['text', 'vision', 'tools', 'reasoning', 'long_context'],
+        frontierTier: 'frontier',
+      },
+    ],
   },
 };
 
@@ -114,11 +164,14 @@ export class OpenAICompatibleProvider implements ChatProvider {
   private apiKey: string;
   private baseUrl: string;
   private hasModelsEndpoint: boolean;
+  private authMode: ProviderAuthMode;
+  private fallbackModels: ModelInfo[];
 
   constructor(
     type: ProviderType,
     apiKey: string,
-    baseUrl?: string
+    baseUrl?: string,
+    authMode: ProviderAuthMode = 'api_key',
   ) {
     const preset = PROVIDER_PRESETS[type];
     this.type = type;
@@ -126,6 +179,8 @@ export class OpenAICompatibleProvider implements ChatProvider {
     this.apiKey = apiKey;
     this.baseUrl = baseUrl ?? preset?.baseUrl ?? 'https://api.openai.com/v1';
     this.hasModelsEndpoint = preset?.modelsEndpoint ?? true;
+    this.authMode = authMode;
+    this.fallbackModels = preset?.fallbackModels ?? [];
   }
 
   async chat(messages: ChatMessage[], options: ChatOptions): Promise<ChatResponse> {
@@ -201,11 +256,12 @@ export class OpenAICompatibleProvider implements ChatProvider {
           id: model.id,
           name: model.id,
           provider: this.type,
+          authMode: this.authMode,
         });
       }
-      return models;
+      return models.length > 0 ? models : this.getFallbackModels();
     } catch {
-      return [];
+      return this.getFallbackModels();
     }
   }
 
@@ -217,5 +273,13 @@ export class OpenAICompatibleProvider implements ChatProvider {
     } catch {
       return false;
     }
+  }
+
+  private getFallbackModels(): ModelInfo[] {
+    return this.fallbackModels.map((model) => ({
+      ...model,
+      provider: this.type,
+      authMode: this.authMode,
+    }));
   }
 }

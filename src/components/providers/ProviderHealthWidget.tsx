@@ -25,6 +25,9 @@ interface ProviderHealth {
   status: "online" | "offline" | "degraded";
   latencyMs: number;
   models: string[];
+  authMode: "none" | "api_key" | "oauth" | "workload_identity";
+  credentialSource: "none" | "override" | "env" | "local_store";
+  supportsOAuth: boolean;
   error?: string;
 }
 
@@ -145,6 +148,15 @@ export function ProviderHealthWidget() {
                   <span className="text-xs text-muted-foreground">
                     {statusLabel[provider.status]}
                   </span>
+                  {provider.authMode !== "none" && (
+                    <Badge variant="outline" className="text-[10px] px-1 py-0">
+                      {provider.authMode === "api_key"
+                        ? "API Key"
+                        : provider.authMode === "workload_identity"
+                          ? "Workload ID"
+                          : "OAuth"}
+                    </Badge>
+                  )}
                 </div>
                 <div className="flex items-center gap-2">
                   {provider.status === "online" && (
@@ -196,6 +208,10 @@ export function ProviderHealthWidget() {
                       Keine Modelle verfügbar
                     </p>
                   )}
+                  <p className="mt-2 text-[11px] text-muted-foreground">
+                    Credential: {provider.credentialSource === "local_store" ? "local OAuth store" : provider.credentialSource}
+                    {provider.supportsOAuth ? " · OAuth möglich" : ""}
+                  </p>
                 </div>
               )}
             </div>

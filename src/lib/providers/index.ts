@@ -6,6 +6,7 @@ export * from './types';
 export { OllamaProvider } from './ollama-provider';
 export { AnthropicProvider } from './anthropic-provider';
 export { OpenAICompatibleProvider } from './openai-provider';
+export { GoogleGeminiProvider } from './google-provider';
 
 import {
   ChatProvider,
@@ -16,6 +17,17 @@ import {
 import { OllamaProvider } from './ollama-provider';
 import { AnthropicProvider } from './anthropic-provider';
 import { OpenAICompatibleProvider } from './openai-provider';
+import { GoogleGeminiProvider } from './google-provider';
+
+export const PROVIDER_TYPES: ProviderType[] = ['ollama', 'anthropic', 'openai', 'openrouter', 'google'];
+
+export const PROVIDER_LABELS: Record<ProviderType, string> = {
+  ollama: 'Ollama',
+  anthropic: 'Anthropic',
+  openai: 'OpenAI',
+  openrouter: 'OpenRouter',
+  google: 'Google Gemini',
+};
 
 // ---------------------------------------------------------------------------
 // Settings key for provider configs (stored alongside other LocAI settings)
@@ -41,12 +53,13 @@ const DEFAULT_PROVIDER_SETTINGS: ProviderSettings = {
     anthropic: { type: 'anthropic', enabled: false },
     openai: { type: 'openai', enabled: false },
     openrouter: { type: 'openrouter', enabled: false },
+    google: { type: 'google', enabled: false },
   },
   fallback: {
     enabled: false,
     timeoutMs: 30000,
     fallbackProvider: 'openai',
-    fallbackModel: 'gpt-4o-mini',
+    fallbackModel: 'gpt-5.4-mini',
   },
 };
 
@@ -59,7 +72,19 @@ export function loadProviderSettings(): ProviderSettings {
   try {
     const stored = window.localStorage.getItem(PROVIDER_SETTINGS_KEY);
     if (stored) {
-      return { ...DEFAULT_PROVIDER_SETTINGS, ...JSON.parse(stored) };
+      const parsed = JSON.parse(stored) as Partial<ProviderSettings>;
+      return {
+        ...DEFAULT_PROVIDER_SETTINGS,
+        ...parsed,
+        providers: {
+          ...DEFAULT_PROVIDER_SETTINGS.providers,
+          ...(parsed.providers ?? {}),
+        },
+        fallback: {
+          ...DEFAULT_PROVIDER_SETTINGS.fallback,
+          ...(parsed.fallback ?? {}),
+        },
+      };
     }
   } catch {
     // ignore
@@ -88,15 +113,25 @@ export function createProvider(
 
     case 'anthropic':
       if (!config.apiKey) return null;
-      return new AnthropicProvider(config.apiKey, config.baseUrl);
+      return new AnthropicProvider(config.apiKey, config.baseUrl, config.authMode);
 
     case 'openai':
       if (!config.apiKey) return null;
-      return new OpenAICompatibleProvider('openai', config.apiKey, config.baseUrl);
+      return new OpenAICompatibleProvider('openai', config.apiKey, config.baseUrl, config.authMode);
 
     case 'openrouter':
       if (!config.apiKey) return null;
-      return new OpenAICompatibleProvider('openrouter', config.apiKey, config.baseUrl);
+      return new OpenAICompatibleProvider('openrouter', config.apiKey, config.baseUrl, config.authMode);
+
+    case 'google':
+      if (!config.apiKey && !config.accessToken) return null;
+      return new GoogleGeminiProvider({
+        apiKey: config.apiKey,
+        accessToken: config.accessToken,
+        authMode: config.authMode,
+        baseUrl: config.baseUrl,
+        projectId: config.projectId,
+      });
 
     default:
       return null;

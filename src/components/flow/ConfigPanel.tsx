@@ -21,6 +21,14 @@ const FALLBACK_AGENT_MODELS = [
   'gemma3',
 ];
 
+const PROVIDER_SELECT_LABELS: Record<ProviderType, string> = {
+  ollama: 'Ollama (Local)',
+  anthropic: 'Anthropic (Claude)',
+  openai: 'OpenAI',
+  openrouter: 'OpenRouter',
+  google: 'Google Gemini',
+};
+
 function SectionTitle({ children }: { children: React.ReactNode }) {
   return <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{children}</h3>;
 }
@@ -257,7 +265,7 @@ export function ConfigPanel() {
                 >
                   {activeProviders.map((p) => (
                     <option key={p} value={p}>
-                      {p === 'ollama' ? '🦙 Ollama (Local)' : p === 'anthropic' ? '🧠 Anthropic (Claude)' : p === 'openai' ? '💚 OpenAI' : '🔀 OpenRouter'}
+                      {PROVIDER_SELECT_LABELS[p]}
                     </option>
                   ))}
                 </select>
@@ -432,7 +440,7 @@ export function ConfigPanel() {
                     >
                       {activeProviders.map((p) => (
                         <option key={p} value={p}>
-                          {p === 'ollama' ? 'Ollama (Local)' : p === 'anthropic' ? 'Anthropic (Claude)' : p === 'openai' ? 'OpenAI' : 'OpenRouter'}
+                          {PROVIDER_SELECT_LABELS[p]}
                         </option>
                       ))}
                     </select>
@@ -553,7 +561,7 @@ export function ConfigPanel() {
                     >
                       {activeProviders.map((p) => (
                         <option key={p} value={p}>
-                          {p === 'ollama' ? 'Ollama (Local)' : p === 'anthropic' ? 'Anthropic (Claude)' : p === 'openai' ? 'OpenAI' : 'OpenRouter'}
+                          {PROVIDER_SELECT_LABELS[p]}
                         </option>
                       ))}
                     </select>

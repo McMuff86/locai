@@ -135,7 +135,7 @@ export async function POST(request: NextRequest) {
       });
       if (!chatProvider) {
         return apiError(
-          `Provider "${providerType}" is not configured. Set the appropriate API key environment variable.`,
+          `Provider "${providerType}" is not configured. Set an API key, OAuth token, or local OAuth credential.`,
           400,
         );
       }

@@ -339,9 +339,10 @@ export function compileVisualWorkflowToPlan(workflow: VisualWorkflow): FlowCompi
       : '';
   const providerDefault: Record<string, string> = {
     ollama: 'llama3',
-    anthropic: 'claude-sonnet-4-20250514',
-    openai: 'gpt-4o',
-    openrouter: 'anthropic/claude-sonnet-4-20250514',
+    anthropic: 'claude-sonnet-4-6',
+    openai: 'gpt-5.4-mini',
+    openrouter: 'openai/gpt-5.4-mini',
+    google: 'gemini-3.5-flash',
   };
   const model = rawModel || providerDefault[provider] || 'llama3';
   const systemPrompt =

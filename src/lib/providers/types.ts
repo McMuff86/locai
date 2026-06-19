@@ -83,19 +83,37 @@ export interface ModelInfo {
   size?: number;
   contextLength?: number;
   description?: string;
+  authMode?: ProviderAuthMode;
+  capabilities?: Array<'text' | 'vision' | 'tools' | 'reasoning' | 'long_context'>;
+  frontierTier?: 'local' | 'fast' | 'balanced' | 'frontier';
 }
 
 // ---------------------------------------------------------------------------
 // Provider Types
 // ---------------------------------------------------------------------------
 
-export type ProviderType = 'ollama' | 'anthropic' | 'openai' | 'openrouter';
+export type ProviderType = 'ollama' | 'anthropic' | 'openai' | 'openrouter' | 'google';
+export type ProviderAuthMode = 'none' | 'api_key' | 'oauth' | 'workload_identity';
+export type ProviderCredentialSource = 'none' | 'override' | 'env' | 'local_store';
 
 export interface ProviderConfig {
   type: ProviderType;
+  authMode?: ProviderAuthMode;
   apiKey?: string;
+  accessToken?: string;
   baseUrl?: string;
+  projectId?: string;
   enabled: boolean;
+}
+
+export interface ProviderCredentialStatus {
+  type: ProviderType;
+  configured: boolean;
+  authMode: ProviderAuthMode;
+  source: ProviderCredentialSource;
+  envVar?: string;
+  supportsOAuth: boolean;
+  note?: string;
 }
 
 // ---------------------------------------------------------------------------

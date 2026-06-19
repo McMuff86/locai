@@ -9,6 +9,7 @@
 // ============================================================================
 
 import type { ToolCapabilityScope } from '@/lib/workspace/types';
+import type { ProviderType } from '@/lib/providers/types';
 
 // ---------------------------------------------------------------------------
 // Workflow Status (State Machine)
@@ -52,7 +53,7 @@ export interface WorkflowPlanStep {
   /** Per-step max iterations override */
   maxIterations?: number;
   /** Per-step provider override */
-  provider?: 'ollama' | 'anthropic' | 'openai' | 'openrouter';
+  provider?: ProviderType;
   /** Per-step model override */
   model?: string;
   /** Per-step system prompt */

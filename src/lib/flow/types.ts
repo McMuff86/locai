@@ -1,5 +1,6 @@
 import type { Connection, Edge, Node, Viewport } from '@xyflow/react';
 import type { WorkflowPlan, WorkflowStatus } from '@/lib/agents/workflowTypes';
+import type { ProviderType } from '@/lib/providers/types';
 
 export type FlowNodeKind = 'input' | 'agent' | 'template' | 'output' | 'condition' | 'loop';
 export type FlowNodeType = 'inputNode' | 'agentNode' | 'templateNode' | 'outputNode' | 'conditionNode' | 'loopNode';
@@ -27,7 +28,7 @@ export interface InputNodeConfig {
 }
 
 export interface AgentNodeConfig {
-  provider?: 'ollama' | 'anthropic' | 'openai' | 'openrouter';
+  provider?: ProviderType;
   model: string;
   prompt: string;
   systemPrompt?: string;
@@ -52,7 +53,7 @@ export interface ConditionNodeConfig {
   mode: 'llm' | 'expression';
   prompt: string;
   expression: string;
-  provider?: 'ollama' | 'anthropic' | 'openai' | 'openrouter';
+  provider?: ProviderType;
   model: string;
   successCriteria?: string;
 }
@@ -63,7 +64,7 @@ export interface LoopNodeConfig {
   count: number;
   conditionExpression: string;
   prompt: string;
-  provider?: 'ollama' | 'anthropic' | 'openai' | 'openrouter';
+  provider?: ProviderType;
   model: string;
   successCriteria?: string;
 }
@@ -173,7 +174,7 @@ export interface FlowCompileResult {
   plan: WorkflowPlan;
   entryMessage: string;
   model: string;
-  provider?: 'ollama' | 'anthropic' | 'openai' | 'openrouter';
+  provider?: ProviderType;
   systemPrompt?: string;
   enabledTools: string[];
   outputNodeId: string | null;

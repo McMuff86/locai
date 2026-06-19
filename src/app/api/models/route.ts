@@ -6,7 +6,12 @@
 // ============================================================================
 
 import { NextRequest, NextResponse } from 'next/server';
-import { getAvailableServerProviders, createServerProvider } from '@/lib/providers/server';
+import {
+  getAvailableServerProviders,
+  createServerProvider,
+  getServerProviderCredentialStatus,
+  getServerProviderCredentialStatuses,
+} from '@/lib/providers/server';
 import type { ProviderType, ModelInfo } from '@/lib/providers/types';
 
 export async function GET(request: NextRequest) {
@@ -23,7 +28,11 @@ export async function GET(request: NextRequest) {
         );
       }
       const models = await provider.listModels();
-      return NextResponse.json({ provider: providerParam, models });
+      return NextResponse.json({
+        provider: providerParam,
+        auth: getServerProviderCredentialStatus(providerParam),
+        models,
+      });
     }
 
     // All configured providers
@@ -47,6 +56,7 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({
       providers: providers.map((p) => p.type),
+      providerAuth: getServerProviderCredentialStatuses(),
       byProvider,
       models: allModels,
     });

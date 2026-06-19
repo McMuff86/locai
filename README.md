@@ -33,11 +33,12 @@ LocAI runs chat, agent workflows, documents (RAG), notes with knowledge graphs, 
 | Provider | Models | Key Required |
 |---|---|---|
 | **Ollama** (default) | Local models (Llama 3, Mistral, etc.) | No |
-| **Anthropic** | Claude Opus, Sonnet, Haiku | Yes |
-| **OpenAI** | GPT-4o, GPT-4o-mini, etc. | Yes |
-| **OpenRouter** | 100+ models | Yes |
+| **Anthropic** | Claude Fable, Opus, Sonnet, Haiku | Yes |
+| **OpenAI** | GPT-5.5, GPT-5.4, GPT-5.4-mini, etc. | Yes |
+| **OpenRouter** | GPT, Claude, Gemini, Llama, etc. | API key or OAuth |
+| **Google Gemini** | Gemini 3.x / 2.5 models | API key or OAuth |
 
-Set API keys in `.env.local`. Ollama is the default — no configuration needed for local-only usage.
+Set provider credentials in `.env.local`, or connect OpenRouter via OAuth in `/settings`. Ollama is the default — no configuration needed for local-only usage.
 
 ## Tech Stack
 

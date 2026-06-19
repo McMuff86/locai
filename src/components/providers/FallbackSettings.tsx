@@ -76,6 +76,7 @@ export function FallbackSettings() {
     openai: 'OpenAI',
     anthropic: 'Anthropic',
     openrouter: 'OpenRouter',
+    google: 'Google Gemini',
   };
 
   return (
@@ -183,6 +184,7 @@ export function FallbackSettings() {
                   <option value="openai">OpenAI</option>
                   <option value="anthropic">Anthropic</option>
                   <option value="openrouter">OpenRouter</option>
+                  <option value="google">Google Gemini</option>
                 </select>
                 <button
                   onClick={() => {

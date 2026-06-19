@@ -227,7 +227,7 @@ describe('compileVisualWorkflowToPlan', () => {
     const agent = nodeWithId(createFlowNode('agent', { x: 200, y: 0 }), 'agent-1');
     if (agent.data.kind === 'agent') {
       agent.data.config.provider = 'anthropic';
-      agent.data.config.model = 'claude-sonnet-4-20250514';
+      agent.data.config.model = 'claude-sonnet-4-6';
     }
     const output = nodeWithId(createFlowNode('output', { x: 400, y: 0 }), 'output-1');
 
@@ -243,7 +243,7 @@ describe('compileVisualWorkflowToPlan', () => {
     const step = result.plan.steps.find((s) => s.id === 'agent-1');
 
     expect(step?.provider).toBe('anthropic');
-    expect(step?.model).toBe('claude-sonnet-4-20250514');
+    expect(step?.model).toBe('claude-sonnet-4-6');
   });
 
   it('isolates enabledTools per step', () => {

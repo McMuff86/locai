@@ -9,6 +9,7 @@ import {
   ChatResponse,
   StreamChunk,
   ModelInfo,
+  ProviderAuthMode,
   ToolCallRequest,
 } from './types';
 
@@ -105,9 +106,38 @@ function toAnthropicTools(tools?: ChatOptions['tools']) {
 // ---------------------------------------------------------------------------
 
 const CLAUDE_MODELS: ModelInfo[] = [
-  { id: 'claude-sonnet-4-20250514', name: 'Claude Sonnet 4', provider: 'anthropic', contextLength: 200000 },
-  { id: 'claude-opus-4-20250514', name: 'Claude Opus 4', provider: 'anthropic', contextLength: 200000 },
-  { id: 'claude-3-5-haiku-20241022', name: 'Claude 3.5 Haiku', provider: 'anthropic', contextLength: 200000 },
+  {
+    id: 'claude-fable-5',
+    name: 'Claude Fable 5',
+    provider: 'anthropic',
+    contextLength: 1_000_000,
+    capabilities: ['text', 'vision', 'tools', 'reasoning', 'long_context'],
+    frontierTier: 'frontier',
+  },
+  {
+    id: 'claude-opus-4-8',
+    name: 'Claude Opus 4.8',
+    provider: 'anthropic',
+    contextLength: 1_000_000,
+    capabilities: ['text', 'vision', 'tools', 'reasoning', 'long_context'],
+    frontierTier: 'frontier',
+  },
+  {
+    id: 'claude-sonnet-4-6',
+    name: 'Claude Sonnet 4.6',
+    provider: 'anthropic',
+    contextLength: 1_000_000,
+    capabilities: ['text', 'vision', 'tools', 'reasoning', 'long_context'],
+    frontierTier: 'balanced',
+  },
+  {
+    id: 'claude-haiku-4-5-20251001',
+    name: 'Claude Haiku 4.5',
+    provider: 'anthropic',
+    contextLength: 200_000,
+    capabilities: ['text', 'vision', 'tools'],
+    frontierTier: 'fast',
+  },
 ];
 
 // ---------------------------------------------------------------------------
@@ -119,10 +149,12 @@ export class AnthropicProvider implements ChatProvider {
   readonly name = 'Anthropic (Claude)';
   private apiKey: string;
   private baseUrl?: string;
+  private authMode: ProviderAuthMode;
 
-  constructor(apiKey: string, baseUrl?: string) {
+  constructor(apiKey: string, baseUrl?: string, authMode: ProviderAuthMode = 'api_key') {
     this.apiKey = apiKey;
     this.baseUrl = baseUrl;
+    this.authMode = authMode;
   }
 
   async chat(messages: ChatMessage[], options: ChatOptions): Promise<ChatResponse> {
@@ -232,13 +264,14 @@ export class AnthropicProvider implements ChatProvider {
           id: model.id,
           name: model.display_name ?? model.id,
           provider: 'anthropic',
+          authMode: this.authMode,
         });
       }
       if (models.length > 0) return models;
     } catch {
       // API may not support listing — fall back to known models
     }
-    return CLAUDE_MODELS;
+    return CLAUDE_MODELS.map((model) => ({ ...model, authMode: this.authMode }));
   }
 
   async isAvailable(): Promise<boolean> {
@@ -247,7 +280,7 @@ export class AnthropicProvider implements ChatProvider {
       // Quick check with a minimal request
       const client = await getAnthropicClient(this.apiKey, this.baseUrl);
       await client.messages.create({
-        model: 'claude-3-5-haiku-20241022',
+        model: 'claude-haiku-4-5-20251001',
         max_tokens: 1,
         messages: [{ role: 'user', content: 'hi' }],
       });

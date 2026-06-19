@@ -308,7 +308,7 @@ export async function POST(req: NextRequest) {
     if (providerType !== 'ollama') {
       const provider = createServerProvider(providerType);
       if (!provider) {
-        return apiError(`Provider "${providerType}" is not configured. Check your API key in settings or .env.local.`, 400);
+        return apiError(`Provider "${providerType}" is not configured. Check API key, OAuth token, or .env.local.`, 400);
       }
       stream = streamFromProvider(provider, model, userContent);
     } else {

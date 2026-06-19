@@ -47,6 +47,7 @@ import {
   loadProviderSettings,
   saveProviderSettings,
   type ProviderSettings,
+  type ProviderCredentialStatus,
   type ProviderType,
 } from '@/lib/providers';
 
@@ -109,15 +110,51 @@ export default function SettingsPage() {
 
   // ── Server-configured providers ─────────────────────────────────────
   const [serverProviders, setServerProviders] = useState<string[]>([]);
+  const [providerAuth, setProviderAuth] = useState<Partial<Record<ProviderType, ProviderCredentialStatus>>>({});
+  const [openRouterOAuth, setOpenRouterOAuth] = useState<{
+    connected: boolean;
+    authMode: string;
+    credential?: string;
+    updatedAt?: string;
+  } | null>(null);
 
   useEffect(() => {
     fetch('/api/models')
       .then((res) => (res.ok ? res.json() : null))
       .then((data) => {
         if (data?.providers) setServerProviders(data.providers as string[]);
+        if (data?.providerAuth) setProviderAuth(data.providerAuth);
       })
       .catch(() => {});
   }, []);
+
+  const loadOpenRouterOAuth = useCallback(async () => {
+    try {
+      const res = await fetch('/api/providers/openrouter/oauth');
+      if (!res.ok) return;
+      setOpenRouterOAuth(await res.json());
+    } catch {
+      // best effort
+    }
+  }, []);
+
+  useEffect(() => {
+    void loadOpenRouterOAuth();
+  }, [loadOpenRouterOAuth]);
+
+  const disconnectOpenRouterOAuth = useCallback(async () => {
+    try {
+      await fetch('/api/providers/openrouter/oauth', { method: 'DELETE' });
+      await loadOpenRouterOAuth();
+      const res = await fetch('/api/models');
+      const data = res.ok ? await res.json() : null;
+      if (data?.providers) setServerProviders(data.providers as string[]);
+      if (data?.providerAuth) setProviderAuth(data.providerAuth);
+      showStatus('success', 'OpenRouter OAuth getrennt.');
+    } catch {
+      showStatus('error', 'OpenRouter OAuth konnte nicht getrennt werden.');
+    }
+  }, [loadOpenRouterOAuth]);
 
   // ── System Stats ───────────────────────────────────────────────────────
   const [systemStats, setSystemStats] = useState<SystemStats | null>(null);
@@ -700,29 +737,35 @@ export default function SettingsPage() {
             <div className="flex items-start gap-2 text-sm bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 rounded-lg p-3">
               <CheckCircle2 className="h-4 w-4 mt-0.5 shrink-0" />
               <span>
-                Provider die in <code className="bg-background/50 px-1 rounded text-xs">.env.local</code> konfiguriert sind, werden automatisch erkannt und sind im Flow Builder verfügbar.
+                Serverseitig konfigurierte Provider werden automatisch erkannt und sind im Flow Builder verfügbar.
               </span>
             </div>
           )}
           <div className="space-y-3">
-            {(['anthropic', 'openai', 'openrouter'] as ProviderType[]).map((type) => {
+            {(['anthropic', 'openai', 'openrouter', 'google'] as ProviderType[]).map((type) => {
               const config = providerSettings.providers[type];
               const isServerConfigured = serverProviders.includes(type);
+              const auth = providerAuth[type];
               const labels: Record<string, { name: string; placeholder: string; hint: string }> = {
                 anthropic: {
                   name: '🧠 Anthropic (Claude)',
                   placeholder: 'sk-ant-...',
-                  hint: 'console.anthropic.com → API Keys',
+                  hint: 'Claude API: ANTHROPIC_API_KEY. Claude.ai/Claude Code OAuth ist für Drittanbieter-Routing nicht vorgesehen.',
                 },
                 openai: {
                   name: '💚 OpenAI',
                   placeholder: 'sk-...',
-                  hint: 'platform.openai.com → API Keys',
+                  hint: 'OPENAI_API_KEY oder OPENAI_ACCESS_TOKEN aus Workload Identity Federation.',
                 },
                 openrouter: {
                   name: '🔀 OpenRouter',
                   placeholder: 'sk-or-...',
-                  hint: 'openrouter.ai → Keys — Zugang zu Claude, GPT, Gemini, Llama etc.',
+                  hint: 'OAuth PKCE oder OPENROUTER_API_KEY — Zugang zu GPT, Claude, Gemini, Llama etc.',
+                },
+                google: {
+                  name: '🔷 Google Gemini',
+                  placeholder: 'AIza...',
+                  hint: 'GEMINI_API_KEY oder GOOGLE_OAUTH_ACCESS_TOKEN plus GOOGLE_CLOUD_PROJECT.',
                 },
               };
               const label = labels[type];
@@ -734,7 +777,11 @@ export default function SettingsPage() {
                       {isServerConfigured && (
                         <span className="flex items-center gap-1 text-xs text-emerald-500">
                           <CheckCircle2 className="h-3.5 w-3.5" />
-                          Server
+                          {auth?.authMode === 'oauth'
+                            ? 'OAuth'
+                            : auth?.authMode === 'workload_identity'
+                              ? 'Workload ID'
+                              : 'Server'}
                         </span>
                       )}
                     </div>
@@ -756,7 +803,40 @@ export default function SettingsPage() {
                       placeholder={label.placeholder}
                     />
                     <p className="text-xs text-muted-foreground mt-1">{label.hint}</p>
+                    {auth && (
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Status: {auth.configured ? 'konfiguriert' : 'nicht konfiguriert'}
+                        {auth.source !== 'none' ? ` · Quelle: ${auth.source}` : ''}
+                        {auth.envVar ? ` · ${auth.envVar}` : ''}
+                      </p>
+                    )}
                   </div>
+                  {type === 'openrouter' && (
+                    <div className="flex flex-wrap items-center gap-2 border-t border-border pt-3">
+                      <Button asChild variant="outline" size="sm" className="gap-2">
+                        <a href="/api/providers/openrouter/oauth/start">
+                          <ExternalLink className="h-4 w-4" />
+                          OAuth verbinden
+                        </a>
+                      </Button>
+                      {openRouterOAuth?.connected && (
+                        <>
+                          <span className="text-xs text-muted-foreground">
+                            Lokal verbunden: {openRouterOAuth.credential || 'configured'}
+                          </span>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="gap-2 text-destructive hover:text-destructive"
+                            onClick={disconnectOpenRouterOAuth}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                            Trennen
+                          </Button>
+                        </>
+                      )}
+                    </div>
+                  )}
                 </div>
               );
             })}
