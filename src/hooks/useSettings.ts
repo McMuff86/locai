@@ -27,6 +27,13 @@ export interface AppSettings {
 
   // Agent Settings
   agentWorkspacePath: string;
+  codexCliEnabled: boolean;
+  codexCliPath: string;
+  claudeCodeEnabled: boolean;
+  claudeCodePath: string;
+  externalAgentDefaultCwd: string;
+  externalAgentDefaultMode: 'plan' | 'edit';
+  externalAgentTimeoutSec: number;
 
   // Web Search Settings (SearXNG)
   searxngUrl: string;
@@ -65,6 +72,13 @@ const DEFAULT_SETTINGS: AppSettings = {
   notesEmbeddingModel: 'nomic-embed-text',
   notesAllowAI: true,
   agentWorkspacePath: '',
+  codexCliEnabled: false,
+  codexCliPath: 'codex',
+  claudeCodeEnabled: false,
+  claudeCodePath: 'claude',
+  externalAgentDefaultCwd: '',
+  externalAgentDefaultMode: 'plan',
+  externalAgentTimeoutSec: 900,
   searxngUrl: 'http://localhost:8888',
   searxngEnabled: true,
   chatLayout: 'linear',

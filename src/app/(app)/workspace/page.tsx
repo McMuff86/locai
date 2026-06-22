@@ -19,6 +19,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
+import { ExternalAgentPanel } from '@/components/workspace/ExternalAgentPanel';
 import { cn } from '@/lib/utils';
 import type {
   WorkspaceArtifact,
@@ -477,6 +478,15 @@ export default function WorkspacePage() {
             {error}
           </div>
         )}
+        <div className="mt-3">
+          <ExternalAgentPanel
+            projectId={selectedProjectId}
+            artifactId={selectedArtifactId}
+            onRunComplete={() => {
+              if (selectedProjectId) void loadRuns(selectedProjectId, selectedArtifactId || undefined);
+            }}
+          />
+        </div>
       </div>
 
       <div className="grid flex-1 min-h-0 grid-cols-1 overflow-hidden lg:grid-cols-[260px_320px_minmax(0,1fr)]">

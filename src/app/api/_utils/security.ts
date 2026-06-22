@@ -5,6 +5,7 @@ import {
   parseHostnameFromOrigin,
   parseHostnameFromHost,
   isLocalHostname,
+  isLocalSameOriginBrowserRequest,
   getBearerToken,
   forbidden,
 } from '@/lib/security-shared';
@@ -164,7 +165,7 @@ export function validateComfyuiUrl(
 
 export function assertLocalRequest(request: Request) {
   const requiredToken = process.env.LOCAI_API_TOKEN?.trim();
-  if (requiredToken) {
+  if (requiredToken && !isLocalSameOriginBrowserRequest(request.url, request.headers)) {
     const tokenHeader = request.headers.get('x-locai-token')?.trim();
     const bearer = getBearerToken(request.headers.get('authorization'));
     if (tokenHeader !== requiredToken && bearer !== requiredToken) {

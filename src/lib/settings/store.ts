@@ -14,6 +14,13 @@ export interface ServerSettings {
   notesPath: string;
   ollamaHost: string;
   comfyUIPort: number;
+  codexCliEnabled: boolean;
+  codexCliPath: string;
+  claudeCodeEnabled: boolean;
+  claudeCodePath: string;
+  externalAgentDefaultCwd: string;
+  externalAgentDefaultMode: 'plan' | 'edit';
+  externalAgentTimeoutSec: number;
 }
 
 const DEFAULTS: ServerSettings = {
@@ -21,6 +28,13 @@ const DEFAULTS: ServerSettings = {
   notesPath: '',
   ollamaHost: 'http://localhost:11434',
   comfyUIPort: 8188,
+  codexCliEnabled: false,
+  codexCliPath: 'codex',
+  claudeCodeEnabled: false,
+  claudeCodePath: 'claude',
+  externalAgentDefaultCwd: '',
+  externalAgentDefaultMode: 'plan',
+  externalAgentTimeoutSec: 900,
 };
 
 /** Home directory of the current user */

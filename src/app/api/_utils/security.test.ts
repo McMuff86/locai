@@ -7,6 +7,7 @@ import {
   validateSearxngUrl,
   validateExternalUrl,
   validateComfyuiUrl,
+  assertLocalRequest,
 } from './security';
 import { middleware } from '@/middleware';
 import { NextRequest } from 'next/server';
@@ -315,6 +316,31 @@ describe('middleware', () => {
     });
     const res = middleware(req);
     expect(res.status).not.toBe(403);
+  });
+
+  it('accepts same-origin local UI request without LOCAI_API_TOKEN header', () => {
+    saveEnv('LOCAI_API_TOKEN');
+    process.env.LOCAI_API_TOKEN = 'secret-token-123';
+
+    const req = makeRequest('/api/settings', {
+      host: 'localhost:3000',
+      'sec-fetch-site': 'same-origin',
+    });
+    const res = middleware(req);
+    expect(res.status).not.toBe(403);
+  });
+
+  it('accepts same-origin local UI request in route-level guard without LOCAI_API_TOKEN header', () => {
+    saveEnv('LOCAI_API_TOKEN');
+    process.env.LOCAI_API_TOKEN = 'secret-token-123';
+
+    const req = new Request('http://localhost:3000/api/audio-files', {
+      headers: {
+        host: 'localhost:3000',
+        'sec-fetch-site': 'same-origin',
+      },
+    });
+    expect(assertLocalRequest(req)).toBeNull();
   });
 
   it('rejects request with wrong LOCAI_API_TOKEN', async () => {

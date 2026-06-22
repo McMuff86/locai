@@ -19,16 +19,37 @@ const DEFAULT_SETTINGS: Record<string, unknown> = {
   notesEmbeddingModel: 'nomic-embed-text',
   notesAllowAI: true,
   agentWorkspacePath: '',
+  codexCliEnabled: false,
+  codexCliPath: 'codex',
+  claudeCodeEnabled: false,
+  claudeCodePath: 'claude',
+  externalAgentDefaultCwd: '',
+  externalAgentDefaultMode: 'plan',
+  externalAgentTimeoutSec: 900,
+  searxngUrl: 'http://localhost:8888',
+  searxngEnabled: true,
+  chatLayout: 'linear',
+  fontSize: 'medium',
+  userAvatarType: 'icon',
+  userAvatarUrl: '',
+  aiAvatarType: 'icon',
+  aiAvatarUrl: '',
   aceStepUrl: 'http://localhost:8001',
   aceStepPath: '',
   aceStepAutoStart: false,
   qwenTTSUrl: 'http://localhost:7861',
+  qwenTTSPath: '',
+  qwenTTSAutoStart: false,
 };
 
 // ── Settings validation schema ──────────────────────────────────────
 // Only keys in this schema are accepted. Unknown keys are stripped.
 
 const ALLOWED_THEMES = ['light', 'dark', 'system'] as const;
+const ALLOWED_CHAT_LAYOUTS = ['linear', 'bubbles'] as const;
+const ALLOWED_FONT_SIZES = ['small', 'medium', 'large'] as const;
+const ALLOWED_AVATAR_TYPES = ['icon', 'image'] as const;
+const ALLOWED_EXTERNAL_AGENT_MODES = ['plan', 'edit'] as const;
 
 type FieldType = 'string' | 'number' | 'boolean' | 'url' | 'path';
 
@@ -54,10 +75,27 @@ const SETTINGS_SCHEMA: Record<string, FieldSchema> = {
   notesEmbeddingModel:  { type: 'string', maxLength: 100 },
   notesAllowAI:         { type: 'boolean' },
   agentWorkspacePath:   { type: 'path', maxLength: 500 },
+  codexCliEnabled:      { type: 'boolean' },
+  codexCliPath:         { type: 'path', maxLength: 500 },
+  claudeCodeEnabled:    { type: 'boolean' },
+  claudeCodePath:       { type: 'path', maxLength: 500 },
+  externalAgentDefaultCwd: { type: 'path', maxLength: 500 },
+  externalAgentDefaultMode: { type: 'string', enum: ALLOWED_EXTERNAL_AGENT_MODES, maxLength: 20 },
+  externalAgentTimeoutSec: { type: 'number', min: 10, max: 3600 },
+  searxngUrl:           { type: 'url', maxLength: 500 },
+  searxngEnabled:       { type: 'boolean' },
+  chatLayout:           { type: 'string', enum: ALLOWED_CHAT_LAYOUTS, maxLength: 20 },
+  fontSize:             { type: 'string', enum: ALLOWED_FONT_SIZES, maxLength: 20 },
+  userAvatarType:       { type: 'string', enum: ALLOWED_AVATAR_TYPES, maxLength: 20 },
+  userAvatarUrl:        { type: 'string', maxLength: 2000 },
+  aiAvatarType:         { type: 'string', enum: ALLOWED_AVATAR_TYPES, maxLength: 20 },
+  aiAvatarUrl:          { type: 'string', maxLength: 2000 },
   aceStepUrl:           { type: 'url', maxLength: 500 },
   aceStepPath:          { type: 'path', maxLength: 500 },
   aceStepAutoStart:     { type: 'boolean' },
   qwenTTSUrl:           { type: 'url', maxLength: 500 },
+  qwenTTSPath:          { type: 'path', maxLength: 500 },
+  qwenTTSAutoStart:     { type: 'boolean' },
 };
 
 /**

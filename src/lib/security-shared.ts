@@ -42,6 +42,41 @@ export function isLocalHostname(hostname: string): boolean {
   return hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '::1';
 }
 
+/** Return true for browser requests issued by the local LocAI UI itself. */
+export function isLocalSameOriginBrowserRequest(requestUrl: string, headers: Headers): boolean {
+  let target: URL;
+  try {
+    target = new URL(requestUrl);
+  } catch {
+    return false;
+  }
+
+  if (!isLocalHostname(target.hostname)) return false;
+
+  const fetchSite = headers.get('sec-fetch-site')?.trim().toLowerCase();
+  if (fetchSite === 'same-origin') return true;
+
+  const origin = headers.get('origin');
+  if (origin && origin !== 'null') {
+    try {
+      if (new URL(origin).origin === target.origin) return true;
+    } catch {
+      // Ignore malformed origins.
+    }
+  }
+
+  const referer = headers.get('referer');
+  if (referer) {
+    try {
+      if (new URL(referer).origin === target.origin) return true;
+    } catch {
+      // Ignore malformed referers.
+    }
+  }
+
+  return false;
+}
+
 /** Extract a Bearer token from an Authorization header. */
 export function getBearerToken(authorizationHeader: string | null): string | null {
   if (!authorizationHeader) return null;

@@ -19,6 +19,18 @@ function makeTmpDir(): string {
   return path.join(os.tmpdir(), `locai-test-${suffix}`);
 }
 
+function quoteCommandArg(value: string): string {
+  return `"${value.replace(/"/g, '')}"`;
+}
+
+function nodeCommand(scriptPath: string, ...args: string[]): string {
+  return [
+    quoteCommandArg(process.execPath),
+    quoteCommandArg(scriptPath),
+    ...args.map(quoteCommandArg),
+  ].join(' ');
+}
+
 // ---------------------------------------------------------------------------
 // Shared setup / teardown
 // ---------------------------------------------------------------------------
@@ -247,7 +259,10 @@ describe('run_command', () => {
   const run = runCommandTool.handler;
 
   it('executes a simple echo command', async () => {
-    const result = await run({ command: 'echo hello' });
+    const script = path.join(tmpDir, 'echo.js');
+    await fs.writeFile(script, 'console.log("hello")', 'utf-8');
+
+    const result = await run({ command: nodeCommand(script) });
 
     expect(result.success).toBe(true);
     expect(result.content).toContain('hello');
@@ -257,8 +272,14 @@ describe('run_command', () => {
   it('executes ls on tmp directory', async () => {
     // Create a file so ls has something to list
     await fs.writeFile(path.join(tmpDir, 'test.txt'), 'hi', 'utf-8');
+    const script = path.join(tmpDir, 'list.js');
+    await fs.writeFile(
+      script,
+      'console.log(require("fs").readdirSync(process.argv[2]).join("\\n"))',
+      'utf-8',
+    );
 
-    const result = await run({ command: `ls ${tmpDir}` });
+    const result = await run({ command: nodeCommand(script, tmpDir) });
 
     expect(result.success).toBe(true);
     expect(result.content).toContain('test.txt');
@@ -293,7 +314,10 @@ describe('run_command', () => {
   });
 
   it('times out on long-running commands', async () => {
-    const result = await run({ command: 'sleep 300', timeout: 1 });
+    const script = path.join(tmpDir, 'wait.js');
+    await fs.writeFile(script, 'setTimeout(function(){},300000)', 'utf-8');
+
+    const result = await run({ command: nodeCommand(script), timeout: 1 });
 
     expect(result.success).toBe(false);
     expect(result.error).toContain('timed out');
@@ -303,8 +327,14 @@ describe('run_command', () => {
     // Create a large file, then cat it
     const bigFile = path.join(tmpDir, 'big-output.txt');
     await fs.writeFile(bigFile, 'x'.repeat(60_000), 'utf-8');
+    const script = path.join(tmpDir, 'cat.js');
+    await fs.writeFile(
+      script,
+      'process.stdout.write(require("fs").readFileSync(process.argv[2],"utf-8"))',
+      'utf-8',
+    );
 
-    const result = await run({ command: `cat ${bigFile}` });
+    const result = await run({ command: nodeCommand(script, bigFile) });
 
     expect(result.success).toBe(true);
     expect(result.content).toContain('truncated');

@@ -301,7 +301,7 @@ export default function SettingsPage() {
 
   // ── Helpers ────────────────────────────────────────────────────────────
 
-  const pickFolder = async (type: 'comfyPath' | 'outputPath' | 'notesPath' | 'agentWorkspace' | 'aceStepPath' | 'qwenTTSPath') => {
+  const pickFolder = async (type: 'comfyPath' | 'outputPath' | 'notesPath' | 'agentWorkspace' | 'externalAgentCwd' | 'aceStepPath' | 'qwenTTSPath') => {
     setIsPickingFolder(type);
     try {
       const response = await fetch('/api/folder-picker', {
@@ -319,6 +319,8 @@ export default function SettingsPage() {
             updateSettings({ comfyUIOutputPath: path });
           } else if (type === 'agentWorkspace') {
             updateSettings({ agentWorkspacePath: path });
+          } else if (type === 'externalAgentCwd') {
+            updateSettings({ externalAgentDefaultCwd: path });
           } else if (type === 'aceStepPath') {
             updateSettings({ aceStepPath: path });
           } else if (type === 'qwenTTSPath') {
@@ -1130,6 +1132,134 @@ export default function SettingsPage() {
             </div>
             <div className="text-xs text-muted-foreground bg-muted/50 p-2 rounded">
               Der Agent kann Dateien nur in erlaubten Verzeichnissen erstellen: Workspace, ~/.locai/, ~/Documents/ und konfigurierte Pfade.
+            </div>
+          </div>
+        </section>
+
+        {/* ────────────── External Coding Agents ────────────── */}
+        <section className="space-y-4">
+          <div className="flex items-center gap-2 text-lg font-semibold">
+            <Cpu className="h-5 w-5 text-primary" />
+            Externe Coding Agents
+          </div>
+          <div className="bg-card border border-border rounded-lg p-4 space-y-4">
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div className="rounded-md border border-border/60 p-3 space-y-3">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <div className="font-medium">Codex CLI</div>
+                    <div className="text-xs text-muted-foreground">Offizielle Codex-Auth der CLI verwenden.</div>
+                  </div>
+                  <Button
+                    variant={settings?.codexCliEnabled ? 'default' : 'outline'}
+                    size="sm"
+                    onClick={() => {
+                      updateSettings({ codexCliEnabled: !settings?.codexCliEnabled });
+                      showSaved();
+                    }}
+                  >
+                    {settings?.codexCliEnabled ? 'An' : 'Aus'}
+                  </Button>
+                </div>
+                <Input
+                  value={settings?.codexCliPath || 'codex'}
+                  onChange={(e) => handleInputChange('codexCliPath', e.target.value)}
+                  placeholder="codex"
+                />
+              </div>
+
+              <div className="rounded-md border border-border/60 p-3 space-y-3">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <div className="font-medium">Claude Code</div>
+                    <div className="text-xs text-muted-foreground">Offizielle Claude-Code-Auth der CLI verwenden.</div>
+                  </div>
+                  <Button
+                    variant={settings?.claudeCodeEnabled ? 'default' : 'outline'}
+                    size="sm"
+                    onClick={() => {
+                      updateSettings({ claudeCodeEnabled: !settings?.claudeCodeEnabled });
+                      showSaved();
+                    }}
+                  >
+                    {settings?.claudeCodeEnabled ? 'An' : 'Aus'}
+                  </Button>
+                </div>
+                <Input
+                  value={settings?.claudeCodePath || 'claude'}
+                  onChange={(e) => handleInputChange('claudeCodePath', e.target.value)}
+                  placeholder="claude"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="block font-medium mb-1">Default Arbeitsordner</label>
+              <p className="text-sm text-muted-foreground mb-2">
+                Leer lassen, um das laufende LocAI-Repository zu verwenden.
+              </p>
+              <div className="flex gap-2">
+                <Input
+                  value={settings?.externalAgentDefaultCwd || ''}
+                  onChange={(e) => handleInputChange('externalAgentDefaultCwd', e.target.value)}
+                  placeholder="Leer = aktuelles LocAI Repository"
+                  className="flex-1"
+                />
+                <Button
+                  variant="outline"
+                  onClick={() => pickFolder('externalAgentCwd')}
+                  disabled={isPickingFolder === 'externalAgentCwd'}
+                >
+                  {isPickingFolder === 'externalAgentCwd' ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <FolderOpen className="h-4 w-4" />
+                  )}
+                </Button>
+              </div>
+            </div>
+
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div>
+                <label className="block font-medium mb-1">Default Modus</label>
+                <div className="flex gap-2">
+                  <Button
+                    type="button"
+                    variant={settings?.externalAgentDefaultMode !== 'edit' ? 'default' : 'outline'}
+                    size="sm"
+                    onClick={() => {
+                      updateSettings({ externalAgentDefaultMode: 'plan' });
+                      showSaved();
+                    }}
+                  >
+                    Plan
+                  </Button>
+                  <Button
+                    type="button"
+                    variant={settings?.externalAgentDefaultMode === 'edit' ? 'default' : 'outline'}
+                    size="sm"
+                    onClick={() => {
+                      updateSettings({ externalAgentDefaultMode: 'edit' });
+                      showSaved();
+                    }}
+                  >
+                    Edit
+                  </Button>
+                </div>
+              </div>
+              <div>
+                <label className="block font-medium mb-1">Timeout Sekunden</label>
+                <Input
+                  type="number"
+                  min={10}
+                  max={3600}
+                  value={settings?.externalAgentTimeoutSec || 900}
+                  onChange={(e) => {
+                    updateSettings({ externalAgentTimeoutSec: Number(e.target.value) || 900 });
+                    showSaved();
+                  }}
+                />
+              </div>
             </div>
           </div>
         </section>
