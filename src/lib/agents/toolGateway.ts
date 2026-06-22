@@ -137,6 +137,20 @@ const builtinGatewaySpecs: Record<string, BuiltinGatewaySpec> = {
     approvalPolicy: 'session',
     timeoutMs: 180_000,
   },
+  codex_cli: {
+    source: 'external-service',
+    capabilityScopes: ['read_local_files', 'write_local_files', 'network_read', 'shell_command'],
+    riskLevel: 'high',
+    approvalPolicy: 'per_call',
+    timeoutMs: 900_000,
+  },
+  claude_code_cli: {
+    source: 'external-service',
+    capabilityScopes: ['read_local_files', 'write_local_files', 'network_read', 'shell_command'],
+    riskLevel: 'high',
+    approvalPolicy: 'per_call',
+    timeoutMs: 900_000,
+  },
 };
 
 export function getToolGatewayEntry(tool: RegisteredTool): ToolGatewayEntry {

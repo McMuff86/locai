@@ -22,6 +22,7 @@ import readExcelTool from './readExcel';
 import runCodeTool from './runCode';
 import generateMusicTool from './generateMusic';
 import textToSpeechTool from './textToSpeech';
+import externalAgentTools, { codexCliTool, claudeCodeCliTool } from './externalAgent';
 
 /** All built-in tools in registration order */
 export const builtinTools = [
@@ -40,6 +41,7 @@ export const builtinTools = [
   readExcelTool,
   generateMusicTool,
   textToSpeechTool,
+  ...externalAgentTools,
 ] as const;
 
 /**
@@ -55,4 +57,4 @@ export function registerBuiltinTools(registry: ToolRegistry = defaultRegistry): 
 }
 
 // Re-export individual tools for selective registration
-export { searchDocumentsTool, webSearchTool, readFileTool, writeFileTool, editFileTool, createNoteTool, saveMemoryTool, recallMemoryTool, runCommandTool, runCodeTool, generateImageTool, readPdfTool, readExcelTool, generateMusicTool, textToSpeechTool };
+export { searchDocumentsTool, webSearchTool, readFileTool, writeFileTool, editFileTool, createNoteTool, saveMemoryTool, recallMemoryTool, runCommandTool, runCodeTool, generateImageTool, readPdfTool, readExcelTool, generateMusicTool, textToSpeechTool, codexCliTool, claudeCodeCliTool };

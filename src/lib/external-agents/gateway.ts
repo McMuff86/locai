@@ -174,6 +174,7 @@ function runProcess(input: {
   args: string[];
   cwd: string;
   timeoutSec: number;
+  signal?: AbortSignal;
 }): Promise<{
   exitCode: number | null;
   timedOut: boolean;
@@ -194,6 +195,14 @@ function runProcess(input: {
     let stderr = '';
     let settled = false;
     let timedOut = false;
+    let aborted = false;
+
+    const terminate = () => {
+      child.kill('SIGTERM');
+      setTimeout(() => {
+        if (!settled) child.kill('SIGKILL');
+      }, 3000).unref();
+    };
 
     const finish = (result: {
       exitCode: number | null;
@@ -202,6 +211,7 @@ function runProcess(input: {
       if (settled) return;
       settled = true;
       clearTimeout(timer);
+      input.signal?.removeEventListener('abort', abortHandler);
       resolve({
         ...result,
         timedOut,
@@ -210,12 +220,20 @@ function runProcess(input: {
       });
     };
 
+    const abortHandler = () => {
+      aborted = true;
+      terminate();
+    };
+
+    if (input.signal?.aborted) {
+      abortHandler();
+    } else {
+      input.signal?.addEventListener('abort', abortHandler, { once: true });
+    }
+
     const timer = setTimeout(() => {
       timedOut = true;
-      child.kill('SIGTERM');
-      setTimeout(() => {
-        if (!settled) child.kill('SIGKILL');
-      }, 3000).unref();
+      terminate();
     }, input.timeoutSec * 1000);
 
     child.stdout?.on('data', (chunk: Buffer) => {
@@ -230,7 +248,11 @@ function runProcess(input: {
     child.on('close', (code) => {
       finish({
         exitCode: code,
-        error: timedOut ? `External agent timed out after ${input.timeoutSec}s` : undefined,
+        error: timedOut
+          ? `External agent timed out after ${input.timeoutSec}s`
+          : aborted
+            ? 'External agent aborted'
+            : undefined,
       });
     });
   });
@@ -315,6 +337,7 @@ export async function runExternalAgent(input: ExternalAgentRunInput): Promise<Ex
     args: command.args,
     cwd,
     timeoutSec,
+    signal: input.signal,
   });
 
   const changedFiles = await gitChangedFiles(cwd);

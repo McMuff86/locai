@@ -22,6 +22,8 @@ export const BUILTIN_TOOL_NAMES = [
   'read_excel',
   'generate_music',
   'text_to_speech',
+  'codex_cli',
+  'claude_code_cli',
 ] as const;
 
 export type BuiltinToolName = (typeof BUILTIN_TOOL_NAMES)[number];

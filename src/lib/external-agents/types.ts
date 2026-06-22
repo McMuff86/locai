@@ -19,6 +19,7 @@ export interface ExternalAgentRunInput {
   cwd?: string;
   mode?: ExternalAgentMode;
   timeoutSec?: number;
+  signal?: AbortSignal;
 }
 
 export interface ExternalAgentRunResult {
